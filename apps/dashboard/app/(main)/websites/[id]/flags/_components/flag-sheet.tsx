@@ -13,7 +13,6 @@ import {
 	CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
 import { orpc } from "@/lib/orpc";
-import { mutationErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { GroupSelector } from "../groups/_components/group-selector";
 import { DependencySelector } from "./dependency-selector";
@@ -79,14 +78,14 @@ function MyComponent() {
 
 		if (flagType === "multivariant") {
 			return [
-				{ title: "A/B Test Variants", code: variantExample },
-				{ title: "Simple Boolean Check", code: basicExample },
+				{ title: "A/B test variants", code: variantExample },
+				{ title: "Simple boolean check", code: basicExample },
 			];
 		}
 
 		return [
-			{ title: "Basic Usage", code: basicExample },
-			{ title: "SSR-Safe with Default", code: ssrExample },
+			{ title: "Basic usage", code: basicExample },
+			{ title: "SSR-safe with default", code: ssrExample },
 		];
 	}, [flagKey, flagType]);
 
@@ -210,11 +209,11 @@ export function FlagSheet({
 
 	const createMutation = useMutation({
 		...orpc.flags.create.mutationOptions(),
-		...mutationErrorToast,
+		meta: { errorTitle: "Failed to create flag" },
 	});
 	const updateMutation = useMutation({
 		...orpc.flags.update.mutationOptions(),
-		...mutationErrorToast,
+		meta: { errorTitle: "Failed to update flag" },
 	});
 
 	const resetForm = useCallback(() => {
@@ -352,7 +351,7 @@ export function FlagSheet({
 				});
 			}
 
-			toast.success(`Flag ${isEditing ? "updated" : "created"} successfully`);
+			toast.success(`Flag ${isEditing ? "updated" : "created"}`);
 
 			queryClient.invalidateQueries({
 				queryKey: orpc.flags.list.key({ input: { websiteId } }),
@@ -377,10 +376,10 @@ export function FlagSheet({
 						<div>
 							<Sheet.Title className="text-lg">
 								{isEditing
-									? "Edit Flag"
+									? "Edit flag"
 									: template
 										? `Create from ${template.name}`
-										: "Create Flag"}
+										: "Create flag"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isEditing
@@ -399,9 +398,9 @@ export function FlagSheet({
 						console.error("Validation errors:", errors);
 						const firstError = Object.values(errors)[0];
 						if (firstError?.message) {
-							toast.error(`Validation error: ${firstError.message}`);
+							toast.error(firstError.message);
 						} else {
-							toast.error("Please fix the form errors");
+							toast.error("Fix the highlighted fields and try again.");
 						}
 					})}
 				>
@@ -415,7 +414,7 @@ export function FlagSheet({
 									<Field error={!!fieldState.error}>
 										<Field.Label>Name</Field.Label>
 										<Input
-											placeholder="New Feature…"
+											placeholder="New feature"
 											{...field}
 											onChange={(e) => handleNameChange(e.target.value)}
 										/>
@@ -465,7 +464,7 @@ export function FlagSheet({
 									</Field.Label>
 									<Textarea
 										className="min-h-16 resize-none"
-										placeholder="What does this flag control?…"
+										placeholder="What does this flag control?"
 										{...field}
 									/>
 									{fieldState.error && (
@@ -747,7 +746,7 @@ export function FlagSheet({
 								<Accordion>
 									<Accordion.Trigger>
 										<UsersThreeIcon className="size-4 shrink-0 text-muted-foreground" />
-										<Text variant="label">Target Groups</Text>
+										<Text variant="label">Target groups</Text>
 										{(form.watch("targetGroupIds")?.length ?? 0) > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 												{form.watch("targetGroupIds")?.length ?? 0}
@@ -774,7 +773,7 @@ export function FlagSheet({
 								<Accordion>
 									<Accordion.Trigger>
 										<UsersIcon className="size-4 shrink-0 text-muted-foreground" />
-										<Text variant="label">User Targeting</Text>
+										<Text variant="label">User targeting</Text>
 										{watchedRules.length > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 												{watchedRules.length}
@@ -846,7 +845,7 @@ export function FlagSheet({
 							Cancel
 						</Button>
 						<Button className="min-w-28" loading={isLoading} type="submit">
-							{isEditing ? "Save Changes" : "Create Flag"}
+							{isEditing ? "Save changes" : "Create flag"}
 						</Button>
 					</Sheet.Footer>
 				</form>

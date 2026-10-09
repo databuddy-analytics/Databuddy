@@ -41,6 +41,14 @@ const companies = [
 		markOnly: true,
 	},
 	{
+		name: "HelixDB",
+		ycBatch: "P25",
+		url: "https://www.helix-db.com",
+		logo: "/social/helix-db.svg",
+		markOnly: true,
+		invert: true,
+	},
+	{
 		name: "Coinstash",
 		url: "https://coinstash.com.au",
 		logo: "/social/coinstash.svg",

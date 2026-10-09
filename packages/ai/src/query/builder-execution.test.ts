@@ -10,7 +10,7 @@ import { randomUUIDv7 } from "bun";
 import { chCommand, chQuery } from "@databuddy/db/clickhouse";
 import { QueryBuilders } from "./builders";
 import { filterFor } from "./filter-fixtures";
-import { SimpleQueryBuilder } from "./simple-builder";
+import { allowedFilterFields, SimpleQueryBuilder } from "./simple-builder";
 import { ProfilesBuilders } from "./builders/profiles";
 import type { CompiledQuery, QueryRequest, SimpleQueryConfig } from "./types";
 
@@ -51,11 +51,10 @@ const isClickHouseUp = await fetch("http://127.0.0.1:8123/?query=SELECT+1", {
 process.env.CLICKHOUSE_URL = TEST_CLICKHOUSE_URL;
 const { clickHouse } = await import("@databuddy/db/clickhouse");
 
-const iit = isClickHouseUp ? it : it.skip;
-const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
-		? describe
-		: describe.skip;
+// SQL planning runs only when integration tests are explicitly requested.
+const integrationEnabled = process.env.CLICKHOUSE_INTEGRATION_TESTS === "true";
+const iit = integrationEnabled && isClickHouseUp ? it : it.skip;
+const describeIntegration = integrationEnabled ? describe : describe.skip;
 
 if (isClickHouseUp) {
 	setDefaultTimeout(15_000);
@@ -70,7 +69,7 @@ if (!isClickHouseUp) {
 afterAll(async () => {
 	// The explicit integration run has more ClickHouse suites after this file.
 	// Isolated builder runs still close their client normally.
-	if (isClickHouseUp && process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
+	if (isClickHouseUp && !integrationEnabled) {
 		await clickHouse.close();
 	}
 });
@@ -129,7 +128,7 @@ async function explainCompiles(
 	const result = await clickHouse.query({
 		query: `EXPLAIN ${sql}`,
 		query_params: params,
-		format: "TSVRaw",
+		format: "TabSeparatedRaw",
 	});
 	await result.text();
 
@@ -149,7 +148,7 @@ describe("query builders execute against ClickHouse", () => {
 		const allFilters = FILTER_FIELD_OVERRIDES[name]?.all ?? [
 			...new Set([
 				...(config.requiredFilters ?? []),
-				...(config.allowedFilters ?? []),
+				...allowedFilterFields(config),
 			]),
 		];
 		if (allFilters.length > (config.requiredFilters ?? []).length) {
@@ -559,7 +558,10 @@ describeIntegration("profile query identity against ClickHouse", () => {
 				detailQuery.sql,
 				detailQuery.params
 			),
-			chQuery<{ session_id: string }>(sessionsQuery.sql, sessionsQuery.params),
+			chQuery<{
+				events: ProfileSessionEventTuple[];
+				session_id: string;
+			}>(sessionsQuery.sql, sessionsQuery.params),
 		]);
 
 		expect(Number(detailRows[0]?.total_pageviews)).toBe(4);
@@ -611,5 +613,178 @@ describeIntegration("profile query identity against ClickHouse", () => {
 		const [vital] = rows[0]?.web_vitals ?? [];
 		expect(vital?.[0]).toBe("LCP");
 		expect(vital?.[1]).toBe(1234);
+	});
+});
+
+const mcpOrganizationId = `mcp-builder-${randomUUIDv7()}`;
+const mcpSiteId = `mcp-builder-site-${randomUUIDv7()}`;
+const mcpOtherOrganizationId = `mcp-builder-other-${randomUUIDv7()}`;
+type McpScope = Pick<QueryRequest, "organizationWebsiteIds" | "projectId">;
+const mcpOrgScope: McpScope = {
+	projectId: mcpOrganizationId,
+	organizationWebsiteIds: [],
+};
+const mcpSiteScope: McpScope = { projectId: mcpSiteId };
+
+function mcpSpan(
+	owner_id: string,
+	website_id: string,
+	tool: string,
+	time: string,
+	error_code = ""
+) {
+	return {
+		duration_ms: 10,
+		error: error_code ? `${tool} failed` : "",
+		error_code,
+		is_error: error_code !== "",
+		owner_id,
+		timestamp: `2026-08-01 ${time}`,
+		tool,
+		website_id,
+	};
+}
+
+function mcpRows<T>(
+	type: "mcp_calls_series" | "mcp_errors" | "mcp_summary",
+	scope: McpScope,
+	from = "2026-08-01",
+	to = from
+) {
+	const { sql, params } = new SimpleQueryBuilder(QueryBuilders[type], {
+		...scope,
+		from,
+		to,
+		type,
+	}).compile();
+	return chQuery<T>(sql, params);
+}
+
+describeIntegration("MCP query scope against ClickHouse", () => {
+	beforeAll(async () => {
+		await clickHouse.insert({
+			table: "analytics.mcp_spans",
+			format: "JSONEachRow",
+			values: [
+				mcpSpan(mcpOrganizationId, mcpSiteId, "get_data", "12:00:00"),
+				mcpSpan(
+					mcpOrganizationId,
+					mcpSiteId,
+					"get_data",
+					"12:01:00",
+					"invalid_params"
+				),
+				mcpSpan(
+					mcpOrganizationId,
+					"",
+					"list_flags",
+					"12:02:00",
+					"internal_error"
+				),
+				mcpSpan(
+					mcpOtherOrganizationId,
+					"",
+					"get_data",
+					"12:03:00",
+					"invalid_params"
+				),
+			],
+		});
+	});
+
+	afterAll(async () => {
+		await chCommand(
+			"ALTER TABLE analytics.mcp_spans DELETE WHERE owner_id IN {ids:Array(String)} SETTINGS mutations_sync = 1",
+			{ ids: [mcpOrganizationId, mcpOtherOrganizationId] }
+		);
+	});
+
+	it("counts the organization's calls at org scope and only linked calls at website scope", async () => {
+		const summary = async (scope: McpScope, from?: string, to?: string) => {
+			const [row] = await mcpRows<{
+				calls: number | string;
+				errors: number | string;
+				last_call: string | null;
+				tracked: number | string;
+			}>("mcp_summary", scope, from, to);
+			return {
+				calls: Number(row?.calls),
+				errors: Number(row?.errors),
+				last_call: row?.last_call ?? null,
+				tracked: Number(row?.tracked),
+			};
+		};
+
+		expect(await summary(mcpOrgScope)).toEqual({
+			calls: 3,
+			errors: 2,
+			last_call: "2026-08-01 12:02:00.000",
+			tracked: 1,
+		});
+		expect(
+			await summary({ ...mcpOrgScope, organizationWebsiteIds: [mcpSiteId] })
+		).toEqual({
+			calls: 3,
+			errors: 2,
+			last_call: "2026-08-01 12:02:00.000",
+			tracked: 1,
+		});
+		expect(await summary(mcpSiteScope)).toEqual({
+			calls: 2,
+			errors: 1,
+			last_call: "2026-08-01 12:01:00.000",
+			tracked: 1,
+		});
+		expect(await summary(mcpOrgScope, "2026-09-01", "2026-09-02")).toEqual({
+			calls: 0,
+			errors: 0,
+			last_call: null,
+			tracked: 1,
+		});
+		expect(
+			await summary({
+				projectId: `mcp-builder-missing-${randomUUIDv7()}`,
+				organizationWebsiteIds: [],
+			})
+		).toEqual({ calls: 0, errors: 0, last_call: null, tracked: 0 });
+	});
+
+	it("groups errors within the organization or website scope", async () => {
+		const errors = async (scope: McpScope) =>
+			(
+				await mcpRows<{
+					error_code: string;
+					occurrences: number | string;
+					tool: string;
+				}>("mcp_errors", scope)
+			).map((row) => [row.tool, row.error_code, Number(row.occurrences)]);
+
+		expect(await errors(mcpOrgScope)).toEqual([
+			["list_flags", "internal_error", 1],
+			["get_data", "invalid_params", 1],
+		]);
+		expect(await errors(mcpSiteScope)).toEqual([
+			["get_data", "invalid_params", 1],
+		]);
+	});
+
+	it("fills empty days and returns no rows for a range after today", async () => {
+		const series = async (from: string, to: string) =>
+			(
+				await mcpRows<{
+					calls: number | string;
+					date: string;
+					errors: number | string;
+				}>("mcp_calls_series", mcpOrgScope, from, to)
+			).map((row) => [row.date, Number(row.calls), Number(row.errors)]);
+		const future = new Date(Date.now() + 30 * 86_400_000)
+			.toISOString()
+			.slice(0, 10);
+
+		expect(await series("2026-07-31", "2026-08-01")).toEqual([
+			["2026-07-31", 0, 0],
+			["2026-08-01", 3, 2],
+		]);
+		expect(await series(future, future)).toEqual([]);
 	});
 });

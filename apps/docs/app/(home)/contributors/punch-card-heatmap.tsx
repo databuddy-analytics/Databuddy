@@ -196,7 +196,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 			<div>
 				<div className="mb-6 sm:mb-8">
 					<h3 className="mb-2 font-semibold text-xl sm:text-2xl lg:text-3xl xl:text-4xl">
-						Contribution Hours
+						Contribution hours
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 						When contributors are most active throughout the week
@@ -247,7 +247,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 		<div>
 			<div className="mb-6 sm:mb-8">
 				<h3 className="mb-2 font-semibold text-xl sm:text-2xl lg:text-3xl xl:text-4xl">
-					Contribution Hours
+					Contribution hours
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 					When commits happen throughout the week •{" "}

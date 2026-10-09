@@ -4,6 +4,7 @@ import type { UIMessage } from "ai";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { memo } from "react";
 import {
+	defaultRehypePlugins,
 	Streamdown,
 	TableCopyDropdown,
 	TableDownloadDropdown,
@@ -72,6 +73,27 @@ const TABLE_COMPONENTS = {
 	td: MdTd,
 };
 
+export const IMAGE_BLOCKING_REHYPE_PLUGINS = Object.entries(
+	defaultRehypePlugins
+).map(([name, plugin]): (typeof defaultRehypePlugins)[string] =>
+	name === "harden" && Array.isArray(plugin)
+		? [
+				plugin[0],
+				{
+					...plugin[1],
+					allowDataImages: false,
+					allowedImagePrefixes: [],
+					imageBlockPolicy: "text-only",
+				},
+			]
+		: plugin
+);
+
+export const ImageAltText = ({
+	alt,
+}: ComponentProps<"img"> & { node?: unknown }) =>
+	alt ? <span>{alt}</span> : null;
+
 export const MessageResponse = memo(
 	({ className, components, ...props }: MessageResponseProps) => (
 		<Streamdown
@@ -79,8 +101,9 @@ export const MessageResponse = memo(
 				"size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
 				className
 			)}
-			components={{ ...TABLE_COMPONENTS, ...components }}
+			components={{ ...TABLE_COMPONENTS, ...components, img: ImageAltText }}
 			{...props}
+			rehypePlugins={IMAGE_BLOCKING_REHYPE_PLUGINS}
 		/>
 	),
 	(prevProps, nextProps) => prevProps.children === nextProps.children

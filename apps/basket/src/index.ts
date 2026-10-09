@@ -30,7 +30,7 @@ import { captureError } from "@lib/tracing";
 import { BASKET_SHUTDOWN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import basketRouter from "@routes/basket";
 import { identifyRoute } from "@routes/identify";
-import { trackRoute } from "@routes/track";
+import { trackRoute, vercelDrainRoute } from "@routes/track";
 import { paddleWebhook } from "@routes/webhooks/paddle";
 import { stripeWebhook } from "@routes/webhooks/stripe";
 import { closeGeoIPReader } from "@utils/ip-geo";
@@ -180,6 +180,7 @@ const app = new Elysia()
 	.use(basketRouter)
 	.use(identifyRoute)
 	.use(trackRoute)
+	.use(vercelDrainRoute)
 	.use(stripeWebhook)
 	.use(paddleWebhook)
 	.get("/health/status", async function basketHealthStatus() {
@@ -244,5 +245,5 @@ const port = process.env.PORT || 4000;
 export default {
 	fetch: app.fetch,
 	port,
-	maxRequestBodySize: 2 * 1024 * 1024,
+	maxRequestBodySize: 10 * 1024 * 1024,
 };

@@ -6,18 +6,15 @@ export type NavIcon = React.ComponentType<{
 	size?: number | string;
 }>;
 
+export type NavStage = "alpha" | "beta";
+
 export interface NavigationItem {
 	activeMatch?: "exact" | "prefix";
 	activePathExclusions?: string[];
-	alpha?: boolean;
-	badge?: {
-		label?: string;
-		text: string;
-		variant: "purple" | "blue" | "green" | "orange" | "red";
-	};
 	disabled?: boolean;
 	domain?: string;
 	external?: boolean;
+	flag?: string;
 	gatedFeature?: GatedFeatureId;
 	hideFromDemo?: boolean;
 	hideFromSidebar?: boolean;
@@ -30,7 +27,7 @@ export interface NavigationItem {
 	searchItems?: NavigationSearchItem[];
 	searchTags?: string[];
 	showOnlyOnDemo?: boolean;
-	tag?: string;
+	stage?: NavStage;
 }
 
 interface NavigationSearchItem {

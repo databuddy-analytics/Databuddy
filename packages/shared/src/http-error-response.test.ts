@@ -9,7 +9,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 404,
 			payload: {
 				success: false,
-				error: "Not found",
+				error: "This item was not found. It may have been deleted.",
 				code: "NOT_FOUND",
 			},
 		});
@@ -25,7 +25,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 422,
 			payload: {
 				success: false,
-				error: "Invalid request",
+				error: "Some of the details are invalid. Check them and try again.",
 				code: "VALIDATION",
 			},
 		});
@@ -40,7 +40,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 429,
 			payload: {
 				success: false,
-				error: "Rate limit exceeded",
+				error: "Too many requests. Try again shortly.",
 				code: "HTTP_429",
 			},
 		});
@@ -56,7 +56,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 429,
 			payload: {
 				success: false,
-				error: "Rate limit exceeded",
+				error: "Too many requests. Try again shortly.",
 				code: "HTTP_429",
 			},
 		});
@@ -69,7 +69,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 404,
 			payload: {
 				success: false,
-				error: "Not found",
+				error: "This item was not found. It may have been deleted.",
 				code: "HTTP_404",
 			},
 		});
@@ -80,7 +80,7 @@ describe("buildHttpErrorResponse", () => {
 			status: 500,
 			payload: {
 				success: false,
-				error: "Internal server error",
+				error: "Something went wrong on our side. Try again in a moment.",
 				code: "INTERNAL_SERVER_ERROR",
 			},
 		});

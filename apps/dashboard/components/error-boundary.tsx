@@ -75,7 +75,7 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 									variant="secondary"
 								>
 									<ArrowLeftIcon className="mr-2 size-4" />
-									Go Back
+									Go back
 								</Button>
 							)}
 							<Button

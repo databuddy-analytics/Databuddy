@@ -6,6 +6,7 @@ import {
 	paymentFailureObservationDescription,
 	paymentFailureRateLabel,
 	paymentFailureReasonLabel,
+	revenueAttributionRateLabel,
 } from "./revenue-overview";
 
 const emptyOverview = {
@@ -102,5 +103,38 @@ describe("payment failure observations", () => {
 			"insufficient funds"
 		);
 		expect(paymentFailureReasonLabel(undefined)).toBe("");
+	});
+});
+
+describe("revenue attribution coverage", () => {
+	it.each([
+		[0.001, "<1%"],
+		[0.49, "<1%"],
+		[0.5, "1%"],
+		[1, "1%"],
+	] as const)("preserves small positive coverage: %s%%", (attributed, label) => {
+		expect(
+			revenueAttributionRateLabel({
+				...emptyOverview,
+				attributed_revenue: attributed,
+				total_revenue: 100,
+			})
+		).toBe(label);
+	});
+
+	it("measures revenue rather than payment count", () => {
+		expect(
+			revenueAttributionRateLabel({
+				...emptyOverview,
+				attributed_revenue: 20,
+				attributed_transactions: 9,
+				total_revenue: 100,
+				total_transactions: 10,
+			})
+		).toBe("20%");
+		expect(
+			revenueAttributionRateLabel({ ...emptyOverview, total_revenue: 100 })
+		).toBe("0%");
+		expect(revenueAttributionRateLabel(emptyOverview)).toBe("0%");
 	});
 });

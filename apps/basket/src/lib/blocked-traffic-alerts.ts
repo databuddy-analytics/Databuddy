@@ -5,7 +5,7 @@ import {
 	normalizeEmailNotificationSettings,
 	type EmailNotificationSettings,
 } from "@databuddy/db";
-import { config } from "@databuddy/env/app";
+import { config, dataUrl } from "@databuddy/env/app";
 import { BlockedTrafficAlertEmail, render } from "@databuddy/email";
 import { redis } from "@databuddy/redis";
 import {
@@ -282,16 +282,16 @@ async function sendAlertEmail(input: {
 	previousBlocked: number;
 	windowBlockedCount: number;
 }): Promise<void> {
-	const apiKey = requireBlockedTrafficEmailApiKey(config.email.resendApiKey);
+	const apiKey = requireBlockedTrafficEmailApiKey(config.services.resendApiKey);
 
 	const siteLabel =
 		input.context.websiteName ||
 		input.context.websiteDomain ||
 		input.event.client_id ||
-		"your site";
+		"your website";
 	const subject =
 		input.decision.kind === "tracking_zero"
-			? `[Action required] Tracking may be blocked for ${siteLabel}`
+			? `[Action required] Tracking may be down for ${siteLabel}`
 			: `[Databuddy] Blocked tracking increased for ${siteLabel}`;
 
 	const email = BlockedTrafficAlertEmail({
@@ -346,7 +346,7 @@ async function maybeSendBlockedTrafficAlertAsync(
 	if (!context.ownerId) {
 		return;
 	}
-	if (!process.env.REDIS_URL) {
+	if (!dataUrl("REDIS_URL")) {
 		return;
 	}
 
@@ -379,7 +379,7 @@ async function maybeSendBlockedTrafficAlertAsync(
 		return;
 	}
 
-	if (!config.email.resendApiKey) {
+	if (!config.services.resendApiKey) {
 		warnBlockedTrafficEmailUnconfigured();
 		return;
 	}

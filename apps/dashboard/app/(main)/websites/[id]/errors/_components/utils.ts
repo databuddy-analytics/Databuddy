@@ -5,7 +5,7 @@ interface ErrorCategory {
 }
 
 const UNKNOWN_ERROR: ErrorCategory = {
-	type: "Unknown Error",
+	type: "Unknown error",
 	category: "Other",
 	severity: "low",
 };
@@ -13,12 +13,12 @@ const UNKNOWN_ERROR: ErrorCategory = {
 const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
 	{
 		match: "react error",
-		category: { type: "React Error", category: "React", severity: "high" },
+		category: { type: "React error", category: "React", severity: "high" },
 	},
 	{
 		match: "script error",
 		category: {
-			type: "Script Error",
+			type: "Script error",
 			category: "JavaScript",
 			severity: "medium",
 		},
@@ -26,7 +26,7 @@ const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
 	{
 		match: "network",
 		category: {
-			type: "Network Error",
+			type: "Network error",
 			category: "Network",
 			severity: "medium",
 		},
@@ -34,7 +34,7 @@ const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
 	{
 		match: "syntax",
 		category: {
-			type: "Syntax Error",
+			type: "Syntax error",
 			category: "JavaScript",
 			severity: "high",
 		},
@@ -42,7 +42,7 @@ const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
 	{
 		match: "reference",
 		category: {
-			type: "Reference Error",
+			type: "Reference error",
 			category: "JavaScript",
 			severity: "high",
 		},
@@ -50,7 +50,7 @@ const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
 	{
 		match: "type",
 		category: {
-			type: "Type Error",
+			type: "Type error",
 			category: "JavaScript",
 			severity: "medium",
 		},
@@ -73,6 +73,12 @@ const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
 	medium:
 		"bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
 	low: "bg-muted text-muted-foreground border-border",
+};
+
+export const SEVERITY_LABELS: Record<"high" | "medium" | "low", string> = {
+	high: "High",
+	medium: "Medium",
+	low: "Low",
 };
 
 export const getSeverityColor = (severity: "high" | "medium" | "low"): string =>

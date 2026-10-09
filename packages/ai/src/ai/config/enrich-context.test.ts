@@ -18,8 +18,12 @@ mock.module("../../lib/tracing", () => ({ captureError }));
 const { enrichAgentContext } = await import("./enrich-context");
 
 test("self-hosted agent context keeps local entity counts without hosted plan lookup", async () => {
-	const original = process.env.SELFHOST;
-	process.env.SELFHOST = "true";
+	const original = process.env;
+	process.env = {
+		...original,
+		SELFHOST: "true",
+		AUTUMN_SECRET_KEY: "synthetic-stale-key",
+	};
 	try {
 		const input = {
 			userId: "synthetic-user",
@@ -36,10 +40,6 @@ test("self-hosted agent context keeps local entity counts without hosted plan lo
 		expect(await enrichAgentContext(input)).toContain("<plan>free</plan>");
 		expect(billingOwner).toHaveBeenCalledTimes(1);
 	} finally {
-		if (original === undefined) {
-			Reflect.deleteProperty(process.env, "SELFHOST");
-		} else {
-			process.env.SELFHOST = original;
-		}
+		process.env = original;
 	}
 });

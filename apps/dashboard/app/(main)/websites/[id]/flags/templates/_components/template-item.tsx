@@ -30,6 +30,19 @@ function getTemplateIcon(icon: string) {
 	}
 }
 
+const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
+	experiment: "Experiment",
+	killswitch: "Kill switch",
+	rollout: "Rollout",
+	targeting: "Targeting",
+};
+
+const TEMPLATE_TYPE_LABELS: Record<FlagTemplate["type"], string> = {
+	boolean: "Boolean",
+	multivariant: "Multivariant",
+	rollout: "Rollout",
+};
+
 function getCategoryColor(
 	category: string
 ): "default" | "warning" | "success" | "destructive" | "muted" {
@@ -73,8 +86,10 @@ export function TemplateItem({ template, onUseAction }: TemplateItemProps) {
 					{template.description}
 				</Card.Description>
 				<div className="flex items-center gap-2">
-					<Badge variant={categoryColor}>{template.category}</Badge>
-					<Badge variant="default">{template.type}</Badge>
+					<Badge variant={categoryColor}>
+						{TEMPLATE_CATEGORY_LABELS[template.category] ?? template.category}
+					</Badge>
+					<Badge variant="default">{TEMPLATE_TYPE_LABELS[template.type]}</Badge>
 				</div>
 			</Card.Content>
 			<Card.Footer>
@@ -83,7 +98,7 @@ export function TemplateItem({ template, onUseAction }: TemplateItemProps) {
 					onClick={() => onUseAction(template)}
 					size="sm"
 				>
-					Use Template
+					Use template
 					<ArrowRightIcon className="size-4" />
 				</Button>
 			</Card.Footer>

@@ -25,7 +25,7 @@ const PROMPTS = [
 	},
 	{
 		heading: "Spotted something?",
-		body: "Help us improve — your feedback earns you credits.",
+		body: "Help us improve. Your feedback earns you credits.",
 	},
 	{
 		heading: "Enjoying Databuddy?",
@@ -152,7 +152,7 @@ export function FeedbackPrompt() {
 				size="sm"
 				variant="outline"
 			>
-				<Link href="/feedback">Give Feedback</Link>
+				<Link href="/feedback">Give feedback</Link>
 			</Button>
 		</div>
 	);

@@ -13,6 +13,16 @@ const VITALS_P50_METRICS = `
 	COUNT(*) as samples
 `;
 
+const VITALS_DIMENSION_FILTERS = [
+	"path",
+	"country",
+	"region",
+	"city",
+	"browser_name",
+	"os_name",
+	"device_type",
+];
+
 interface VitalsByDimensionConfig {
 	defaultLimit: number;
 	extraWhere: string;
@@ -40,7 +50,14 @@ function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 		// qualified (sd.country), so scan them too before pruning the CTE.
 		const sdText = `${staticSdText} ${filterConditions?.join(" ") ?? ""}`;
 		const sdDims = (
-			["browser_name", "country", "region", "city"] as const
+			[
+				"browser_name",
+				"country",
+				"region",
+				"city",
+				"os_name",
+				"device_type",
+			] as const
 		).filter((d) => sdText.includes(d));
 		const withCte = needsSd ? `WITH ${sessionDimensionsCte(sdDims)}` : "";
 		const joinSd = needsSd
@@ -148,6 +165,7 @@ export const VitalsBuilders = {
 				params: { websiteId, startDate, endDate },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: false,
 	},
@@ -169,7 +187,6 @@ export const VitalsBuilders = {
 				{ name: "samples", type: "number", label: "Samples" },
 			],
 			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
@@ -195,6 +212,7 @@ export const VitalsBuilders = {
 				params: { websiteId, startDate, endDate },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: false,
 	},
@@ -230,6 +248,8 @@ export const VitalsBuilders = {
 			extraWhere: "wv.path != ''",
 			defaultLimit: 50,
 		}),
+		commonFilters: false,
+		allowedFilters: VITALS_DIMENSION_FILTERS,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -249,6 +269,8 @@ export const VitalsBuilders = {
 			extraWhere: "ifNull(sd.country, '') != ''",
 			defaultLimit: 100,
 		}),
+		commonFilters: false,
+		allowedFilters: VITALS_DIMENSION_FILTERS,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -269,6 +291,8 @@ export const VitalsBuilders = {
 			extraWhere: "ifNull(sd.browser_name, '') != ''",
 			defaultLimit: 100,
 		}),
+		commonFilters: false,
+		allowedFilters: VITALS_DIMENSION_FILTERS,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -289,6 +313,8 @@ export const VitalsBuilders = {
 			extraWhere: "ifNull(sd.region, '') != ''",
 			defaultLimit: 100,
 		}),
+		commonFilters: false,
+		allowedFilters: VITALS_DIMENSION_FILTERS,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
@@ -310,6 +336,8 @@ export const VitalsBuilders = {
 			extraWhere: "ifNull(sd.city, '') != ''",
 			defaultLimit: 100,
 		}),
+		commonFilters: false,
+		allowedFilters: VITALS_DIMENSION_FILTERS,
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },

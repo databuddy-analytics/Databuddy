@@ -4,9 +4,10 @@ import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { ArrowLeftIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 import { OtpInput } from "@databuddy/ui/client";
@@ -15,10 +16,7 @@ import { safeCallbackPath } from "@/lib/safe-callback";
 function ForgotPasswordPage() {
 	const capabilities = useAuthCapabilities();
 	const router = useRouter();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const loginHref = `/login?callback=${encodeURIComponent(safeCallbackPath(callback))}`;
 	const [step, setStep] = useState<"email" | "reset">("email");
 	const [email, setEmail] = useState("");
@@ -33,7 +31,7 @@ function ForgotPasswordPage() {
 	const handleSendOTP = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!email) {
-			toast.error("Please enter your email address");
+			toast.error("Enter your email address.");
 			return;
 		}
 		setIsLoading(true);
@@ -45,27 +43,27 @@ function ForgotPasswordPage() {
 
 		if (error) {
 			setIsLoading(false);
-			toast.error(error.message || "Failed to send OTP. Please try again.");
+			showErrorToast(error, "Failed to send verification code");
 			return;
 		}
 
 		setIsLoading(false);
-		toast.success("OTP sent to your email address.");
+		toast.success("OTP sent to your email address");
 		setStep("reset");
 	};
 
 	const handleResetPassword = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!(otp && password && confirmPassword)) {
-			toast.error("Please fill in all fields");
+			toast.error("Enter the code and your new password.");
 			return;
 		}
 		if (password !== confirmPassword) {
-			toast.error("Passwords do not match");
+			toast.error("The passwords do not match.");
 			return;
 		}
 		if (password.length < 8) {
-			toast.error("Password must be at least 8 characters long");
+			toast.error("Use at least 8 characters for your password.");
 			return;
 		}
 
@@ -79,14 +77,14 @@ function ForgotPasswordPage() {
 
 		if (error) {
 			setIsLoading(false);
-			toast.error(
-				error.message || "Failed to reset password. Please try again."
-			);
+			toast.error("Failed to reset password", {
+				description: "Check the code and try again, or request a new one.",
+			});
 			return;
 		}
 
 		setIsLoading(false);
-		toast.success("Password reset successfully. Redirecting to login...");
+		toast.success("Password reset. Redirecting to sign in…");
 		setTimeout(() => {
 			router.push(loginHref);
 		}, 1500);
@@ -94,7 +92,7 @@ function ForgotPasswordPage() {
 
 	const handleResendOTP = async () => {
 		if (!email) {
-			toast.error("Email is required");
+			toast.error("Enter your email address.");
 			return;
 		}
 		setIsResending(true);
@@ -106,12 +104,12 @@ function ForgotPasswordPage() {
 
 		if (error) {
 			setIsResending(false);
-			toast.error(error.message || "Failed to resend OTP. Please try again.");
+			showErrorToast(error, "Failed to resend verification code");
 			return;
 		}
 
 		setIsResending(false);
-		toast.success("OTP resent to your email address.");
+		toast.success("OTP resent to your email address");
 	};
 
 	if (!capabilities.email) {
@@ -158,7 +156,7 @@ function ForgotPasswordPage() {
 						href={loginHref}
 					>
 						<ArrowLeftIcon className="mr-1 inline size-3" />
-						Back to login
+						Back to sign in
 					</Link>
 				</div>
 			</>
@@ -191,14 +189,17 @@ function ForgotPasswordPage() {
 							onChange={setOtp}
 							value={otp}
 						/>
-						<Button
-							className="h-auto p-0 text-xs"
-							loading={isResending}
-							onClick={handleResendOTP}
-							variant="ghost"
-						>
-							Didn&apos;t receive a code? Resend
-						</Button>
+						<p className="flex items-center gap-1.5 text-pretty text-muted-foreground text-xs">
+							Didn&apos;t receive a code?
+							<Button
+								className="h-auto p-0 text-xs"
+								loading={isResending}
+								onClick={handleResendOTP}
+								variant="ghost"
+							>
+								Resend code
+							</Button>
+						</p>
 					</div>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -279,7 +280,7 @@ function ForgotPasswordPage() {
 					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
-					Back to login
+					Back to sign in
 				</Link>
 			</div>
 		</>

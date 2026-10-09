@@ -96,7 +96,7 @@ export default function PublicWebsiteLayout({
 					</div>
 
 					<a
-						aria-label="Databuddy — open marketing site"
+						aria-label="Databuddy, open marketing site"
 						className={brandAttributionLinkClass}
 						href={publicDashboardMarketingHref}
 						rel={marketingLinkRel}

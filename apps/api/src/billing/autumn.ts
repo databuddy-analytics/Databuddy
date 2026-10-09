@@ -4,7 +4,7 @@ import { isInvestigationPurchaseValid } from "./investigation-purchase";
 import { auth } from "@databuddy/auth";
 import { getRedisCache } from "@databuddy/redis";
 import { getAutumn, getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
-import { AutumnError } from "autumn-js";
+import { AutumnError } from "@databuddy/rpc/autumn";
 import { autumnHandler } from "autumn-js/fetch";
 import { useLogger } from "evlog/elysia";
 import { withAutumnApiPath } from "@/lib/autumn-mount";
@@ -105,7 +105,10 @@ async function attachWithDubCustomer(
 		await invalidateAutumnCustomerCache(request);
 		return Response.json(result);
 	} catch (error) {
-		const statusCode = error instanceof AutumnError ? error.statusCode : 500;
+		const statusCode =
+			error instanceof AutumnError && error.statusCode >= 400
+				? error.statusCode
+				: 503;
 		let parsed: { message?: string; code?: string } = {};
 		if (error instanceof AutumnError) {
 			try {

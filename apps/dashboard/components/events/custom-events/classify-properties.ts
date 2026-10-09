@@ -149,7 +149,7 @@ export function getPropertyTypeLabel(
 		case "categorical":
 			return "Category";
 		case "aggregatable":
-			return "Top Values";
+			return "Top values";
 		case "text":
 			return "Text";
 		case "high_cardinality":

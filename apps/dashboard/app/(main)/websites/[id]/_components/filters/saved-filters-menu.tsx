@@ -84,7 +84,7 @@ export function SavedFiltersMenu({
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="end" className="w-72">
 				<div className="flex items-center justify-between px-2 py-1.5">
-					<span className="font-medium text-xs">Saved Filters</span>
+					<span className="font-medium text-xs">Saved filters</span>
 					<Button
 						className="h-6 text-xs"
 						onClick={(e) => {

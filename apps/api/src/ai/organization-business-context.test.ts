@@ -36,6 +36,11 @@ vi.mock("@databuddy/services/organization-business-context", () => ({
 vi.mock("@databuddy/ai/config/models", () => ({ createModelFromId: vi.fn() }));
 vi.mock("@databuddy/ai/tools/scrape-page", () => ({
 	readWebsitePage: vi.fn(),
+	discoverSitePaths: vi.fn(async () => ({
+		paths: [],
+		sitemaps: 0,
+		llmsTxt: false,
+	})),
 	createScrapeTools: () => ({ search_website: { execute: vi.fn() } }),
 }));
 
@@ -142,9 +147,9 @@ function fixture(
 		id: "example-site",
 		domain: "example.com",
 	});
-	const read = vi
-		.spyOn(scrape, "readWebsitePage")
-		.mockImplementation(async ({ path, domain }) => ({
+	// Full-page navigation reads of the homepage never count as research reads.
+	const read = vi.fn(
+		async ({ path, domain }: Parameters<typeof scrape.readWebsitePage>[0]) => ({
 			success: true,
 			url: `https://${domain}${path}`,
 			requestedUrl: `https://${domain}${path}`,
@@ -164,7 +169,13 @@ function fixture(
 				"/login",
 				"javascript:alert(1)",
 			],
-		}));
+		})
+	);
+	vi.spyOn(scrape, "readWebsitePage").mockImplementation((request) =>
+		request.fullPageLinks
+			? (read.getMockImplementation() ?? read)(request)
+			: read(request)
+	);
 	const search = vi.fn(async () => ({
 		success: true,
 		results: [
@@ -207,7 +218,15 @@ function fixture(
 			const output = outputs.shift();
 			const text = JSON.stringify(
 				output && typeof output === "object" && "content" in output
-					? { followUpQuestions: [], ...output }
+					? {
+							followUpQuestions: [],
+							...output,
+							suggestedGoals: [],
+							suggestedFunnels: [],
+							...(("suggestedGoals" in output ||
+								"suggestedFunnels" in output) &&
+								output),
+						}
 					: output
 			);
 			return {
@@ -527,7 +546,15 @@ describe("organization business context request", () => {
 		const responseFormat = f.model.doStreamCalls[0]?.responseFormat;
 		expect(responseFormat).toMatchObject({
 			type: "json",
-			schema: { required: ["content", "followUpQuestions", "sourceIds"] },
+			schema: {
+				required: [
+					"content",
+					"followUpQuestions",
+					"sourceIds",
+					"suggestedGoals",
+					"suggestedFunnels",
+				],
+			},
 		});
 		expect(JSON.stringify(f.model.doStreamCalls[0]?.prompt)).toContain(
 			"do not ask generic onboarding questions"
@@ -654,8 +681,8 @@ describe("organization business context request", () => {
 		expect(f.bill).toHaveBeenCalledTimes(3);
 	});
 
-	it("reads explicitly selected subdomains within the seven-page budget", async () => {
-		const f = fixture([{ content: brief, sourceIds: [0, 1] }]);
+	it("reads explicitly selected subdomains before selection spends the page budget", async () => {
+		const f = fixture([{ paths: [] }, { content: brief, sourceIds: [0, 1] }]);
 		if (!f.state.generation) {
 			throw new Error("Missing generation");
 		}
@@ -668,7 +695,7 @@ describe("organization business context request", () => {
 		expect(f.read).toHaveBeenCalledTimes(7);
 		expect(f.state.generation?.research?.pages).toHaveLength(7);
 		expect(f.read.mock.calls[1]?.[0].domain).toBe("docs.example.com");
-		expect(f.model.doGenerateCalls).toHaveLength(0);
+		expect(f.model.doGenerateCalls).toHaveLength(1);
 		expect(f.model.doStreamCalls).toHaveLength(1);
 	});
 

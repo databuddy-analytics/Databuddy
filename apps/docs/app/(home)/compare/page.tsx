@@ -1,6 +1,7 @@
 import { ArrowRightIcon } from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SITE_URL } from "@/app/util/constants";
 import { Footer } from "@/components/footer";
 import { CompetitorCard } from "@/components/compare/competitor-card";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -9,18 +10,20 @@ import { StructuredData } from "@/components/structured-data";
 import { competitors } from "@/lib/comparison-config";
 
 const compareTitle =
-	"Databuddy vs Other Analytics Platforms - Feature Comparisons";
+	"Databuddy vs PostHog, Plausible, GA4, and more | Databuddy";
 const compareDescription =
-	"Side-by-side comparisons of Databuddy against Google Analytics, Plausible, Fathom, and more. See which privacy-first analytics platform fits your stack.";
-const compareUrl = "https://www.databuddy.cc/compare";
+	"Side-by-side comparisons of Databuddy with Google Analytics, PostHog, Plausible, Mixpanel, Umami, and more: features, pricing, and when to pick each one.";
+const compareUrl = `${SITE_URL}/compare`;
 
 export const metadata: Metadata = {
-	title: compareTitle,
+	title: { absolute: compareTitle },
 	description: compareDescription,
 	openGraph: {
 		title: compareTitle,
 		description: compareDescription,
 		url: compareUrl,
+		type: "website",
+		images: ["/og-image.png"],
 	},
 	alternates: { canonical: compareUrl },
 };
@@ -35,6 +38,10 @@ export default function ComparePage() {
 					title: compareTitle,
 					description: compareDescription,
 					url: compareUrl,
+					breadcrumbs: [
+						{ name: "Home", url: SITE_URL },
+						{ name: "Compare", url: compareUrl },
+					],
 				}}
 			/>
 
@@ -46,8 +53,8 @@ export default function ComparePage() {
 							<span className="text-muted-foreground">analytics platforms</span>
 						</h1>
 						<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm leading-relaxed sm:text-base">
-							See how Databuddy stacks up against other analytics platforms.
-							AI-native, privacy-first, and free to start.
+							See how Databuddy compares on features and pricing, and when each
+							tool is the better pick.
 						</p>
 					</div>
 				</div>
@@ -69,8 +76,8 @@ export default function ComparePage() {
 							Don't see your platform?
 						</h3>
 						<p className="mb-5 text-pretty text-muted-foreground text-sm">
-							We're adding new comparisons regularly. Try Databuddy today and
-							see the difference.
+							We're adding new comparisons regularly. Start free with no credit
+							card and see how Databuddy handles your own traffic.
 						</p>
 						<div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							<SciFiButton asChild>
@@ -79,14 +86,14 @@ export default function ComparePage() {
 									rel="noopener noreferrer"
 									target="_blank"
 								>
-									Start Free - No Credit Card
+									Start free
 								</Link>
 							</SciFiButton>
 							<Link
 								className="group inline-flex items-center justify-center gap-2 rounded border border-border bg-foreground/5 px-5 py-2 font-medium text-foreground text-sm backdrop-blur-sm transition-colors hover:bg-foreground/10 active:scale-[0.98]"
 								href="/demo"
 							>
-								View Live Demo
+								Try the live demo
 								<ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
 							</Link>
 						</div>

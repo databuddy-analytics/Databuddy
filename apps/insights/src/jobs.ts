@@ -1,6 +1,9 @@
 import { and, db, eq, inArray, lt, notInArray, sql } from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
+	AI_DIGEST_DISPATCH_JOB_NAME,
+	AI_DIGEST_WEBSITE_JOB_NAME,
+	type AiDigestWebsiteJobData,
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 	INSIGHTS_MAINTENANCE_JOB_NAME,
@@ -22,6 +25,7 @@ import {
 	loadCompletedPreparedResult,
 	runIdentityCondition,
 } from "./effects";
+import { dispatchAiDigests, sendAiDigest } from "./ai-digest";
 import { recoverStaleInsightRuns, syncRunStatus } from "./recovery";
 import {
 	captureInsightsError,
@@ -428,6 +432,10 @@ export async function processInsightsJob(job: InsightsJob) {
 				);
 			} else if (job.name === INSIGHTS_RESUME_JOB_NAME) {
 				result = await processResumeJob(job.data as InsightsResumeJobData, job);
+			} else if (job.name === AI_DIGEST_DISPATCH_JOB_NAME) {
+				result = await dispatchAiDigests();
+			} else if (job.name === AI_DIGEST_WEBSITE_JOB_NAME) {
+				result = await sendAiDigest(job.data as AiDigestWebsiteJobData);
 			} else {
 				throw new Error(`Unknown insights job: ${job.name}`);
 			}

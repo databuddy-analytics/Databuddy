@@ -20,6 +20,7 @@ import {
 	paymentFailureObservationDescription,
 	paymentFailureRateLabel,
 	paymentFailureReasonLabel,
+	revenueAttributionRateLabel,
 	type RevenueOverview,
 } from "@/lib/revenue-overview";
 import {
@@ -124,6 +125,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				id: "revenue-time-series",
 				parameters: ["revenue_time_series"],
 				filters: revenueFilters,
+				granularity: "daily" as const,
 			},
 		],
 		[revenueFilters]
@@ -222,10 +224,10 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 				{hasError ? (
 					<div className="flex min-h-full items-center justify-center p-4 py-16">
 						<EmptyState
-							action={{ label: "Retry", onClick: handleRetry }}
+							action={{ label: "Try again", onClick: handleRetry }}
 							description="We couldn't load revenue data. Try again in a moment."
 							icon={<WarningCircleIcon />}
-							title="Couldn't load revenue"
+							title="Failed to load revenue"
 							variant="error"
 						/>
 					</div>
@@ -256,7 +258,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 								icon={CreditCardIcon}
 								id="avg-transaction"
 								isLoading={isLoading}
-								title="Avg Transaction"
+								title="Avg transaction"
 								value={formatRevenueCurrency(avgTransaction, displayCurrency)}
 							/>
 							<StatCard
@@ -269,20 +271,16 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							/>
 							<StatCard
 								description={
-									overview?.attributed_transactions
-										? `${overview.attributed_transactions} of ${overview.total_transactions} attributed`
+									overview?.total_revenue
+										? `${formatRevenueCurrency(overview.attributed_revenue, displayCurrency)} of ${formatRevenueCurrency(overview.total_revenue, displayCurrency)} attributed`
 										: undefined
 								}
 								displayMode="text"
 								icon={TrendUpIcon}
 								id="attribution-rate"
 								isLoading={isLoading}
-								title="Attribution"
-								value={
-									overview?.total_transactions
-										? `${Math.round((overview.attributed_transactions / overview.total_transactions) * 100)}%`
-										: "0%"
-								}
+								title="Revenue attribution"
+								value={revenueAttributionRateLabel(overview)}
 							/>
 						</div>
 
@@ -349,7 +347,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							<Card.Header className="flex-row items-center justify-between gap-3 py-3">
 								<div className="min-w-0 flex-1">
 									<Card.Title className="truncate text-sm">
-										Revenue Trends
+										Revenue trends
 									</Card.Title>
 									<Card.Description className="line-clamp-2 text-pretty">
 										Revenue, transactions, customers, and refunds over time

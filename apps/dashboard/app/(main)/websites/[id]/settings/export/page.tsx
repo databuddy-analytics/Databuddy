@@ -45,6 +45,7 @@ export default function ExportPage() {
 
 	const exportMutation = useMutation({
 		...orpc.websites.exportDownload.mutationOptions(),
+		meta: { errorTitle: "Failed to export data" },
 	});
 
 	const handleExport = useCallback(() => {
@@ -72,7 +73,7 @@ export default function ExportPage() {
 				);
 				const blob = new Blob([buffer], { type: "application/zip" });
 				downloadFile(blob, result.filename);
-				toast.success("Data exported successfully!");
+				toast.success("Data exported");
 			},
 		});
 	}, [
@@ -126,7 +127,7 @@ export default function ExportPage() {
 			<div className="mx-auto max-w-4xl space-y-6 p-5">
 				<Card>
 					<Card.Header>
-						<Card.Title>Export Format</Card.Title>
+						<Card.Title>Export format</Card.Title>
 						<Card.Description>
 							Choose a format for the files inside your export. Exports download
 							as a .zip archive containing events, errors, and web vitals.
@@ -175,7 +176,7 @@ export default function ExportPage() {
 
 				<Card>
 					<Card.Header>
-						<Card.Title>Date Range</Card.Title>
+						<Card.Title>Date range</Card.Title>
 						<Card.Description>
 							{useCustomRange
 								? "Export a specific date range"
@@ -228,7 +229,7 @@ export default function ExportPage() {
 								onClick={handleExport}
 							>
 								<DownloadIcon className="size-4" />
-								Export Data
+								Export data
 							</Button>
 						</div>
 					</Card.Footer>

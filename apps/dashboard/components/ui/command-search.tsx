@@ -3,6 +3,7 @@
 import {
 	FEATURE_METADATA,
 	type GatedFeatureId,
+	getPlanDisplayName,
 } from "@databuddy/shared/types/features";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
 import { useQuery } from "@tanstack/react-query";
@@ -21,11 +22,13 @@ import {
 	mainNavigation,
 	settingsNavigation,
 	websiteNavigation,
+	withFlags,
 } from "@/components/layout/navigation/navigation-config";
 import type {
 	NavIcon,
 	NavigationGroup,
 	NavigationItem,
+	NavStage,
 } from "@/components/layout/navigation/types";
 import {
 	formatMaskedApiKey,
@@ -49,13 +52,12 @@ import {
 	OpenExternalIcon,
 	PlusIcon,
 } from "@databuddy/ui/icons";
-import { Badge } from "@databuddy/ui";
+import { useFlags } from "@databuddy/sdk/react";
+import { Badge, StageBadge } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 
 interface SearchItem {
 	action?: () => void;
-	alpha?: boolean;
-	badge?: { text: string };
 	disabled?: boolean;
 	external?: boolean;
 	gatedFeature?: GatedFeatureId;
@@ -66,8 +68,8 @@ interface SearchItem {
 	parentName?: string;
 	path?: string;
 	searchTags?: string[];
+	stage?: NavStage;
 	subtitle?: string;
-	tag?: string;
 }
 
 interface SearchGroup {
@@ -116,22 +118,20 @@ function toSearchItem(
 		!access.isBillingLoading &&
 		item.gatedFeature != null &&
 		!access.isFeatureEnabled(item.gatedFeature);
+	const minPlan = item.gatedFeature
+		? FEATURE_METADATA[item.gatedFeature]?.minPlan
+		: undefined;
 
 	return {
 		name: item.name,
 		path: path || pathPrefix,
 		icon: item.icon,
 		disabled: item.disabled,
-		tag: item.tag,
+		stage: item.stage,
 		searchTags: item.searchTags,
 		external: item.external,
-		alpha: item.alpha,
-		badge: item.badge,
 		gatedFeature: item.gatedFeature,
-		lockedPlanName:
-			locked && item.gatedFeature
-				? (FEATURE_METADATA[item.gatedFeature]?.minPlan?.toUpperCase() ?? null)
-				: null,
+		lockedPlanName: locked && minPlan ? getPlanDisplayName(minPlan) : null,
 	};
 }
 
@@ -208,7 +208,7 @@ function groupsToSearchGroups(
 		}
 
 		searchGroups.push({
-			category: group.label || "Quick Access",
+			category: group.label || "Quick access",
 			items,
 		});
 	}
@@ -251,9 +251,7 @@ function getSearchValue(item: SearchItem) {
 		item.parentName,
 		item.path,
 		item.subtitle,
-		item.tag,
-		item.badge?.text,
-		item.alpha ? "alpha" : undefined,
+		item.stage,
 		...(item.searchTags ?? []),
 	]
 		.filter(Boolean)
@@ -359,6 +357,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		setApiKeySheetOpen(true);
 	}, []);
 
+	const { isOn } = useFlags();
 	const groups = useMemo(() => {
 		const result: SearchGroup[] = [];
 		const websitePrefix = currentWebsiteId
@@ -371,7 +370,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 				items: [
 					{
 						id: "action:create-api-key",
-						name: "Create API Key",
+						name: "Create API key",
 						subtitle: activeOrganization
 							? `Create a key for ${activeOrganization.name}`
 							: "Create an organization API key",
@@ -389,7 +388,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					},
 					{
 						id: "action:create-link",
-						name: "Create Short Link",
+						name: "Create short link",
 						subtitle: "Open the new link sheet",
 						path: "/links?command=create-link",
 						icon: LinkIcon,
@@ -397,7 +396,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					},
 					{
 						id: "action:create-link-folder",
-						name: "Create Link Folder",
+						name: "Create link folder",
 						subtitle: "Organize links in a folder",
 						path: "/links?command=create-folder",
 						icon: LinkIcon,
@@ -405,7 +404,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					},
 					{
 						id: "action:create-monitor",
-						name: "Create Monitor",
+						name: "Start monitoring",
 						subtitle: "Add an uptime monitor",
 						path: "/monitors?command=create-monitor",
 						icon: HeartbeatIcon,
@@ -413,7 +412,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					},
 					{
 						id: "action:create-status-page",
-						name: "Create Status Page",
+						name: "Create status page",
 						subtitle: "Set up a public status page",
 						path: "/monitors/status-pages?command=create-status-page",
 						icon: OpenExternalIcon,
@@ -422,7 +421,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 				],
 			});
 
-			result.push(...groupsToSearchGroups(mainNavigation));
+			result.push(...groupsToSearchGroups(withFlags(mainNavigation, isOn)));
 			result.push(...groupsToSearchGroups(settingsNavigation));
 		}
 
@@ -440,7 +439,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 
 		if (!isDemoPath && apiKeys && apiKeys.length > 0) {
 			result.push({
-				category: "API Keys",
+				category: "API keys",
 				items: (apiKeys as ApiKeyListItem[]).map((apiKey) => ({
 					id: `api-key:${apiKey.id}`,
 					name: apiKey.name,
@@ -481,6 +480,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		isDemoPath,
 		isBillingLoading,
 		isFeatureEnabled,
+		isOn,
 		isSwitchingOrganization,
 		openApiKey,
 		openCreateApiKey,
@@ -561,7 +561,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					className="gap-0 overflow-hidden p-0 sm:max-w-xl"
 				>
 					<Dialog.Header className="sr-only">
-						<Dialog.Title>Command Search</Dialog.Title>
+						<Dialog.Title>Command search</Dialog.Title>
 						<Dialog.Description>
 							Search for pages, settings, and websites
 						</Dialog.Description>
@@ -585,7 +585,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 								<CommandPrimitive.Input
 									className="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
 									onValueChange={handleInputChange}
-									placeholder="Search pages, settings, websites..."
+									placeholder="Search pages, settings, websites…"
 									value={search}
 								/>
 								<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
@@ -682,7 +682,7 @@ function SearchResultItem({
 	const ItemIcon = item.icon;
 	const subtitle =
 		(item.lockedPlanName
-			? `Requires ${item.lockedPlanName} · open upgrade options`
+			? `Requires ${item.lockedPlanName} plan. Open upgrade options.`
 			: item.subtitle) ??
 		(item.path
 			? item.path.startsWith("http")
@@ -713,31 +713,12 @@ function SearchResultItem({
 			</div>
 
 			<div className="flex shrink-0 items-center gap-1.5">
-				{item.tag && (
-					<Badge
-						className="text-[10px]"
-						variant={item.tag === "soon" ? "muted" : "default"}
-					>
-						{item.tag}
-					</Badge>
-				)}
-
-				{item.alpha && (
-					<Badge className="text-[10px]" variant="muted">
-						alpha
-					</Badge>
-				)}
-
-				{item.badge && (
-					<Badge className="text-[10px]" variant="muted">
-						{item.badge.text}
-					</Badge>
-				)}
+				{item.stage && <StageBadge stage={item.stage} />}
 
 				{item.lockedPlanName && (
 					<>
 						<LockSimpleIcon className="size-3.5 text-muted-foreground" />
-						<Badge className="text-[10px]" variant="muted">
+						<Badge className="text-[10px] uppercase" variant="muted">
 							{item.lockedPlanName}
 						</Badge>
 					</>

@@ -52,11 +52,11 @@ export function GeneralSettings({
 
 	const handleSave = () => {
 		if (!name.trim()) {
-			toast.error("Name is required");
+			toast.error("Enter a name for the organization.");
 			return;
 		}
 		if (!slug.trim()) {
-			toast.error("Slug is required");
+			toast.error("Enter a slug for the organization.");
 			return;
 		}
 
@@ -98,7 +98,7 @@ export function GeneralSettings({
 						size="sm"
 					>
 						<FloppyDiskIcon className="size-4 shrink-0" />
-						Save Changes
+						Save changes
 					</Button>
 				</TopBar.Actions>
 			)}
@@ -156,7 +156,7 @@ export function GeneralSettings({
 									<Field.Label>Name</Field.Label>
 									<Input
 										onChange={(e) => setName(e.target.value)}
-										placeholder="e.g., Acme Corporation"
+										placeholder="e.g. Acme Corporation"
 										value={name}
 									/>
 									<Field.Description>
@@ -168,7 +168,7 @@ export function GeneralSettings({
 									<Field.Label>Slug</Field.Label>
 									<Input
 										onChange={(e) => handleSlugChange(e.target.value)}
-										placeholder="e.g., acme-corp"
+										placeholder="e.g. acme-corp"
 										value={slug}
 									/>
 									<Field.Description>

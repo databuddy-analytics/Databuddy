@@ -20,9 +20,9 @@ export const revalidate = 3600;
 
 const WORD_SPLIT_REGEX = /\s+/;
 
-const blogTitle = "Blog - Privacy-First Analytics Guides & Updates";
+const blogTitle = "Blog: product analytics guides and updates";
 const blogDescription =
-	"Practical articles on instrumentation, GDPR compliance, Core Web Vitals, and developer-first analytics from the Databuddy team.";
+	"Practical guides on product analytics, event tracking, funnels, cookieless measurement, GDPR, and Core Web Vitals from the Databuddy team.";
 const blogUrl = "https://www.databuddy.cc/blog";
 
 export const metadata: Metadata = {
@@ -30,11 +30,15 @@ export const metadata: Metadata = {
 	description: blogDescription,
 	alternates: {
 		canonical: blogUrl,
+		types: {
+			"application/rss+xml": `${blogUrl}/rss.xml`,
+		},
 	},
 	openGraph: {
 		title: blogTitle,
 		description: blogDescription,
 		url: blogUrl,
+		images: ["/og-image.png"],
 	},
 };
 
@@ -161,8 +165,12 @@ function BlogPostCard({ post }: { post: Post }) {
 
 export default async function BlogPage() {
 	const result = await getPosts();
-	const posts = "error" in result ? [] : result.posts;
-	const sortedPosts = [...posts]
+	if ("error" in result && !result.unconfigured) {
+		throw new Error(
+			`Failed to load blog posts: ${result.status} ${result.statusText}`
+		);
+	}
+	const sortedPosts = ("error" in result ? [] : result.posts)
 		.filter(isPublished)
 		.sort(
 			(a, b) =>
@@ -183,14 +191,14 @@ export default async function BlogPage() {
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						{/* Header */}
 						<div className="mb-8 text-center lg:mb-10">
-							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[11px] text-muted-foreground tracking-wide">
+							<div className="mx-auto mb-3 inline-flex items-center gap-2 rounded border border-border bg-card/50 px-2.5 py-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 								<span
 									aria-hidden="true"
 									className="h-1.5 w-1.5 rounded bg-foreground/60"
 								/>
-								DATABUDDY
+								Databuddy
 								<span className="text-foreground/40">•</span>
-								BLOG
+								Blog
 							</div>
 							<h1 className="mb-2 font-semibold text-3xl leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-5xl">
 								Privacy‑first analytics
@@ -223,17 +231,16 @@ export default async function BlogPage() {
 								<div className="rounded border border-border bg-card/50 p-8 text-center backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-12">
 									<TagIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground duration-300 group-hover:text-foreground sm:h-16 sm:w-16" />
 									<h1 className="mb-3 text-balance font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl">
-										No Posts Yet
+										No posts yet
 									</h1>
 									<p className="mb-6 font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base">
 										We're working on some amazing content. Check back soon for
-										insights on privacy-first analytics and modern web
-										development.
+										guides on product analytics and modern web development.
 									</p>
 									<div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
 										<SciFiButton asChild className="flex-1 sm:flex-initial">
 											<Link aria-label="Back to home" href="/">
-												Back to Home
+												Back to home
 											</Link>
 										</SciFiButton>
 									</div>

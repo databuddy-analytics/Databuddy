@@ -32,6 +32,12 @@ const BASKET_ERROR_SPEC = {
 		why: "Neither an API key nor a website_id query parameter was provided.",
 		fix: "Send an API key header or include website_id on the query string.",
 	},
+	MCP_INVALID_API_KEY: {
+		message: "Valid API key required",
+		status: 401,
+		why: "The request had no API key, or the key is unknown, malformed, disabled, revoked, or expired.",
+		fix: "Set DATABUDDY_API_KEY or the apiKey option to an active Databuddy API key.",
+	},
 	TRACK_WEBSITE_NOT_FOUND: {
 		message: "Website not found",
 		status: 404,
@@ -53,7 +59,7 @@ const BASKET_ERROR_SPEC = {
 	TRACK_RATE_LIMITED: {
 		message: "Rate limit exceeded",
 		status: 429,
-		why: "Too many /track requests from this principal.",
+		why: "Too many requests from this API key or website.",
 		fix: "Reduce request frequency or batch events.",
 	},
 	IDENTIFY_RATE_LIMITED: {
@@ -204,6 +210,7 @@ export const basketErrors = {
 	trackMissingScope: basketErrorCatalog.TRACK_MISSING_SCOPE,
 	trackMissingOwner: basketErrorCatalog.TRACK_MISSING_OWNER,
 	trackMissingCredentials: basketErrorCatalog.TRACK_MISSING_CREDENTIALS,
+	mcpInvalidApiKey: basketErrorCatalog.MCP_INVALID_API_KEY,
 	trackWebsiteNotFound: basketErrorCatalog.TRACK_WEBSITE_NOT_FOUND,
 	trackWebsiteNoOrganization: basketErrorCatalog.TRACK_WEBSITE_NO_ORGANIZATION,
 	trackWebsiteScopeMismatch: basketErrorCatalog.TRACK_WEBSITE_SCOPE_MISMATCH,

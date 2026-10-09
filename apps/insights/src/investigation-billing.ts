@@ -1,67 +1,42 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { resolveAgentBillingCustomerId } from "@databuddy/ai/agents/execution";
 import { createHash } from "node:crypto";
+import {
+	AutumnError,
+	autumnCall,
+	BillingUnavailableError,
+	getAutumn,
+} from "@databuddy/rpc/autumn";
 import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
-import { Autumn, HTTPClient } from "autumn-js";
+import type { Autumn } from "autumn-js";
 import { captureInsightsError } from "./lib/evlog-insights";
 
-export interface InvestigationBilling {
-	customerId: string | null;
-	mode: "fixed" | "unconfigured";
-}
+export type InvestigationBilling =
+	| { customerId: string; mode: "fixed" }
+	| { customerId: null; mode: "unconfigured" };
 
 const LOCK_MS = 23 * 60 * 60 * 1000;
-
-export function createInvestigationBillingClient(
-	options: {
-		secretKey?: string;
-		fetcher?: NonNullable<
-			ConstructorParameters<typeof HTTPClient>[0]
-		>["fetcher"];
-	} = {}
-): Autumn {
-	const secretKey = options.secretKey ?? process.env.AUTUMN_SECRET_KEY;
-	if (!secretKey?.trim()) {
-		throw new Error("Investigation billing is not configured");
-	}
-	const httpClient = new HTTPClient({ fetcher: options.fetcher });
-	httpClient.addHook("response", (response) => {
-		// SDK 1.2.23 also accepts a degraded 202 body. It is not a receipt.
-		if (response.status === 202) {
-			throw new Error("Investigation billing returned an unconfirmed response");
-		}
-	});
-	return new Autumn({
-		secretKey,
-		httpClient,
-		failOpen: false,
-		timeoutMs: 5000,
-		retryConfig: { strategy: "none" },
-	});
-}
 
 export async function resolveInvestigationBilling(
 	principal: { organizationId: string; userId?: string | null },
 	client?: Autumn
 ): Promise<InvestigationBilling> {
-	if (readBooleanEnv("SELFHOST")) {
-		return { mode: "unconfigured", customerId: null };
-	}
-	if (!(process.env.AUTUMN_SECRET_KEY?.trim() || client)) {
-		if (process.env.NODE_ENV === "production") {
-			throw new Error("Investigation billing is not configured");
-		}
+	if (billingMode() !== "live") {
 		return { mode: "unconfigured", customerId: null };
 	}
 	const customerId = await resolveAgentBillingCustomerId(principal);
 	if (!customerId) {
-		throw new Error("The investigation billing customer is unavailable");
+		throw new BillingUnavailableError(
+			"The investigation billing customer is unavailable"
+		);
 	}
-	const customer = await (
-		client ?? createInvestigationBillingClient()
-	).customers.get({ customerId });
+	const customer = await autumnCall("customers.get", () =>
+		(client ?? getAutumn()).customers.get({ customerId })
+	);
 	if (customer.id !== customerId) {
-		throw new Error("The investigation billing customer could not be verified");
+		throw new BillingUnavailableError(
+			"The investigation billing customer could not be verified"
+		);
 	}
 	return { customerId, mode: "fixed" };
 }
@@ -73,16 +48,18 @@ export async function canRunInvestigation(
 	if (billing.mode === "unconfigured") {
 		return true;
 	}
-	if (!billing.customerId) {
-		throw new Error("The investigation billing customer is unavailable");
-	}
-	const result = await (client ?? createInvestigationBillingClient()).check({
-		customerId: billing.customerId,
-		featureId: INVESTIGATION_USAGE.featureId,
-		requiredBalance: 1,
-	});
-	if (result.customerId !== billing.customerId) {
-		throw new Error("Investigation access could not be verified");
+	const { customerId } = billing;
+	const result = await autumnCall("check", () =>
+		(client ?? getAutumn()).check({
+			customerId,
+			featureId: INVESTIGATION_USAGE.featureId,
+			requiredBalance: 1,
+		})
+	);
+	if (result.customerId !== customerId) {
+		throw new BillingUnavailableError(
+			"Investigation access could not be verified"
+		);
 	}
 	return result.allowed === true;
 }
@@ -93,10 +70,10 @@ interface InvestigationOperation {
 	websiteId: string;
 }
 
-interface InvestigationReservation extends InvestigationBilling {
+type InvestigationReservation = InvestigationBilling & {
 	expiresAt: Date;
 	id: string;
-}
+};
 
 function reservationId(input: InvestigationOperation): string {
 	return `investigation:${createHash("sha256")
@@ -127,29 +104,31 @@ export async function reserveInvestigationCharge(
 		return reservation;
 	}
 	assertInvestigationReservationActive(reservation);
-	if (!reservation.customerId) {
-		throw new Error("The investigation billing customer is unavailable");
-	}
-	const autumn = client ?? createInvestigationBillingClient();
+	const { customerId } = reservation;
+	const autumn = client ?? getAutumn();
 	// Autumn owns the hold. A duplicate/ambiguous response never authorizes work.
 	// The immutable expiry is shorter than the provider's idempotency window:
 	// a released/confirmed operation cannot be reserved again after that window.
-	const result = await autumn.check(
-		{
-			customerId: reservation.customerId,
-			featureId: INVESTIGATION_USAGE.featureId,
-			requiredBalance: 1,
-			sendEvent: true,
-			lock: {
-				enabled: true,
-				lockId: reservation.id,
-				expiresAt: reservation.expiresAt.getTime(),
+	const result = await autumnCall("check", () =>
+		autumn.check(
+			{
+				customerId,
+				featureId: INVESTIGATION_USAGE.featureId,
+				requiredBalance: 1,
+				sendEvent: true,
+				lock: {
+					enabled: true,
+					lockId: reservation.id,
+					expiresAt: reservation.expiresAt.getTime(),
+				},
 			},
-		},
-		{ headers: { "Idempotency-Key": `${reservation.id}:reserve` } }
+			{ headers: { "Idempotency-Key": `${reservation.id}:reserve` } }
+		)
 	);
-	if (result.customerId !== reservation.customerId) {
-		throw new Error("Investigation reservation could not be verified");
+	if (result.customerId !== customerId) {
+		throw new BillingUnavailableError(
+			"Investigation reservation could not be verified"
+		);
 	}
 	if (!result.allowed) {
 		throw new Error(
@@ -210,67 +189,62 @@ export function assertInvestigationReservationActive(
 	}
 }
 
+function isMissingLock(error: unknown, id: string): boolean {
+	if (!(error instanceof AutumnError && error.statusCode === 400)) {
+		return false;
+	}
+	let body: unknown;
+	try {
+		body = JSON.parse(error.body);
+	} catch {
+		return false;
+	}
+	return (
+		typeof body === "object" &&
+		body !== null &&
+		"code" in body &&
+		"message" in body &&
+		body.code === "invalid_request" &&
+		body.message === `Lock not found for ID: ${id}`
+	);
+}
+
 async function finalizeReservation(
 	id: string,
 	complete: boolean,
 	client?: Autumn
 ): Promise<void> {
-	if (readBooleanEnv("SELFHOST")) {
+	if (billingMode() !== "live") {
 		return;
 	}
-	if (!(client || process.env.AUTUMN_SECRET_KEY?.trim())) {
-		if (process.env.NODE_ENV !== "production") {
-			return;
-		}
-		throw new Error("Investigation billing is not configured");
-	}
-	try {
-		// Full confirmation does not debit again. Replays only finalize this lock;
-		// they must never reserve or track a replacement unit for a saved result.
-		const result = await (
-			client ?? createInvestigationBillingClient()
-		).balances.finalize({
-			lockId: id,
-			action: complete ? "confirm" : "release",
-		});
-		if (!result.success) {
-			throw new Error("Investigation settlement was not confirmed");
-		}
-	} catch (error) {
-		if (
-			error instanceof Error &&
-			"statusCode" in error &&
-			error.statusCode === 400 &&
-			"body" in error &&
-			typeof error.body === "string"
-		) {
-			let body: unknown;
-			try {
-				body = JSON.parse(error.body);
-			} catch {
-				/* Non-JSON provider failures remain failures. */
-			}
-			if (
-				body &&
-				typeof body === "object" &&
-				"code" in body &&
-				"message" in body &&
-				body.code === "invalid_request" &&
-				body.message === `Lock not found for ID: ${id}`
-			) {
-				// Missing can mean confirmed, released, or expired. Nothing remains to
-				// finalize; it is not proof of payment and never warrants a new debit.
-				if (complete) {
-					captureInsightsError(
-						new Error("Investigation charge lock was gone before confirmation"),
-						"investigation_billing.settlement_unconfirmed",
-						{ lock_id: id }
-					);
+	// Full confirmation does not debit again. Replays only finalize this lock;
+	// they must never reserve or track a replacement unit for a saved result.
+	const result = await autumnCall("balances.finalize", () =>
+		(client ?? getAutumn()).balances
+			.finalize({ lockId: id, action: complete ? "confirm" : "release" })
+			.catch((error: unknown) => {
+				if (isMissingLock(error, id)) {
+					return null;
 				}
-				return;
-			}
+				throw error;
+			})
+	);
+	if (!result) {
+		// Missing can mean confirmed, released, or expired. Nothing remains to
+		// finalize; it is not proof of payment and never warrants a new debit.
+		if (complete) {
+			captureInsightsError(
+				new Error("Investigation charge lock was gone before confirmation"),
+				"investigation_billing.settlement_unconfirmed",
+				{ lock_id: id }
+			);
 		}
-		throw error;
+		return;
+	}
+	if (!result.success) {
+		throw new BillingUnavailableError(
+			"Investigation settlement was not confirmed"
+		);
 	}
 }
 

@@ -1,5 +1,5 @@
 {
-  "title": "SDK Reference",
+  "title": "SDK reference",
   "description": "SDK documentation by runtime: browser, server, feature flags, and utilities",
   "icon": "Code",
   "pages": [
@@ -15,6 +15,7 @@
     "feature-flags",
     "server-flags",
     "ai-agents",
+    "mcp",
     "devtools"
   ]
 }

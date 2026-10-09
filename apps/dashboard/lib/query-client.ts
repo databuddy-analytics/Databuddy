@@ -6,15 +6,10 @@ import {
 	QueryCache,
 	QueryClient,
 } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { isAbortError } from "@/lib/is-abort-error";
-import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { showErrorToast } from "@/lib/user-facing-error";
 
-const SILENCED_ERROR_CODES = new Set([
-	"UNAUTHORIZED",
-	"AUTH_REQUIRED",
-	"FORBIDDEN",
-]);
+const SIGNED_OUT_CODES = new Set(["UNAUTHORIZED", "AUTH_REQUIRED"]);
 
 const SILENCED_MESSAGE_FRAGMENTS = [
 	"authentication",
@@ -36,7 +31,10 @@ function isSilencedError(error: unknown): boolean {
 	};
 
 	const errorCode = rpcError.data?.code ?? rpcError.code;
-	if (errorCode && SILENCED_ERROR_CODES.has(errorCode)) {
+	if (
+		errorCode &&
+		(SIGNED_OUT_CODES.has(errorCode) || errorCode === "FORBIDDEN")
+	) {
 		return true;
 	}
 
@@ -51,11 +49,19 @@ function isSilencedError(error: unknown): boolean {
 	);
 }
 
-function reportError(error: unknown, showToast = true) {
+function isSignedOutError(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const { code, data } = error as { code?: string; data?: { code?: string } };
+	return SIGNED_OUT_CODES.has(data?.code ?? code ?? "");
+}
+
+function reportError(error: unknown, showToast = true, title?: string) {
 	const err = error instanceof Error ? error : new Error(String(error));
 	const internalMessage = err.message || "Unknown error";
 	if (showToast) {
-		toast.error(getUserFacingErrorMessage(error));
+		showErrorToast(error, title);
 	}
 	trackError(internalMessage, {
 		stack: err.stack,
@@ -94,10 +100,15 @@ function makeQueryClient() {
 		}),
 		mutationCache: new MutationCache({
 			onError: (error, _variables, _context, mutation) => {
-				if (isAbortError(error) || isSilencedError(error)) {
+				if (isAbortError(error) || isSignedOutError(error)) {
 					return;
 				}
-				reportError(error, !mutation.meta?.suppressGlobalErrorToast);
+				const title = mutation.meta?.errorTitle;
+				reportError(
+					error,
+					!mutation.meta?.suppressGlobalErrorToast,
+					typeof title === "string" ? title : undefined
+				);
 			},
 		}),
 	});

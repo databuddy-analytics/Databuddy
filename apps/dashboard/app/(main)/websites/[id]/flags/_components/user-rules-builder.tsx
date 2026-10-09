@@ -100,7 +100,7 @@ function RuleRow({
 			const result = z.email().safeParse(value);
 			return result.success
 				? { success: true }
-				: { success: false, error: "Please enter a valid email address" };
+				: { success: false, error: "Enter a valid email address" };
 		}
 		if (!value.trim()) {
 			return { success: false, error: "Value cannot be empty" };
@@ -135,7 +135,7 @@ function RuleRow({
 					<Input
 						className="w-28"
 						onChange={(e) => onUpdate({ field: e.target.value })}
-						placeholder="field…"
+						placeholder="field"
 						value={rule.field || ""}
 					/>
 				)}
@@ -228,7 +228,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 				</p>
 				<Button onClick={addRule} size="sm" type="button" variant="secondary">
 					<PlusIcon className="size-3.5" />
-					Add Rule
+					Add rule
 				</Button>
 			</div>
 		);
@@ -253,7 +253,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 				variant="secondary"
 			>
 				<PlusIcon className="size-3.5" />
-				Add Rule
+				Add rule
 			</Button>
 		</div>
 	);

@@ -85,7 +85,7 @@ async function readActivity(
 	return { current, detectedAt: window.currentTo, previous };
 }
 
-function isNotable(
+export function isNotable(
 	metric: AiActivityMetric,
 	current: number,
 	baseline: number
@@ -113,14 +113,19 @@ function aiActivitySignal(
 	baseline: number,
 	detectedAt: string
 ): DetectedSignal {
+	const signal = makeWowSignal(
+		`ai_${metric}`,
+		METRIC_LABELS[metric](product),
+		current,
+		baseline,
+		detectedAt
+	);
 	return {
-		...makeWowSignal(
-			`ai_${metric}`,
-			METRIC_LABELS[metric](product),
-			current,
-			baseline,
-			detectedAt
-		),
+		...signal,
+		severity:
+			metric === "requests" && signal.severity === "critical"
+				? "warning"
+				: signal.severity,
 		definitionEvidence:
 			metric === "requests"
 				? `${product}'s crawlers and agents made ${current} ${metric} to the site's pages, compared with ${baseline} in the preceding period. Requests are counted from server-side AI agent tracking and AI agents that run JavaScript.`

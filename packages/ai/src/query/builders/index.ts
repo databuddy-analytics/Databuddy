@@ -5,6 +5,7 @@ import { EngagementBuilders } from "./engagement";
 import { ErrorsBuilders } from "./errors";
 import { GeoBuilders } from "./geo";
 import { LinkShortenerBuilders, LinksBuilders } from "./links";
+import { McpBuilders } from "./mcp";
 import { PagesBuilders } from "./pages";
 import { PerformanceBuilders } from "./performance";
 import { ProfilesBuilders } from "./profiles";
@@ -17,6 +18,11 @@ import { TrafficBuilders } from "./traffic";
 import { UptimeBuilders } from "./uptime";
 import { VitalsBuilders } from "./vitals";
 import type { SimpleQueryConfig } from "../types";
+
+export {
+	aiActiveWebsitesQuery,
+	aiServerTrackingStoppedQuery,
+} from "./ai-agents";
 
 const BASE_QUERY_BUILDERS = {
 	...SummaryBuilders,
@@ -34,6 +40,7 @@ const BASE_QUERY_BUILDERS = {
 	...EngagementBuilders,
 	...VitalsBuilders,
 	...AiAgentsBuilders,
+	...McpBuilders,
 	...UptimeBuilders,
 	...RevenueBuilders,
 	...RealtimeBuilders,
@@ -108,6 +115,12 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 
 export type QueryType = keyof typeof BASE_QUERY_BUILDERS;
 
+const INSIGHTS_ONLY_QUERY_TYPES = new Set<string>([
+	"custom_event_segments",
+	"error_segments",
+	"traffic_segments",
+] satisfies QueryType[]);
+
 export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 	Object.fromEntries(
 		Object.entries(BASE_QUERY_BUILDERS).map(([type, config]) => [
@@ -115,6 +128,15 @@ export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 			PUBLIC_QUERY_TYPES.has(type) ? { ...config, publicAccess: true } : config,
 		])
 	) as typeof BASE_QUERY_BUILDERS;
+
+export const WEBSITE_QUERY_BUILDERS = (
+	Object.entries(QueryBuilders) as [QueryType, SimpleQueryConfig][]
+).filter(
+	([type, config]) =>
+		config.idField !== "link_id" && !INSIGHTS_ONLY_QUERY_TYPES.has(type)
+);
+
+export const WEBSITE_QUERY_TYPES = WEBSITE_QUERY_BUILDERS.map(([type]) => type);
 
 function isQueryType(type: string): type is QueryType {
 	return Object.hasOwn(QueryBuilders, type);

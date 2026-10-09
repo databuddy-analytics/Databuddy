@@ -16,6 +16,18 @@ const options = {
 	},
 };
 
+async function executeData(input: unknown, toolOptions = options) {
+	const schema = asSchema(getDataTool.inputSchema);
+	if (!(schema.validate && getDataTool.execute)) {
+		throw new Error("Missing data tool contract");
+	}
+	const parsed = await schema.validate(input);
+	if (!parsed.success) {
+		throw parsed.error;
+	}
+	return getDataTool.execute(parsed.value, toolOptions);
+}
+
 afterEach(() => mock.restore());
 
 describe("analytics tool contract", () => {
@@ -38,7 +50,6 @@ describe("analytics tool contract", () => {
 									preset: null,
 									timeUnit: null,
 									filters: null,
-									groupBy: null,
 									orderBy: null,
 									limit: null,
 									timezone: null,
@@ -48,7 +59,10 @@ describe("analytics tool contract", () => {
 					},
 				],
 				finishReason: { unified: "tool-calls", raw: "tool_calls" },
-				usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+				usage: {
+					inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+					outputTokens: { total: 1, text: 1, reasoning: 0 },
+				},
 				warnings: [],
 			}),
 		});
@@ -82,10 +96,7 @@ describe("analytics tool contract", () => {
 			SimpleQueryBuilder.prototype,
 			"execute"
 		).mockResolvedValue([]);
-		if (!getDataTool.execute) {
-			throw new Error("Missing data tool");
-		}
-		const result = await getDataTool.execute(
+		const result = await executeData(
 			{ queries: [{ type: "country", preset }] },
 			{
 				...options,
@@ -105,7 +116,7 @@ describe("analytics tool contract", () => {
 				},
 			},
 		});
-		expect(execute).toHaveBeenCalledOnce();
+		expect(execute).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps timestamp ranges and isolates invalid timezones from other batch queries", async () => {
@@ -137,7 +148,7 @@ describe("analytics tool contract", () => {
 				})
 			).success
 		).toBe(true);
-		const result = await getDataTool.execute(request, options);
+		const result = await executeData(request, options);
 		expect(result).toMatchObject({
 			results: {
 				country: { error: expect.any(String), data: [] },
@@ -147,7 +158,7 @@ describe("analytics tool contract", () => {
 				},
 			},
 		});
-		expect(execute).toHaveBeenCalledOnce();
+		expect(execute).toHaveBeenCalledTimes(1);
 	});
 
 	it.each([
@@ -211,28 +222,23 @@ describe("analytics tool contract", () => {
 		});
 	});
 
-	it.each([
-		{ groupBy: undefined },
-		{ groupBy: [] },
-		{ groupBy: ["namespace"] },
-		{ groupBy: ["namespace", "profile_id"] },
-	])("returns a native retention option error instead of mislabeling grouped data: %j", async ({
-		groupBy,
-	}) => {
-		const query = mock().mockResolvedValue([{ row_type: "overall" }]);
-		spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(
-			function () {
-				this.compile();
-				return query();
-			}
-		);
+	it("drops a stray groupBy so retention keeps its fixed cohorts", async () => {
+		const query = mock<SimpleQueryBuilder["execute"]>(async () => [
+			{ row_type: "overall" },
+		]);
+		spyOn(SimpleQueryBuilder.prototype, "execute").mockImplementation(function (
+			this: SimpleQueryBuilder
+		) {
+			this.compile();
+			return query();
+		});
 		const request = {
 			queries: [
 				{
 					type: "identified_profile_retention",
 					from: "2026-08-01",
 					to: "2026-08-14",
-					groupBy,
+					groupBy: ["namespace"],
 					filters: [
 						{
 							field: "activation_event",
@@ -254,24 +260,11 @@ describe("analytics tool contract", () => {
 		if (!(schema.validate && getDataTool.execute)) {
 			throw new Error("Missing data tool contract");
 		}
-		expect((await schema.validate(request)).success).toBe(true);
-		const result = await getDataTool.execute(request, options);
-		if (groupBy?.length) {
-			expect(result).toEqual({
-				results: {
-					identified_profile_retention: {
-						type: "identified_profile_retention",
-						websiteId: "site-test",
-						data: [],
-						rowCount: 0,
-						error:
-							"Invalid retention options: fixed daily cohorts with overall row first; omit groupBy, orderBy and offset.",
-					},
-				},
-			});
-			expect(query).not.toHaveBeenCalled();
-			return;
+		const validated = await schema.validate(request);
+		if (!validated.success) {
+			throw validated.error;
 		}
+		const result = await getDataTool.execute(validated.value, options);
 		expect(result).toMatchObject({
 			results: {
 				identified_profile_retention: {
@@ -282,15 +275,14 @@ describe("analytics tool contract", () => {
 				},
 			},
 		});
-		expect(JSON.stringify(result)).not.toContain("groupBy:");
-		expect(query).toHaveBeenCalledOnce();
+		expect(query).toHaveBeenCalledTimes(1);
 	});
 
 	it("returns the measured scope and distinguishes a truncated result from its query row count", async () => {
 		const execute = spyOn(
 			SimpleQueryBuilder.prototype,
 			"execute"
-		).mockImplementation(function () {
+		).mockImplementation(function (this: SimpleQueryBuilder) {
 			const compiled = this.compile();
 			expect(compiled.params).toMatchObject({ f0: "activation_completed" });
 			expect(compiled.sql).toContain("event_name = {f0:String}");
@@ -301,10 +293,7 @@ describe("analytics tool contract", () => {
 				}))
 			);
 		});
-		if (!getDataTool.execute) {
-			throw new Error("Missing data tool");
-		}
-		const result = await getDataTool.execute(
+		const result = await executeData(
 			{
 				queries: [
 					{
@@ -335,6 +324,100 @@ describe("analytics tool contract", () => {
 				},
 			},
 		});
-		expect(execute).toHaveBeenCalledOnce();
+		expect(execute).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		{ limit: undefined, returnedRows: 20 },
+		{ limit: 2, returnedRows: 2 },
+	])("keeps the newest $returnedRows rows of a truncated time series", async ({
+		limit,
+		returnedRows,
+	}) => {
+		const rows = Array.from({ length: 30 }, (_, index) => ({
+			date: `2026-08-${String(index + 1).padStart(2, "0")}`,
+		}));
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockResolvedValue(rows);
+		const result = await executeData(
+			{
+				queries: [
+					{
+						type: "events_by_date",
+						from: "2026-08-01",
+						to: "2026-08-30",
+						limit,
+					},
+				],
+			},
+			options
+		);
+		expect(result).toMatchObject({
+			results: {
+				events_by_date: {
+					data: rows.slice(-returnedRows),
+					returnedRows,
+					rowCount: 30,
+					truncated: true,
+				},
+			},
+		});
+		expect(execute).toHaveBeenCalledTimes(1);
+	});
+
+	it("offers website query types only", async () => {
+		const schema = asSchema(getDataTool.inputSchema);
+		if (!schema.validate) {
+			throw new Error("Missing validator");
+		}
+		expect(
+			(await schema.validate({ queries: [{ type: "link_total_clicks" }] }))
+				.success
+		).toBe(false);
+		expect(
+			(await schema.validate({ queries: [{ type: "outbound_links" }] })).success
+		).toBe(true);
+	});
+
+	it.each([
+		{
+			query: { type: "summary_metrics", orderBy: "pageviews DESC" },
+			error:
+				"summary_metrics returns rows in a fixed order and does not support orderBy. Remove orderBy.",
+		},
+		{
+			query: {
+				type: "country",
+				filters: [{ field: "path", op: "eq", value: ["/a", "/b"] }],
+			},
+			error:
+				"Filter 'path' uses op 'eq' with a list of values. Use 'in' or 'not_in' for a list, or pass a single value.",
+		},
+		{
+			query: { type: "revenue_overview", timeUnit: "day" },
+			error: "revenue_overview does not take a timeUnit. Remove timeUnit.",
+		},
+	])("returns the planner error instead of querying: $error", async ({
+		query,
+		error,
+	}) => {
+		const execute = spyOn(
+			SimpleQueryBuilder.prototype,
+			"execute"
+		).mockResolvedValue([]);
+		expect(await executeData({ queries: [query] }, options)).toEqual({
+			results: {
+				[query.type]: {
+					type: query.type,
+					websiteId: "site-test",
+					data: [],
+					rowCount: 0,
+					error,
+				},
+			},
+		});
+		expect(execute).not.toHaveBeenCalled();
 	});
 });

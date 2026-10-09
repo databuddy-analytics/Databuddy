@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
@@ -295,9 +296,11 @@ export function AlarmSheet({
 
 	const createMutation = useMutation({
 		...orpc.alarms.create.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 	const updateMutation = useMutation({
 		...orpc.alarms.update.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const isPending = createMutation.isPending || updateMutation.isPending;
@@ -338,14 +341,19 @@ export function AlarmSheet({
 			});
 			onSaveAction?.();
 			onCloseAction(false);
-		} catch {}
+		} catch (error) {
+			showErrorToast(
+				error,
+				isEditing ? "Failed to update alert" : "Failed to create alert"
+			);
+		}
 	};
 
 	return (
 		<Sheet onOpenChange={onCloseAction} open={open}>
 			<Sheet.Content className="w-full sm:max-w-lg">
 				<Sheet.Header>
-					<Sheet.Title>{isEditing ? "Edit Alert" : "New Alert"}</Sheet.Title>
+					<Sheet.Title>{isEditing ? "Edit alert" : "Create alert"}</Sheet.Title>
 					<Sheet.Description>
 						{isEditing
 							? "Update this alert's destinations and settings."
@@ -555,7 +563,7 @@ export function AlarmSheet({
 							loading={isPending}
 							type="submit"
 						>
-							{isEditing ? "Save Changes" : "Create Alert"}
+							{isEditing ? "Save changes" : "Create alert"}
 						</Button>
 					</Sheet.Footer>
 				</form>

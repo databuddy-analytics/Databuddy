@@ -1,17 +1,17 @@
 import type { API_SCOPES, ApiScope } from "@databuddy/api-keys/scopes";
 
 export const SCOPE_OPTIONS: { value: ApiScope; label: string }[] = [
-	{ value: "read:data", label: "Read Data" },
-	{ value: "track:events", label: "Event Tracking" },
-	{ value: "read:links", label: "Read Links" },
-	{ value: "write:links", label: "Write Links" },
-	{ value: "read:monitors", label: "Read Monitors" },
-	{ value: "write:monitors", label: "Write Monitors" },
-	{ value: "read:status_pages", label: "Read Status Pages" },
-	{ value: "write:status_pages", label: "Write Status Pages" },
-	{ value: "manage:websites", label: "Manage Websites" },
-	{ value: "manage:flags", label: "Manage Flags" },
-	{ value: "manage:config", label: "Manage Config" },
+	{ value: "read:data", label: "Read data" },
+	{ value: "track:events", label: "Event tracking" },
+	{ value: "read:links", label: "Read links" },
+	{ value: "write:links", label: "Write links" },
+	{ value: "read:monitors", label: "Read monitors" },
+	{ value: "write:monitors", label: "Write monitors" },
+	{ value: "read:status_pages", label: "Read status pages" },
+	{ value: "write:status_pages", label: "Write status pages" },
+	{ value: "manage:websites", label: "Manage websites" },
+	{ value: "manage:flags", label: "Manage flags" },
+	{ value: "manage:config", label: "Manage config" },
 ] as const satisfies { value: (typeof API_SCOPES)[number]; label: string }[];
 
 export const SCOPE_PRESETS: { label: string; scopes: readonly ApiScope[] }[] = [
@@ -20,7 +20,7 @@ export const SCOPE_PRESETS: { label: string; scopes: readonly ApiScope[] }[] = [
 	{ label: "Links", scopes: ["read:links", "write:links"] },
 	{ label: "Monitors", scopes: ["read:monitors", "write:monitors"] },
 	{
-		label: "Status Pages",
+		label: "Status pages",
 		scopes: ["read:status_pages", "write:status_pages"],
 	},
 	{

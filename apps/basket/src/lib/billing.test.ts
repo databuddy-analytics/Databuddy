@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { BillingUnavailableError } from "@databuddy/shared/billing";
 import { EvlogError } from "evlog";
 
 const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
@@ -13,7 +14,8 @@ const { mockCheck, mockLoggerSet, mockLoggerWarn } = vi.hoisted(() => ({
 	mockLoggerWarn: vi.fn(() => {}),
 }));
 
-vi.mock("@databuddy/rpc/autumn", () => ({
+vi.mock("@databuddy/rpc/autumn", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@databuddy/rpc/autumn")>()),
 	getAutumn: () => ({ check: mockCheck }),
 }));
 
@@ -35,6 +37,7 @@ const { checkAutumnUsage } = await import("./billing");
 describe("checkAutumnUsage", () => {
 	beforeEach(() => {
 		vi.stubEnv("SELFHOST", "false");
+		vi.stubEnv("AUTUMN_SECRET_KEY", "am_sk_test_synthetic");
 		mockCheck.mockReset();
 		mockLoggerSet.mockReset();
 		mockLoggerWarn.mockReset();
@@ -130,6 +133,18 @@ describe("checkAutumnUsage", () => {
 			featureId: "events",
 			quantity: 25,
 			billing: { usage: 10_001, granted: 10_000, unlimited: false },
+		});
+	});
+
+	test("an Autumn outage accepts the event instead of dropping it", async () => {
+		mockCheck.mockRejectedValue(
+			new BillingUnavailableError("Autumn check failed")
+		);
+		await expect(checkAutumnUsage("cust_1", "events")).resolves.toEqual({
+			allowed: true,
+		});
+		expect(mockLoggerSet).toHaveBeenCalledWith({
+			billing: { allowed: true, checkFailed: true },
 		});
 	});
 

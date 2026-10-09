@@ -1,14 +1,20 @@
 import { describe, expect, it } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { FEATURED_AI_PRODUCTS } from "@databuddy/shared/bot-detection/types";
-import { AI_ICON_COLORS, aiProductColor } from "./icon";
+import {
+	AI_ICON_COLORS,
+	FEATURED_AI_PRODUCTS,
+} from "@databuddy/shared/bot-detection/types";
+import { aiProductColor } from "./icon";
 
 describe("AI product logos", () => {
-	it("has exactly one SVG in public/ai for every logo entry", () => {
-		const files = readdirSync(join(import.meta.dir, "../public/ai"))
-			.filter((file) => file.endsWith(".svg"))
-			.map((file) => file.replace(".svg", ""));
+	it.each([
+		["public/ai", ".svg"],
+		["public/ai/email", ".png"],
+	])("has exactly one logo in %s for every logo entry", (folder, extension) => {
+		const files = readdirSync(join(import.meta.dir, "..", folder))
+			.filter((file) => file.endsWith(extension))
+			.map((file) => file.replace(extension, ""));
 		expect(files.sort()).toEqual(Object.keys(AI_ICON_COLORS).sort());
 	});
 

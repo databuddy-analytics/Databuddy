@@ -1,3 +1,7 @@
+import {
+	DATABUDDY_DESCRIPTION,
+	DATABUDDY_DISAMBIGUATION,
+} from "@databuddy/shared/agent-discovery";
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import type { RawPlan } from "@/app/(home)/pricing/data";
 
@@ -15,7 +19,7 @@ interface JsonLdNode {
 	[property: string]: JsonLdValue;
 }
 
-interface Breadcrumb {
+export interface Breadcrumb {
 	name: string;
 	url: string;
 }
@@ -230,7 +234,15 @@ export function StructuredData({
 		"@type": "Organization",
 		"@id": orgId,
 		name: "Databuddy",
+		alternateName: "Databuddy Analytics",
 		legalName: "Databuddy Analytics, Inc.",
+		disambiguatingDescription: DATABUDDY_DISAMBIGUATION,
+		founder: { "@type": "Person", name: "Issa Nassar" },
+		funder: {
+			"@type": "Organization",
+			name: "Y Combinator",
+			url: "https://www.ycombinator.com",
+		},
 		url: baseUrl,
 		logo: { "@type": "ImageObject", url: logoUrl },
 		sameAs: [
@@ -239,6 +251,7 @@ export function StructuredData({
 			"https://www.linkedin.com/company/databuddy-analytics",
 			"https://www.npmjs.com/package/@databuddy/sdk",
 			"https://pypi.org/project/databuddy/",
+			"https://www.ycombinator.com/companies/databuddy",
 		],
 		email: "support@databuddy.cc",
 		contactPoint: {
@@ -282,11 +295,10 @@ export function StructuredData({
 	graph.push({
 		"@type": "Service",
 		"@id": serviceId,
-		name: "Databuddy privacy-first analytics",
-		description:
-			"Privacy-first analytics, error tracking, Core Web Vitals monitoring, feature flags, short links, uptime, and automatic investigations for developer teams.",
+		name: "Databuddy product analytics",
+		description: DATABUDDY_DESCRIPTION,
 		provider: { "@type": "Organization", "@id": orgId },
-		serviceType: "Web analytics software",
+		serviceType: "Product analytics software",
 		areaServed: "Worldwide",
 		url: baseUrl,
 	});
@@ -352,8 +364,8 @@ export function StructuredData({
 				articleSection: d.section ?? "Documentation",
 				keywords: d.keywords ?? [
 					"analytics",
-					"privacy-first",
-					"web analytics",
+					"product analytics",
+					"cookieless analytics",
 					"GDPR",
 					"documentation",
 				],
@@ -367,9 +379,7 @@ export function StructuredData({
 				"@type": ["SoftwareApplication", "Product"],
 				"@id": softwareId,
 				name: app.name ?? "Databuddy",
-				description:
-					app.description ??
-					"Privacy-first analytics, error tracking, web vitals, feature flags, short links, and automatic investigations for developer teams.",
+				description: app.description ?? DATABUDDY_DESCRIPTION,
 				applicationCategory: "BusinessApplication",
 				operatingSystem: "Web",
 				url: baseUrl,
@@ -394,11 +404,16 @@ export function StructuredData({
 				},
 			});
 		} else if (el.type === "softwareOffers") {
-			const offers = el.plans.map((p) => planToOffer(p, baseUrl));
+			const offers = el.plans
+				.filter(
+					(p) =>
+						p.id === "free" || p.items.some((item) => item.type === "price")
+				)
+				.map((p) => planToOffer(p, baseUrl));
 
 			graph.push({
 				"@type": "SoftwareApplication",
-				"@id": softwareId,
+				"@id": `${pageUrl}#software`,
 				name: el.name ?? "Databuddy",
 				applicationCategory: "BusinessApplication",
 				operatingSystem: "Web",

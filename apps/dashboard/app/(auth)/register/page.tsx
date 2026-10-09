@@ -5,9 +5,10 @@ import { isSelfHosted } from "@databuddy/env/public";
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
@@ -21,7 +22,7 @@ import {
 	type SignupMethod,
 	trackAppEvent,
 } from "@/lib/app-events";
-import { safeCallbackPath } from "@/lib/safe-callback";
+import { newUserCallbackPath, safeCallbackPath } from "@/lib/safe-callback";
 import {
 	CaretLeftIcon,
 	EyeIcon,
@@ -41,11 +42,8 @@ import {
 function RegisterPageContent() {
 	const capabilities = useAuthCapabilities();
 	const hasSocialLogin = capabilities.github || capabilities.google;
-	const [selectedPlan] = useQueryState("plan", parseAsString);
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [selectedPlan] = useQueryState("plan");
+	const [callback] = useQueryState("callback");
 	const safeCallback = safeCallbackPath(callback);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
@@ -85,7 +83,6 @@ function RegisterPageContent() {
 
 	const getCallbackUrl = () => {
 		if (selectedPlan) {
-			localStorage.setItem("pendingPlanSelection", selectedPlan);
 			return `/billing/plans?plan=${selectedPlan}`;
 		}
 		return safeCallback;
@@ -98,12 +95,14 @@ function RegisterPageContent() {
 		e.preventDefault();
 
 		if (formData.password !== formData.confirmPassword) {
-			toast.error("Passwords do not match");
+			toast.error("The passwords do not match.");
 			return;
 		}
 
 		if (isHoneypot) {
-			toast.error("Server error, please try again later");
+			toast.error("Failed to create account", {
+				description: "Try again later.",
+			});
 			return;
 		}
 
@@ -117,7 +116,7 @@ function RegisterPageContent() {
 			email: formData.email,
 			password: formData.password,
 			name: formData.name,
-			callbackURL: getCallbackUrl(),
+			callbackURL: newUserCallbackPath(getCallbackUrl()),
 			fetchOptions: {
 				onSuccess: () => {
 					storeOnboardingAttribution(signupProperties);
@@ -125,8 +124,8 @@ function RegisterPageContent() {
 					trackOpenAiRegistrationCompleted();
 					toast.success(
 						capabilities.verifyEmail
-							? "Account created! Please check your email to verify your account."
-							: "Account created. You can sign in now."
+							? "Account created. Check your email to verify your account"
+							: "Account created. You can sign in now"
 					);
 					setRegistrationStep("verification-needed");
 				},
@@ -134,7 +133,10 @@ function RegisterPageContent() {
 		});
 
 		if (error) {
-			toast.error(error.message || "Failed to create account");
+			toast.error("Failed to create account", {
+				description:
+					"Check your details and try again. If you already have an account, sign in instead.",
+			});
 		}
 
 		setIsLoading(false);
@@ -149,16 +151,12 @@ function RegisterPageContent() {
 				callbackURL: getCallbackUrl(),
 			});
 			if (error) {
-				toast.error(
-					"We couldn't send the verification email. Try again in a moment."
-				);
+				showErrorToast(error, "Failed to send verification email");
 			} else {
-				toast.success("Verification email sent. Check your inbox.");
+				toast.success("Verification email sent. Check your inbox");
 			}
-		} catch {
-			toast.error(
-				"We couldn't send the verification email. Try again in a moment."
-			);
+		} catch (error) {
+			showErrorToast(error, "Failed to send verification email");
 		}
 		setIsLoading(false);
 	};
@@ -173,16 +171,14 @@ function RegisterPageContent() {
 			const result = await authClient.signIn.social({
 				provider,
 				callbackURL,
-				newUserCallbackURL:
-					callbackURL === "/websites" ? "/onboarding" : callbackURL,
+				newUserCallbackURL: newUserCallbackPath(callbackURL),
 				disableRedirect: true,
 			});
 
 			if (result.error) {
-				toast.error(
-					result.error.message ||
-						`${getProviderLabel(provider)} login failed. Please try again.`
-				);
+				toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+					description: "Try again in a moment.",
+				});
 				setIsLoading(false);
 				return;
 			}
@@ -193,12 +189,14 @@ function RegisterPageContent() {
 				return;
 			}
 
-			toast.error(
-				`${getProviderLabel(provider)} login failed. Please try again.`
-			);
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		} catch {
-			toast.error("Login failed. Please try again.");
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		}
 	};
@@ -214,9 +212,7 @@ function RegisterPageContent() {
 								: "Account created"}
 						</Text>
 						<Text tone="muted">
-							{capabilities.verifyEmail
-								? "Please check your email:"
-								: "Sign in with"}{" "}
+							{capabilities.verifyEmail ? "Check your email:" : "Sign in with"}{" "}
 							<span className="font-medium text-accent-foreground">
 								{formData.email}
 							</span>{" "}

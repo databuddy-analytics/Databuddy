@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { DatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
+import { AgentError } from "@databuddy/ai/agent/errors";
 import type { ChatStopStreamArguments } from "@slack/web-api";
 import type { DatabuddyAgentClient } from "@/agent/agent-client";
 import { SLACK_COPY } from "@/slack/messages";
@@ -141,13 +141,15 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
 			options: expect.objectContaining({
-				chunks: [{ text: "Sure — traffic is up 12%.", type: "markdown_text" }],
+				chunks: [{ text: "Sure — traffic is up ", type: "markdown_text" }],
 			}),
 		});
 		expect(calls[2].options).not.toHaveProperty("markdown_text");
+		expect(getChunkText(calls[3].options)).toBe("12%.");
 
 		expect(calls.map((c) => c.method)).toEqual([
 			"chat.startStream",
+			"chat.appendStream",
 			"chat.appendStream",
 			"chat.appendStream",
 			"chat.stopStream",
@@ -523,11 +525,7 @@ describe("Databuddy Slack response streaming", () => {
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
-				throw new DatabuddyAgentUserError({
-					code: "agent_credits_exhausted",
-					message:
-						"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
-				});
+				throw new AgentError("agent_credits_exhausted");
 			},
 		};
 
@@ -563,10 +561,7 @@ describe("Databuddy Slack response streaming", () => {
 		const sayCalls: Array<{ text: string; thread_ts?: string }> = [];
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
-				throw new DatabuddyAgentUserError({
-					code: "agent_credits_exhausted",
-					message: "No credits left.",
-				});
+				throw new AgentError("agent_credits_exhausted", "No credits left.");
 			},
 		};
 
@@ -587,6 +582,71 @@ describe("Databuddy Slack response streaming", () => {
 			streamed: false,
 		});
 		expect(sayCalls[0]?.text).toBe("No credits left.");
+	});
+
+	it("streams no link to an unlisted host, even when a URL spans model chunks", async () => {
+		const originalDateNow = Date.now;
+		let now = 0;
+		Date.now = () => {
+			now += 1000;
+			return now;
+		};
+		const { calls, client } = createStreamClient();
+		try {
+			await streamAgentToSlack({
+				agent: {
+					async *stream() {
+						yield "See http";
+						yield "s://evil.example/steal?d=";
+						yield "secret and ";
+						yield "https://app.databuddy.cc/websites/x?tab=1 or <https://evil.example|Open dashboard>.";
+					},
+				},
+				client,
+				logger: silentLogger,
+				run: baseRun(),
+				say: async () => {},
+			});
+		} finally {
+			Date.now = originalDateNow;
+		}
+		const streamed = calls
+			.filter((call) => call.method === "chat.appendStream")
+			.map((call) => getChunkText(call.options) ?? "");
+		expect(streamed.join("")).toBe(
+			"See `evil.example/steal` and https://app.databuddy.cc/websites/x?tab=1 or `evil.example`|Open dashboard>."
+		);
+		expect(JSON.stringify(calls)).not.toContain("secret");
+	});
+
+	it("posts fallback answers with escaped markup and unfurls disabled", async () => {
+		const { calls, client } = createStreamClient(null);
+		const sayCalls: Parameters<SlackSay>[0][] = [];
+		await streamAgentToSlack({
+			agent: {
+				async *stream() {
+					yield 'See <https://evil.example|the dashboard> & <!channel>.\n{"type":"data-table","columns":["Page"],"rows":[["/pricing"]]}';
+				},
+			},
+			client,
+			logger: silentLogger,
+			run: baseRun(),
+			say: async (message) => {
+				sayCalls.push(message);
+				return { ts: "say_ts" };
+			},
+		});
+		expect(sayCalls).toEqual([
+			{
+				text: "See &lt;`evil.example`|the dashboard&gt; &amp; &lt;!channel&gt;.",
+				thread_ts: "171234.567",
+				unfurl_links: false,
+				unfurl_media: false,
+			},
+		]);
+		expect(
+			calls.find((call) => call.method === "chat.postMessage")?.options
+		).toMatchObject({ unfurl_links: false, unfurl_media: false });
 	});
 
 	it("does not start a new Slack response when the run is already aborted", async () => {

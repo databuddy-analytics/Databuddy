@@ -1,3 +1,8 @@
+import { cacheable } from "@databuddy/redis";
+import {
+	getGithubIntegrationForOrg,
+	isGitHubAppConfigured,
+} from "@databuddy/services/github-app";
 import type { ToolSet } from "ai";
 import { createAnnotationTools } from "./annotations";
 import { describeSchemaTool } from "./describe-schema";
@@ -8,14 +13,22 @@ import { createFlagTools } from "./flags";
 import { createFunnelTools } from "./funnels";
 import { getDataTool } from "./get-data";
 import { createGoalTools } from "./goals";
-import { createGitHubTools, type GitHubRepository } from "./github-tools";
+import {
+	createGitHubTools,
+	type GitHubRepository,
+	listLinkedGitHubRepositories,
+} from "./github-tools";
 import { createInvestigationTools } from "./investigations";
 import { createLinksTools } from "./links";
 import { listWebsitesTool } from "./list-websites";
 import { createMemoryTools } from "./memory";
 import { createProfileTools } from "./profiles";
 import { createScrapeTools } from "./scrape-page";
-import { createSearchConsoleTools } from "./search-console";
+import {
+	createSearchConsoleTools,
+	SEARCH_CONSOLE_SCOPE,
+} from "./search-console";
+import { hasOAuthGrant } from "./utils/oauth-token";
 import { dashboardActionsTool } from "./dashboard-actions";
 
 export type ToolCapability =
@@ -25,12 +38,54 @@ export type ToolCapability =
 	| "memory"
 	| "dashboard";
 
+export interface ToolIntegrations {
+	github: boolean;
+	scrape: boolean;
+	searchConsole: boolean;
+}
+
 export interface ToolkitParams {
 	capabilities: ToolCapability[];
 	domain?: string;
 	githubRepository?: GitHubRepository | null;
+	integrations?: ToolIntegrations;
 	organizationId?: string;
 	userId?: string;
+}
+
+async function hasGitHubRepositoryAccess(
+	organizationId: string
+): Promise<boolean> {
+	if (!isGitHubAppConfigured()) {
+		return false;
+	}
+	const integration = await getGithubIntegrationForOrg(organizationId);
+	if (integration?.status !== "active") {
+		return false;
+	}
+	const repositories = await listLinkedGitHubRepositories(organizationId);
+	return repositories.length > 0;
+}
+
+const resolveConnectedIntegrations = cacheable(
+	async (organizationId: string, userId: string) => {
+		const [github, searchConsole] = await Promise.all([
+			hasGitHubRepositoryAccess(organizationId),
+			hasOAuthGrant("google", organizationId, userId, SEARCH_CONSOLE_SCOPE),
+		]);
+		return { github, searchConsole };
+	},
+	{ expireInSec: 30, prefix: "agent:tool-integrations" }
+);
+
+export async function resolveToolIntegrations(
+	organizationId: string,
+	userId: string
+): Promise<ToolIntegrations> {
+	return {
+		...(await resolveConnectedIntegrations(organizationId, userId)),
+		scrape: Boolean(process.env.CONTEXT_DEV_API_KEY),
+	};
 }
 
 const GOAL_TOOLS = createGoalTools();
@@ -71,6 +126,7 @@ const DASHBOARD_TOOLS: ToolSet = {
 export function createToolkit(params: ToolkitParams): ToolSet {
 	const tools: ToolSet = {};
 	const caps = new Set(params.capabilities);
+	const { integrations } = params;
 
 	if (caps.has("analytics")) {
 		Object.assign(tools, ANALYTICS_TOOLS);
@@ -81,14 +137,17 @@ export function createToolkit(params: ToolkitParams): ToolSet {
 		if (params.organizationId) {
 			Object.assign(
 				tools,
-				createScrapeTools(),
-				createSearchConsoleTools({
-					domain: params.domain,
-					organizationId: params.organizationId,
-					userId: params.userId,
-				}),
+				integrations?.scrape === false ? {} : createScrapeTools(),
+				integrations?.searchConsole === false
+					? {}
+					: createSearchConsoleTools({
+							domain: params.domain,
+							organizationId: params.organizationId,
+							userId: params.userId,
+						}),
 				createGitHubTools({
-					repository: params.githubRepository,
+					repository:
+						integrations?.github === false ? null : params.githubRepository,
 					organizationId: params.organizationId,
 				})
 			);

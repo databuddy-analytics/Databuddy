@@ -2,9 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 
 vi.mock("@databuddy/api-keys/resolve", () => ({
 	extractSecret: vi.fn(),
-	getAccessibleWebsiteIds: vi.fn(),
 	getApiKeyFromHeader: vi.fn(),
-	hasGlobalAccess: vi.fn(),
 	hasKeyScope: vi.fn(),
 	hasWebsiteScope: vi.fn(),
 }));

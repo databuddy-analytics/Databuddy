@@ -13,7 +13,6 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import {
-	type AnalyticsStep,
 	buildGoalAnalyticsResult,
 	getTotalWebsiteUsers,
 	processGoalAnalytics,
@@ -34,26 +33,16 @@ import {
 	withWorkspace,
 } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
+import {
+	conversionAnalyticsOutputSchema,
+	filterSchema,
+	toAnalyticsSteps,
+} from "./funnel-steps";
 import { queueDefinitionChangeRechecks } from "./insights";
 
 const ANALYTICS_CACHE_TTL = 180;
 const BATCH_CHUNK_SIZE = 255;
 const cache = createDrizzleCache({ redis, namespace: "goals" });
-
-const filterSchema = z.object({
-	field: z.string(),
-	operator: z.enum([
-		"equals",
-		"contains",
-		"not_contains",
-		"starts_with",
-		"ends_with",
-		"not_equals",
-		"in",
-		"not_in",
-	]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
 
 type Filter = z.infer<typeof filterSchema>;
 
@@ -79,71 +68,18 @@ const goalOutputSchema = z.object({
 	filters: z.array(filterSchema).nullable(),
 	ignoreHistoricData: z.boolean(),
 	isActive: z.boolean(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 	deletedAt: z.nullable(z.coerce.date()),
 });
 
-const stepErrorInsightOutputSchema = z.object({
-	message: z.string(),
-	error_type: z.string(),
-	count: z.number(),
-});
-
-const stepAnalyticsOutputSchema = z.object({
-	step_number: z.number(),
-	step_name: z.string(),
-	users: z.number(),
-	total_users: z.number(),
-	conversion_rate: z.number(),
-	dropoffs: z.number(),
-	dropoff_rate: z.number(),
-	avg_time_to_complete: z.number(),
-	error_context_available: z.boolean(),
-	error_count: z.number(),
-	error_rate: z.number(),
-	top_errors: z.array(stepErrorInsightOutputSchema),
-});
-
-const timeSeriesPointSchema = z.object({
-	date: z.string(),
-	users: z.number(),
-	conversions: z.number(),
-	conversion_rate: z.number(),
-	dropoffs: z.number(),
-	avg_time: z.number(),
-});
-
-const goalAnalyticsOutputSchema = z.object({
-	overall_conversion_rate: z.number(),
-	total_users_entered: z.number(),
-	total_users_completed: z.number(),
-	avg_completion_time: z.number(),
-	avg_completion_time_formatted: z.string(),
-	biggest_dropoff_step: z.number(),
-	biggest_dropoff_rate: z.number(),
-	duration_available: z.boolean(),
-	steps_analytics: z.array(stepAnalyticsOutputSchema),
-	time_series: z.array(timeSeriesPointSchema).optional(),
-	error_insights: z.object({
-		available: z.boolean(),
-		total_errors: z.number(),
-		sessions_with_errors: z.number(),
-		dropoffs_with_errors: z.number(),
-		error_correlation_rate: z.number(),
-	}),
-});
-
 const goalAnalyticsResultSchema = z.discriminatedUnion("ok", [
-	z.object({ ok: z.literal(true), data: goalAnalyticsOutputSchema }),
+	z.object({ ok: z.literal(true), data: conversionAnalyticsOutputSchema }),
 	z.object({ ok: z.literal(false), error: z.string() }),
 ]);
 
 type GoalAnalyticsResult = z.infer<typeof goalAnalyticsResultSchema>;
-
-const getAnalyticsStepType = (type: "CUSTOM" | "EVENT" | "PAGE_VIEW") =>
-	type === "PAGE_VIEW" ? "PAGE_VIEW" : "EVENT";
 
 export const goalsRouter = {
 	list: publicProcedure
@@ -269,7 +205,9 @@ export const goalsRouter = {
 				.returning();
 
 			if (!newGoal) {
-				throw rpcError.internal("Failed to create goal");
+				throw rpcError.internal(
+					"The goal could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateGoalsCache(input.websiteId);
@@ -388,7 +326,7 @@ export const goalsRouter = {
 		})
 		.input(goalAnalyticsInputSchema)
 		.output(
-			goalAnalyticsOutputSchema.extend({
+			conversionAnalyticsOutputSchema.extend({
 				measurement: insightMeasurementSchema,
 				savedDefinition: insightMeasurementSchema.shape.definition,
 				cohort: analyticsCohortSchema.optional(),
@@ -423,7 +361,7 @@ export const goalsRouter = {
 			const combinedFilters = [
 				...(input.filters ?? []),
 				...(input.cohort?.filters ?? []),
-				...((goal.filters as Filter[]) || []),
+				...(goal.filters ?? []),
 			];
 			const measurement = insightMeasurementSchema.parse({
 				websiteId: input.websiteId,
@@ -437,33 +375,22 @@ export const goalsRouter = {
 				key: `analytics:${JSON.stringify(measurement)}`,
 				ttl: ANALYTICS_CACHE_TTL,
 				tables: ["goals"],
-				queryFn: async () => {
-					const steps: AnalyticsStep[] = [
-						{
-							step_number: 1,
-							type: getAnalyticsStepType(goal.type),
-							target: goal.target,
-							name: goal.name,
-						},
-					];
-
-					const totalWebsiteUsers = await getTotalWebsiteUsers(
-						input.websiteId,
-						effectiveStartDate,
-						endDate,
-						combinedFilters
-					);
-					return await processGoalAnalytics(
-						steps,
+				queryFn: async () =>
+					await processGoalAnalytics(
+						toAnalyticsSteps([goal]),
 						combinedFilters,
 						{
 							websiteId: input.websiteId,
 							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
 						},
-						totalWebsiteUsers
-					);
-				},
+						getTotalWebsiteUsers(
+							input.websiteId,
+							effectiveStartDate,
+							endDate,
+							combinedFilters
+						)
+					),
 			});
 			return {
 				...analytics,
@@ -533,29 +460,16 @@ export const goalsRouter = {
 					goal.createdAt,
 					goal.ignoreHistoricData
 				);
-				const steps: AnalyticsStep[] = [
-					{
-						step_number: 1,
-						type: getAnalyticsStepType(goal.type),
-						target: goal.target,
-						name: goal.name,
-					},
-				];
-
 				try {
-					const totalUsers = await memoizedTotalUsers(
-						effectiveStartDate,
-						combinedFilters
-					);
 					const analytics = await processGoalAnalytics(
-						steps,
+						toAnalyticsSteps([goal]),
 						combinedFilters,
 						{
 							websiteId: input.websiteId,
 							startDate: effectiveStartDate,
 							endDate: `${endDate} 23:59:59`,
 						},
-						totalUsers
+						memoizedTotalUsers(effectiveStartDate, combinedFilters)
 					);
 					analyticsByGoal[goal.id] = { ok: true, data: analytics };
 				} catch (error) {
@@ -588,14 +502,7 @@ export const goalsRouter = {
 							const [totalUsers, completionsByStep] = await Promise.all([
 								memoizedTotalUsers(effectiveStartDate, []),
 								processGoalsConversionCountsBatch(
-									chunkGoals.map(
-										(goal, index): AnalyticsStep => ({
-											step_number: index + 1,
-											type: getAnalyticsStepType(goal.type),
-											target: goal.target,
-											name: goal.name,
-										})
-									),
+									toAnalyticsSteps(chunkGoals),
 									{
 										websiteId: input.websiteId,
 										startDate: effectiveStartDate,

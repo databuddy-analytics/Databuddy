@@ -43,7 +43,7 @@ export default function PulsePage() {
 	} else if (scheduleQuery.isError) {
 		content = (
 			<EmptyState
-				action={{ label: "Retry", onClick: () => scheduleQuery.refetch() }}
+				action={{ label: "Try again", onClick: () => scheduleQuery.refetch() }}
 				description="Something went wrong while loading this website's monitor."
 				icon={<HeartbeatIcon />}
 				title="Failed to load monitor"
@@ -54,7 +54,7 @@ export default function PulsePage() {
 		content = (
 			<EmptyState
 				action={{
-					label: "Create a monitor",
+					label: "Start monitoring",
 					onClick: () => setIsSheetOpen(true),
 				}}
 				className="h-full py-0"

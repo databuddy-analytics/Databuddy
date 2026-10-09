@@ -23,6 +23,17 @@ mock.module("@databuddy/rpc", () => ({
 			create: procedure.handler(() => {
 				throw new ORPCError("FORBIDDEN");
 			}),
+			update: procedure.handler(() => {
+				throw Object.assign(
+					new Error(
+						'Failed query: update "flags" set "rules" = $1\nparams: target@example.com'
+					),
+					{
+						cause: new Error("connection terminated"),
+						params: ["target@example.com"],
+					}
+				);
+			}),
 			list: procedure
 				.input(z.object({ websiteId: z.string() }))
 				.handler(({ context, path, signal }) => {
@@ -94,10 +105,29 @@ describe("AI tool RPC helper", () => {
 		["missing", "list", "Router missing not found"],
 		["links", "missing", "Procedure links.missing not found or not callable."],
 		["links", "create", "You don't have permission to access this resource."],
-		["links", "list", "Invalid request: Input validation failed"],
+		[
+			"links",
+			"list",
+			"Invalid request: websiteId: Invalid input: expected string, received undefined",
+		],
 	])("preserves the error for %s.%s", async (router, method, message) => {
 		await expect(
 			callRPCProcedure(router, method, {}, BASE_CONTEXT)
 		).rejects.toThrow(message);
+	});
+
+	it("rethrows query failures without their bound parameters", async () => {
+		const error = await callRPCProcedure(
+			"links",
+			"update",
+			{},
+			BASE_CONTEXT
+		).catch((caught: unknown) => caught);
+
+		expect(error).toBeInstanceOf(Error);
+		expect((error as Error).message).toBe("connection terminated");
+		expect(error).not.toHaveProperty("params");
+		expect(error).not.toHaveProperty("cause");
+		expect(String((error as Error).stack)).not.toContain("target@example.com");
 	});
 });

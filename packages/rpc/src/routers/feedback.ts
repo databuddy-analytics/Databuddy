@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { and, desc, eq, sql, withTransaction } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
 import { feedback, feedbackRedemptions } from "@databuddy/db/schema";
@@ -125,7 +125,7 @@ export const feedbackRouter = {
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ category: input.category });
 			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			const rl = await ratelimit(
@@ -166,7 +166,7 @@ export const feedbackRouter = {
 		.output(z.array(submitterFeedbackOutputSchema))
 		.handler(async ({ context, input }) => {
 			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			const conditions = [
@@ -211,7 +211,7 @@ export const feedbackRouter = {
 		)
 		.handler(async ({ context }) => {
 			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			return await computeCreditsBalance(
@@ -248,18 +248,20 @@ export const feedbackRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (readBooleanEnv("SELFHOST")) {
+			if (billingMode() !== "live") {
 				throw rpcError.badRequest(
-					"Cloud credit rewards are not used on self-hosted instances"
+					"Credit rewards are only available on Databuddy Cloud."
 				);
 			}
 			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			const tier = REWARD_TIERS[input.tierIndex];
 			if (!tier) {
-				throw rpcError.badRequest("Unknown reward tier");
+				throw rpcError.badRequest(
+					"This reward is no longer available. Refresh the page and pick another."
+				);
 			}
 			const userId = context.user.id;
 			const organizationId = context.organizationId;
@@ -330,8 +332,8 @@ export const feedbackRouter = {
 				);
 				throw rpcError.internal(
 					definitiveFailure
-						? "Failed to add events to your balance. Please try again."
-						: "Your redemption was recorded, but we could not confirm the balance update. Please contact support before retrying."
+						? "The events could not be added to your balance. Try again in a moment."
+						: "Your redemption was recorded, but we failed to confirm the balance update. Contact support before retrying."
 				);
 			}
 

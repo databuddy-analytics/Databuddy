@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 
 const PAGE_TITLES: Record<string, string> = {
-	"/billing": "Billing Overview",
+	"/billing": "Billing overview",
 	"/billing/plans": "Plans",
 	"/billing/history": "Invoices",
 };

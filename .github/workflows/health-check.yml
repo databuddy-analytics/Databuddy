@@ -157,7 +157,8 @@ jobs:
             -e CLICKHOUSE_URL=http://localhost:8123 \
             -e CLICKHOUSE_USER=default \
             -e CLICKHOUSE_PASSWORD=vector-test-password \
-            timberio/vector:0.50.0-alpine \
+            -e VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true \
+            timberio/vector:0.58.0-alpine \
             validate --deny-warnings --no-environment /etc/vector/vector.yaml
 
       - name: Prove Redpanda to Vector to ClickHouse delivery
@@ -221,6 +222,7 @@ jobs:
               analytics-engagement-spans \
               analytics-custom-events \
               analytics-ai-traffic-spans \
+              analytics-mcp-spans \
               analytics-outgoing-links \
               analytics-blocked-traffic \
               analytics-uptime-checks \
@@ -238,7 +240,8 @@ jobs:
             -e CLICKHOUSE_URL=http://localhost:8123 \
             -e CLICKHOUSE_USER=default \
             -e CLICKHOUSE_PASSWORD= \
-            timberio/vector:0.50.0-alpine \
+            -e VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true \
+            timberio/vector:0.58.0-alpine \
             --config /etc/vector/vector.yaml
 
           CANARY_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
@@ -405,7 +408,7 @@ jobs:
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
             -e REDIS_URL=redis://localhost:6379 \
             -e BETTER_AUTH_SECRET=test-auth-secret-for-ci \
-            -e BETTER_AUTH_URL=http://localhost:3000 \
+            -e BETTER_AUTH_URL=https://dashboard.example.test \
             -e GITHUB_CLIENT_ID=test-github-client-id \
             -e GITHUB_CLIENT_SECRET=test-github-client-secret \
             -e GOOGLE_CLIENT_ID=test-google-client-id \

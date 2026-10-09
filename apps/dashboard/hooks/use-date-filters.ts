@@ -13,6 +13,22 @@ export interface DateRangeState {
 
 export type TimeGranularity = "daily" | "hourly";
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isDateOnly(value: string): boolean {
+	return DATE_ONLY_RE.test(value);
+}
+
+function toCalendarDate(value: string): string {
+	return isDateOnly(value) ? value : dayjs(value).format("YYYY-MM-DD");
+}
+
+function formatRangeBound(date: Date, exact: boolean): string {
+	return exact
+		? dayjs(date).startOf("minute").toISOString()
+		: dayjs(date).format("YYYY-MM-DD");
+}
+
 const MAX_HOURLY_DAYS = 7;
 const AUTO_HOURLY_DAYS = 2;
 
@@ -63,8 +79,8 @@ export function useDateFilters() {
 
 	const formattedDateRangeState = useMemo(
 		() => ({
-			startDate: startDateStr,
-			endDate: endDateStr,
+			startDate: toCalendarDate(startDateStr),
+			endDate: toCalendarDate(endDateStr),
 		}),
 		[startDateStr, endDateStr]
 	);
@@ -73,6 +89,15 @@ export function useDateFilters() {
 		() => ({
 			start_date: startDateStr,
 			end_date: endDateStr,
+			granularity,
+		}),
+		[startDateStr, endDateStr, granularity]
+	);
+
+	const calendarDateRange = useMemo(
+		() => ({
+			start_date: toCalendarDate(startDateStr),
+			end_date: toCalendarDate(endDateStr),
 			granularity,
 		}),
 		[startDateStr, endDateStr, granularity]
@@ -87,9 +112,10 @@ export function useDateFilters() {
 	);
 
 	const setDateRangeAction = useCallback(
-		(newRange: DateRangeState) => {
-			const startDate = dayjs(newRange.startDate).format("YYYY-MM-DD");
-			const endDate = dayjs(newRange.endDate).format("YYYY-MM-DD");
+		(newRange: DateRangeState, options?: { exact?: boolean }) => {
+			const exact = options?.exact ?? false;
+			const startDate = formatRangeBound(newRange.startDate, exact);
+			const endDate = formatRangeBound(newRange.endDate, exact);
 
 			setStartDateStr(startDate);
 			setEndDateStr(endDate);
@@ -112,6 +138,7 @@ export function useDateFilters() {
 		currentDateRange,
 		formattedDateRangeState,
 		dateRange,
+		calendarDateRange,
 		currentGranularity: granularity,
 		setCurrentDateRange,
 		setCurrentGranularityAtomState: setGranularityStr,

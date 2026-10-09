@@ -1,4 +1,6 @@
 import { Analytics } from "../../types/tables";
+import { Expressions } from "../expressions";
+import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
 
 export const DevicesBuilders = {
@@ -32,12 +34,12 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Usage %",
-					description: "Percentage of total browser usage",
+					description:
+						"Share of summed visitor counts across all browser groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -84,12 +86,11 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Usage %",
-					description: "Percentage of total OS usage",
+					description: "Share of summed visitor counts across all OS groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -142,12 +143,12 @@ export const DevicesBuilders = {
 					name: "percentage",
 					type: "number",
 					label: "Traffic %",
-					description: "Percentage of total traffic",
+					description:
+						"Share of summed visitor counts across all viewport and device groups",
 					unit: "%",
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -211,7 +212,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -270,7 +270,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -378,7 +377,7 @@ export const DevicesBuilders = {
 
 	screen_resolutions: {
 		meta: {
-			description: "Distribution of screen resolutions across visitors.",
+			description: "Distribution of viewport sizes across visitors.",
 			category: "Technology",
 			tags: ["screen", "display", "devices"],
 		},
@@ -430,7 +429,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "table",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -448,7 +446,6 @@ export const DevicesBuilders = {
 		orderBy: "visitors DESC",
 		limit: 200,
 		timeField: "time",
-		allowedFilters: ["device_type", "browser_name", "os_name", "country"],
 		customizable: true,
 	},
 
@@ -487,7 +484,6 @@ export const DevicesBuilders = {
 				},
 			],
 			default_visualization: "pie",
-			supports_granularity: ["hour", "day"],
 		},
 		table: Analytics.events,
 		fields: [
@@ -506,5 +502,42 @@ export const DevicesBuilders = {
 		limit: 50,
 		timeField: "time",
 		customizable: true,
+	},
+
+	traffic_segments: {
+		meta: {
+			description:
+				"Pageviews and sessions per browser, browser major version, operating system, device type and country, for localizing a traffic change. Top 50 values per dimension.",
+			category: "Audience",
+			tags: ["segments", "browsers", "devices", "internal"],
+		},
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					pair.1 AS dimension,
+					pair.2 AS value,
+					countIf(event_name = 'screen_view') AS pageviews,
+					uniq(session_id) AS sessions
+				FROM ${Analytics.events}
+				ARRAY JOIN ${Expressions.segments()} AS pair
+				WHERE client_id = {websiteId:String}
+					AND time >= toDateTime({startDate:String})
+					AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					AND session_id != ''
+					${appendFilterClause(ctx.filterConditions)}
+				GROUP BY dimension, value
+				ORDER BY dimension, sessions DESC
+				LIMIT 50 BY dimension
+			`,
+			params: {
+				websiteId: ctx.websiteId,
+				startDate: ctx.startDate,
+				endDate: ctx.endDate,
+				...ctx.filterParams,
+			},
+		}),
+		timeField: "time",
+		commonFilters: false,
+		allowedFilters: ["path"],
 	},
 } satisfies Record<string, SimpleQueryConfig>;

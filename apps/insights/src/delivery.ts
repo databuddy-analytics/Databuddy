@@ -50,6 +50,7 @@ export const insightSlackEffectPayloadSchema = z.object({
 	blocks: z.array(slackBlockSchema).max(50),
 	channelId: z.string().min(1).optional(),
 	insightId: z.string().min(1).optional(),
+	replyOnly: z.boolean().optional(),
 	text: z.string().min(1),
 });
 
@@ -77,9 +78,28 @@ function escapeMrkdwn(value: string): string {
 const FULL_UUID_PATTERN =
 	/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const TRUNCATED_UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-\.\.\./gi;
+const HTTP_URL_PATTERN = /https?:\/\/[^\s<>|`]+/gi;
+const URL_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"*_~]+$/;
+const URL_SCHEME_AND_SUFFIX = /^https?:\/\/|[?#].*$/gi;
+
+function neutralizeUrls(value: string): string {
+	return value.replace(HTTP_URL_PATTERN, (match) => {
+		const trailing = URL_TRAILING_PUNCTUATION.exec(match)?.[0] ?? "";
+		const href = match.slice(0, match.length - trailing.length);
+		const url = URL.parse(href);
+		const label = url
+			? hostAndPath(url)
+			: href.replace(URL_SCHEME_AND_SUFFIX, "");
+		return label ? `\`${label}\`${trailing}` : match;
+	});
+}
+
+function hostAndPath(url: URL): string {
+	return url.pathname === "/" ? url.host : `${url.host}${url.pathname}`;
+}
 
 function userVisibleCopy(value: string): string {
-	return value
+	return neutralizeUrls(value)
 		.replace(FULL_UUID_PATTERN, "the affected item")
 		.replace(TRUNCATED_UUID_PATTERN, "the affected item");
 }
@@ -109,16 +129,15 @@ function buildFallbackText(
 
 export function buildInsightReplyText(
 	outcome: InvestigationOutcome,
-	signal: InvestigationSignal
+	signal: InvestigationSignal,
+	label = outcome.next.type === "act"
+		? "Action"
+		: outcome.next.type === "ask"
+			? "Question"
+			: outcome.next.type === "watch"
+				? "Watching"
+				: "Resolved"
 ): string {
-	const label =
-		outcome.next.type === "act"
-			? "Action"
-			: outcome.next.type === "ask"
-				? "Question"
-				: outcome.next.type === "watch"
-					? "Watching"
-					: "Resolved";
 	const lines = [
 		`*${label} · ${escapeMrkdwn(userVisibleCopy(outcome.title))}*`,
 		escapeMrkdwn(userVisibleCopy(outcome.summary)),
@@ -213,7 +232,7 @@ function formatMetricValue(value: number, format?: string): string {
 		case "percent":
 			return `${pretty}%`;
 		case "duration_ms":
-			return `${pretty}ms`;
+			return `${pretty} ms`;
 		case "duration_s":
 			return `${pretty}s`;
 		default:
@@ -226,14 +245,16 @@ function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	const current = formatMetricValue(metric.current, metric.format);
 	const lines = [
 		`• ${escapeMrkdwn(
-			metric.previous === undefined || metric.previous === null
-				? `${metric.label}: ${current}`
-				: `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`
+			userVisibleCopy(
+				metric.previous === undefined || metric.previous === null
+					? `${metric.label}: ${current}`
+					: `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`
+			)
 		)}`,
 	];
 	if (insight.outcome.rootCause?.trim()) {
 		lines.push(
-			`_Why:_ ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
+			`*Why:* ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
 		);
 	}
 	if (insight.outcome.evidence.length) {
@@ -254,6 +275,43 @@ function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	];
 }
 
+async function slackChannelIds(organizationId: string): Promise<string[]> {
+	const [orgConfig] = await db
+		.select({ deliveries: insightGenerationConfigs.deliveries })
+		.from(insightGenerationConfigs)
+		.where(eq(insightGenerationConfigs.organizationId, organizationId))
+		.limit(1);
+	return [
+		...new Set(
+			(orgConfig?.deliveries ?? [])
+				.filter((item) => item.type === "slack")
+				.map((item) => item.channelId)
+		),
+	];
+}
+
+export async function prepareInsightRecoveryEffects(params: {
+	insight: WebsiteInvestigation;
+	organizationId: string;
+}) {
+	const { insight } = params;
+	const text = buildInsightReplyText(
+		insight.outcome,
+		insight.signal,
+		"Recovered"
+	);
+	return (await slackChannelIds(params.organizationId)).map((channelId) => ({
+		effectKey: `${channelId}:${insight.id}:recovered`,
+		payload: {
+			blocks: [],
+			channelId,
+			insightId: insight.id,
+			replyOnly: true,
+			text,
+		} satisfies InsightSlackEffectPayload,
+	}));
+}
+
 export async function prepareInsightSlackEffects(params: {
 	insight: WebsiteInvestigation | null;
 	organizationId: string;
@@ -262,19 +320,7 @@ export async function prepareInsightSlackEffects(params: {
 	if (!insight) {
 		return [];
 	}
-	const [orgConfig] = await db
-		.select({ deliveries: insightGenerationConfigs.deliveries })
-		.from(insightGenerationConfigs)
-		.where(eq(insightGenerationConfigs.organizationId, params.organizationId))
-		.limit(1);
-	const deliveries = orgConfig?.deliveries ?? [];
-	const channelIds = [
-		...new Set(
-			deliveries
-				.filter((item) => item.type === "slack")
-				.map((item) => item.channelId)
-		),
-	];
+	const channelIds = await slackChannelIds(params.organizationId);
 	if (channelIds.length === 0) {
 		return [];
 	}
@@ -367,6 +413,8 @@ export async function deliverInsightSlackEffect(
 		client_msg_id: clientMessageId,
 		text: payload.text,
 		...(threadTs ? { thread_ts: threadTs } : {}),
+		unfurl_links: false,
+		unfurl_media: false,
 	});
 	emitInsightsEvent("info", "delivery.slack.posted", {
 		organization_id: context.organizationId,
@@ -391,11 +439,11 @@ export async function deliverInsightSlackReply(params: {
 	return await deliverInsightSlackEffect(
 		{
 			blocks: [],
-			text:
-				params.text ??
-				(params.result
+			text: params.text
+				? escapeMrkdwn(neutralizeUrls(params.text))
+				: params.result
 					? buildInsightReplyText(params.result.outcome, params.result.signal)
-					: "I couldn't finish this investigation. Try replying again, or open it from the original message."),
+					: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
 		},
 		params.context,
 		params.clientMessageId,

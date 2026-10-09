@@ -46,12 +46,10 @@ function formatGoalTargetDisplay(target: string, maxLen = 40): string {
 		const { host, pathname } = new URL(target);
 		const display = host + (pathname === "/" ? "" : pathname);
 		return display.length > maxLen
-			? `${display.slice(0, maxLen - 3)}...`
+			? `${display.slice(0, maxLen - 1)}…`
 			: display;
 	} catch {
-		return target.length > maxLen
-			? `${target.slice(0, maxLen - 3)}...`
-			: target;
+		return target.length > maxLen ? `${target.slice(0, maxLen - 1)}…` : target;
 	}
 }
 
@@ -123,7 +121,7 @@ function GoalRow({
 							{!goal.isActive && (
 								<Badge
 									className="rounded px-1.5 py-0.5 text-[10px]!"
-									variant="default"
+									variant="warning"
 								>
 									Paused
 								</Badge>
@@ -271,7 +269,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 							variant="secondary"
 						>
 							<PlusIcon className="size-4" />
-							Create Goal
+							Create goal
 						</Button>
 					</div>
 				</div>
@@ -304,7 +302,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 							<div className="ml-auto flex items-center gap-2">
 								<Button onClick={openCreate} size="sm" variant="primary">
 									<PlusIcon className="size-3.5" />
-									New
+									Create goal
 								</Button>
 							</div>
 						</div>
@@ -335,13 +333,13 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 			/>
 
 			<DeleteDialog
-				confirmLabel="Delete Goal"
+				confirmLabel="Delete goal"
 				description="Delete this goal definition? Historical events remain in your analytics, but this goal will no longer be available for reporting."
 				isDeleting={isDeleting}
 				isOpen={!!deletingId}
 				onClose={() => setDeletingId(null)}
 				onConfirm={confirmDelete}
-				title="Delete Goal"
+				title="Delete goal"
 			/>
 		</>
 	);

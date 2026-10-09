@@ -45,14 +45,14 @@ const scopeEnum = z.enum(API_SCOPES);
 const resourcesSchema = z
 	.record(z.string().max(MAX_RESOURCE_KEY_LENGTH), z.array(scopeEnum))
 	.refine((r) => Object.keys(r).length <= MAX_RESOURCE_ENTRIES, {
-		message: `Too many resource entries (max ${MAX_RESOURCE_ENTRIES})`,
+		message: `An API key can be limited to at most ${MAX_RESOURCE_ENTRIES} resources. Remove some and try again.`,
 	});
 
 function assertMetadataSize(meta: Record<string, unknown>) {
 	const bytes = Buffer.byteLength(JSON.stringify(meta), "utf8");
 	if (bytes > MAX_METADATA_BYTES) {
 		throw rpcError.badRequest(
-			`Metadata too large: ${bytes} bytes exceeds limit of ${MAX_METADATA_BYTES}`
+			`This API key's metadata is too large (${bytes} bytes, the limit is ${MAX_METADATA_BYTES}). Shorten it and try again.`
 		);
 	}
 }
@@ -69,7 +69,7 @@ async function assertResourceOwnership(
 		const websiteId = resource.slice("website:".length);
 		if (!websiteId) {
 			throw rpcError.badRequest(
-				"API key website resource scopes require a website ID"
+				"Choose a website for each website-level permission on this API key."
 			);
 		}
 		return [websiteId];
@@ -91,7 +91,7 @@ async function assertResourceOwnership(
 		);
 	if (ownedWebsites.length !== websiteIds.length) {
 		throw rpcError.badRequest(
-			"API key website resources must belong to the selected organization"
+			"This API key can only be limited to websites in the selected organization. Remove the others and try again."
 		);
 	}
 }
@@ -163,7 +163,7 @@ const getMeta = (key: ApiKey): Metadata => (key.metadata as Metadata) ?? {};
 async function authorizeKeyManagement(ctx: Context, organizationId: string) {
 	if (!ctx.user) {
 		throw rpcError.forbidden(
-			"API key management requires a user session, not an API key"
+			"API keys cannot manage other API keys. Sign in to the dashboard to do this."
 		);
 	}
 	await withWorkspace(ctx, {
@@ -180,7 +180,7 @@ async function assertOrgAdmin(
 ) {
 	if (!ctx.user) {
 		throw rpcError.forbidden(
-			`${action} cannot be performed via an API key — use a user session`
+			`API keys cannot ${action}. Sign in to the dashboard to do this.`
 		);
 	}
 	const workspace = await withWorkspace(ctx, {
@@ -190,7 +190,7 @@ async function assertOrgAdmin(
 	});
 	if (workspace.role !== "owner" && workspace.role !== "admin") {
 		throw rpcError.forbidden(
-			`Only organization owners or admins can ${action.toLowerCase()}`
+			`Only organization owners and admins can ${action}. Ask one of them to do this.`
 		);
 	}
 }
@@ -340,7 +340,7 @@ export const apikeysRouter = {
 				await assertOrgAdmin(
 					context,
 					input.organizationId,
-					"Change API key scopes"
+					"change API key permissions"
 				);
 			}
 			await assertResourceOwnership(
@@ -387,7 +387,9 @@ export const apikeysRouter = {
 					})
 					.returning();
 				if (!created) {
-					throw new Error("API key was not created");
+					throw new Error(
+						"The API key could not be created. Try again in a moment."
+					);
 				}
 
 				await appendRpcAuditEvent(
@@ -456,7 +458,7 @@ export const apikeysRouter = {
 				await assertOrgAdmin(
 					context,
 					key.organizationId,
-					"Change API key scopes"
+					"change API key permissions"
 				);
 			}
 			if (input.resources !== undefined && input.resources !== null) {
@@ -566,9 +568,11 @@ export const apikeysRouter = {
 		.handler(async ({ context, input }) => {
 			const key = await getAuthorizedKey(context, input.id);
 			if (!key.organizationId) {
-				throw rpcError.internal("Organization key required to revoke");
+				throw rpcError.internal(
+					"Only API keys that belong to an organization can be revoked."
+				);
 			}
-			await assertOrgAdmin(context, key.organizationId, "Revoke API keys");
+			await assertOrgAdmin(context, key.organizationId, "revoke API keys");
 
 			await withApiKeyCacheInvalidation([key.keyHash], () =>
 				context.db.transaction(async (tx) => {
@@ -620,9 +624,11 @@ export const apikeysRouter = {
 
 			const ownerId = key.organizationId;
 			if (!ownerId) {
-				throw rpcError.internal("Organization key required for rotate");
+				throw rpcError.internal(
+					"Only API keys that belong to an organization can be rotated."
+				);
 			}
-			await assertOrgAdmin(context, ownerId, "Rotate API keys");
+			await assertOrgAdmin(context, ownerId, "rotate API keys");
 			await assertResourceOwnership(context, ownerId, meta.resources);
 
 			const { key: secret, record } = await keys.create({
@@ -688,9 +694,11 @@ export const apikeysRouter = {
 		.handler(async ({ context, input }) => {
 			const key = await getAuthorizedKey(context, input.id);
 			if (!key.organizationId) {
-				throw rpcError.internal("Organization key required to delete");
+				throw rpcError.internal(
+					"Only API keys that belong to an organization can be deleted."
+				);
 			}
-			await assertOrgAdmin(context, key.organizationId, "Delete API keys");
+			await assertOrgAdmin(context, key.organizationId, "delete API keys");
 
 			await withApiKeyCacheInvalidation([key.keyHash], () =>
 				context.db.transaction(async (tx) => {

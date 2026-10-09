@@ -1,10 +1,16 @@
-import type {
-	EmailAlertMode,
-	OrganizationEmailNotificationSettings,
-	TrackingAlertBlockReason,
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { type SQL, sql } from "drizzle-orm";
+import {
+	type EmailAlertMode,
+	type OrganizationEmailNotificationSettings,
+	organization,
+	type TrackingAlertBlockReason,
 } from "./drizzle/schema/auth";
 
 export interface EmailNotificationSettings {
+	aiAgents: {
+		weeklyDigest: boolean;
+	};
 	billing: {
 		usageWarnings: boolean;
 	};
@@ -20,7 +26,30 @@ export interface EmailNotificationSettings {
 	};
 }
 
+export type EmailNotificationSettingsPatch = {
+	[Section in keyof EmailNotificationSettings]?: Partial<
+		EmailNotificationSettings[Section]
+	>;
+};
+
+export function mergeEmailNotificationSettings(
+	patch: EmailNotificationSettingsPatch
+): SQL {
+	const column = organization.emailNotifications;
+	const sections = Object.entries(patch).filter(([, fields]) => fields);
+	return sql`${column} || jsonb_build_object(${sql.join(
+		sections.map(
+			([section, fields]) =>
+				sql`${section}::text, coalesce(${column} -> ${section}, '{}'::jsonb) || ${JSON.stringify(fields)}::jsonb`
+		),
+		sql`, `
+	)})`;
+}
+
 export const DEFAULT_EMAIL_NOTIFICATION_SETTINGS = {
+	aiAgents: {
+		weeklyDigest: true,
+	},
 	billing: {
 		usageWarnings: true,
 	},
@@ -58,6 +87,10 @@ export function normalizeEmailNotificationSettings(
 ): EmailNotificationSettings {
 	const current = settings ?? {};
 	return {
+		aiAgents: {
+			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.aiAgents,
+			...current.aiAgents,
+		},
 		billing: {
 			...DEFAULT_EMAIL_NOTIFICATION_SETTINGS.billing,
 			...current.billing,
@@ -74,4 +107,25 @@ export function normalizeEmailNotificationSettings(
 			...current.uptime,
 		},
 	};
+}
+
+export function aiDigestUnsubscribeToken(
+	organizationId: string,
+	secret: string
+): string {
+	return createHmac("sha256", secret)
+		.update(`ai-digest-unsubscribe:${organizationId}`)
+		.digest("base64url");
+}
+
+export function isAiDigestUnsubscribeToken(
+	organizationId: string,
+	token: string,
+	secret: string
+): boolean {
+	const expected = Buffer.from(
+		aiDigestUnsubscribeToken(organizationId, secret)
+	);
+	const actual = Buffer.from(token);
+	return actual.length === expected.length && timingSafeEqual(actual, expected);
 }

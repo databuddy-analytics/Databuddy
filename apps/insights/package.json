@@ -6,19 +6,20 @@
   "scripts": {
     "dev": "dotenv -e ../../.env -- bun --watch run src/index.ts",
     "test": "bun test src --path-ignore-patterns='**/*.integration.test.ts'",
-    "test:integration": "INSIGHTS_INTEGRATION_TESTS=true BULLMQ_REDIS_URL=\"${BULLMQ_REDIS_URL:-redis://localhost:6379/4}\" bun test --isolate src/scheduler.integration.test.ts src/idempotency.integration.test.ts src/selection-billing.integration.test.ts src/investigation-billing.integration.test.ts src/generation-billing.integration.test.ts src/resume-clarification.integration.test.ts src/business-context.integration.test.ts src/retention-retirement.integration.test.ts",
+    "test:integration": "INSIGHTS_INTEGRATION_TESTS=true BULLMQ_REDIS_URL=\"${BULLMQ_REDIS_URL:-redis://localhost:6379/4}\" bun test --isolate src/scheduler.integration.test.ts src/idempotency.integration.test.ts src/selection-billing.integration.test.ts src/investigation-billing.integration.test.ts src/generation-billing.integration.test.ts src/resume-clarification.integration.test.ts src/business-context.integration.test.ts src/retention-retirement.integration.test.ts src/detection.integration.test.ts",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@slack/web-api": "8.1.1",
     "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/email": "workspace:*",
     "@databuddy/encryption": "workspace:*",
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "@slack/web-api": "8.1.1",
     "ai": "^6.0.188",
     "autumn-js": "catalog:",
     "bullmq": "^5.78.0",

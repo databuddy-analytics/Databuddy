@@ -229,7 +229,7 @@ async function exchangeSlackCode(
 	const teamId = body.team?.id ?? null;
 	if (!(accessToken && teamId)) {
 		throw new SlackInstallError(
-			"Slack did not return a bot token and workspace id"
+			"Slack did not return a bot token and workspace ID"
 		);
 	}
 

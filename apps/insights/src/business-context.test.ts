@@ -13,6 +13,7 @@ import {
 	loadWebsiteBusinessProfile,
 	recallWebsiteBusinessContext,
 } from "./business-context";
+import * as evlog from "./lib/evlog-insights";
 
 const scope = {
 	organizationId: "org-example",
@@ -181,10 +182,26 @@ describe("website business context reconciliation", () => {
 				return { status: "unavailable", ids: [] };
 			},
 		});
-		const first = await recallWebsiteBusinessContext(recallInput, deps);
-		expect(first.status).toBe("partial");
-		expect(first.sources).toContainEqual(statement);
-		expect(first.issues.join(" ")).toContain("not acknowledged");
+		const events = spyOn(evlog, "emitInsightsEvent");
+		try {
+			const first = await recallWebsiteBusinessContext(recallInput, deps);
+			expect(first.status).toBe("ready");
+			expect(first.sources).toContainEqual(statement);
+			expect(first.issues).toEqual([]);
+			expect(events).toHaveBeenCalledWith(
+				"warn",
+				"business_context.incomplete",
+				expect.objectContaining({
+					status: "ready",
+					issue_count: 0,
+					telemetry_issues: [
+						"Team replies are included directly; shared memory has not acknowledged all of them.",
+					],
+				})
+			);
+		} finally {
+			events.mockRestore();
+		}
 		await recallWebsiteBusinessContext(recallInput, deps);
 		expect(writes).toBe(2);
 		available = true;
@@ -230,18 +247,64 @@ describe("website business context reconciliation", () => {
 			},
 			async () => ({ status: "saved" as const, ids: [] }),
 		]) {
-			const result = await recallWebsiteBusinessContext(
-				recallInput,
+			const events = spyOn(evlog, "emitInsightsEvent");
+			try {
+				const result = await recallWebsiteBusinessContext(
+					recallInput,
+					dependencies({
+						recall: async () => {
+							throw new Error("Provider offline");
+						},
+						record,
+					})
+				);
+				expect(result.sources).toEqual([statement]);
+				expect(result.status).toBe("partial");
+				expect(result.issues).toEqual([
+					"Business context could not be loaded.",
+				]);
+				expect(events).toHaveBeenCalledWith(
+					"warn",
+					"business_context.incomplete",
+					expect.objectContaining({
+						status: "unavailable",
+						issue_count: 1,
+						telemetry_issues: [expect.stringContaining("acknowledge")],
+					})
+				);
+			} finally {
+				events.mockRestore();
+			}
+		}
+	});
+
+	it("reports loaded shared-memory notes in telemetry without returning or counting them", async () => {
+		const note = "Business memory is not configured.";
+		const events = spyOn(evlog, "emitInsightsEvent");
+		try {
+			const result = await loadWebsiteBusinessProfile(
+				{ scope, asOf, allowRefresh: false },
 				dependencies({
-					recall: async () => {
-						throw new Error("Provider offline");
-					},
-					record,
+					loadProfile: async () => ({
+						...context([page]),
+						telemetryIssues: [note],
+					}),
 				})
 			);
-			expect(result.sources).toEqual([statement]);
-			expect(result.status).toBe("partial");
-			expect(result.issues.join(" ")).toContain("acknowledge");
+			expect(result.status).toBe("ready");
+			expect(result.issues).toEqual([]);
+			expect(result).not.toHaveProperty("telemetryIssues");
+			expect(events).toHaveBeenCalledWith(
+				"warn",
+				"business_context.incomplete",
+				expect.objectContaining({
+					status: "ready",
+					issue_count: 0,
+					telemetry_issues: [note],
+				})
+			);
+		} finally {
+			events.mockRestore();
 		}
 	});
 

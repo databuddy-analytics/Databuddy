@@ -21,7 +21,7 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Feature Flags With Analytics Built In";
+const TITLE = "Feature flags with analytics built in";
 const DESCRIPTION =
 	"Roll out by percentage, user, or company, switch features off from the dashboard, and see who got each flag, in the same SDK as your analytics.";
 

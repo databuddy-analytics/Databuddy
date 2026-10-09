@@ -5,6 +5,7 @@ import {
 	SiMixpanel,
 	SiPlausibleanalytics,
 	SiPosthog,
+	SiSimpleanalytics,
 	SiUmami,
 } from "@icons-pack/react-simple-icons";
 import { ChartLineIcon } from "@databuddy/ui/icons";
@@ -46,6 +47,9 @@ const SLUG_ICONS: Record<
 	),
 	matomo: ({ title, fill }) => (
 		<SiMatomo color={fill} size={ICON_SIZE} title={title} />
+	),
+	"simple-analytics": ({ title, fill }) => (
+		<SiSimpleanalytics color={fill} size={ICON_SIZE} title={title} />
 	),
 };
 

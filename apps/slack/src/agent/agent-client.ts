@@ -2,7 +2,11 @@ import type {
 	DatabuddyAgentSlackContext,
 	DatabuddyAgentToolTrace,
 } from "@databuddy/ai/agent";
+import { fenceUntrusted } from "@databuddy/ai/prompts/context";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { db, eq } from "@databuddy/db";
+import { insightGenerationConfigs } from "@databuddy/db/schema";
+import { cacheable } from "@databuddy/redis";
 import { setActiveSlackLog } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
 
@@ -51,6 +55,21 @@ export interface SlackAgentStreamOptions {
 // duration limit, so allow multi-site/complex analytics runs well past the 45s
 // default before the outer 4-minute response timeout in run-handler steps in.
 const SLACK_AGENT_TIMEOUT_MS = 120_000;
+const ORGANIZATION_TIMEZONE_CACHE_TTL_SEC = 300;
+
+const getOrganizationTimezone = cacheable(
+	(organizationId: string) =>
+		db
+			.select({ timezone: insightGenerationConfigs.timezone })
+			.from(insightGenerationConfigs)
+			.where(eq(insightGenerationConfigs.organizationId, organizationId))
+			.limit(1)
+			.then(([config]) => config?.timezone ?? "UTC"),
+	{
+		expireInSec: ORGANIZATION_TIMEZONE_CACHE_TTL_SEC,
+		prefix: "slack-organization-timezone",
+	}
+);
 
 export interface SlackAgentRunner {
 	stream(
@@ -98,7 +117,10 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			organization_id: context.organizationId,
 			slack_agent_api_key_id: context.apiKey.id,
 		});
-		const { streamDatabuddyAgent } = await import("@databuddy/ai/agent");
+		const [{ streamDatabuddyAgent }, timezone] = await Promise.all([
+			import("@databuddy/ai/agent"),
+			getOrganizationTimezone(context.organizationId),
+		]);
 
 		yield* streamDatabuddyAgent({
 			abortSignal: options?.abortSignal,
@@ -108,6 +130,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 				userId: context.apiKey.userId,
 			},
 			conversationId,
+			historyInput: `${formatSlackUser(run.userId)}: ${run.text}`,
 			input: formatSlackAgentInput(run),
 			memoryUserId: createSlackMemoryUserId(run),
 			mutationMode: "dry-run",
@@ -116,7 +139,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			slackContext: run.slackContext,
 			source: "slack",
 			timeoutMs: SLACK_AGENT_TIMEOUT_MS,
-			timezone: "UTC",
+			timezone,
 		});
 	}
 }
@@ -136,10 +159,6 @@ function createSlackMemoryUserId(run: SlackAgentRun): string {
 	return safeId(["slack", run.teamId ?? "team", run.userId].join("-"));
 }
 
-function escapePromptFrame(value: string): string {
-	return value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 export function formatSlackAgentInput(run: SlackAgentRun): string {
 	const followUps = run.followUpMessages ?? [];
 	const context = [
@@ -151,37 +170,26 @@ export function formatSlackAgentInput(run: SlackAgentRun): string {
 	if (followUps.length === 0) {
 		return [
 			context,
-			"<slack_latest_message>",
-			`author: ${formatSlackUser(run.userId)}`,
-			`author_memory_scope: ${createSlackMemoryUserId(run)}`,
-			"text:",
-			escapePromptFrame(run.text),
-			"</slack_latest_message>",
+			fenceUntrusted(
+				"slack_latest_message",
+				`author: ${formatSlackUser(run.userId)}\ntext:\n${run.text}`,
+				""
+			),
 		].join("\n");
 	}
 
-	const lines = followUps.map((followUp, index) => {
-		const author = followUp.userId
-			? formatSlackUser(followUp.userId)
-			: "Slack user";
-		const memoryScope = followUp.userId
-			? createSlackMemoryUserId({ ...run, userId: followUp.userId })
-			: "unknown";
-		return [
-			`<slack_follow_up index="${index + 1}">`,
-			`author: ${author}`,
-			`author_memory_scope: ${memoryScope}`,
-			"text:",
-			escapePromptFrame(followUp.text),
-			"</slack_follow_up>",
-		].join("\n");
-	});
+	const lines = followUps.map((followUp, index) =>
+		fenceUntrusted(
+			`slack_follow_up index="${index + 1}"`,
+			`author: ${followUp.userId ? formatSlackUser(followUp.userId) : "Slack user"}\ntext:\n${followUp.text}`,
+			""
+		)
+	);
 
 	return [
 		context,
 		"<slack_follow_ups>",
 		"These messages arrived in the same Slack thread while you were already responding. Continue the conversation and answer all follow-ups in order.",
-		"Each follow-up has its own author and memory scope. Attribute names/preferences/memories only to that follow-up's author.",
 		...lines,
 		"</slack_follow_ups>",
 	].join("\n");

@@ -1,5 +1,5 @@
 ---
-title: API Overview
+title: API overview
 description: Access your analytics data programmatically with Databuddy's REST API
 ---
 
@@ -19,12 +19,12 @@ Access your analytics data programmatically with Databuddy's REST API. Most endp
 | Event Tracking | `https://basket.databuddy.cc` | Send custom events |
 | OpenAPI spec | `https://www.databuddy.cc/openapi.json` | Machine-readable Databuddy REST API schema |
 | API reference | `https://api.databuddy.cc/` | Interactive Databuddy API reference |
-| MCP server | `https://api.databuddy.cc/v1/mcp/` | Streamable HTTP MCP endpoint for AI agents |
+| MCP server | `https://api.databuddy.cc/v1/mcp` | Streamable HTTP MCP endpoint for AI agents |
 | MCP manifest | `https://www.databuddy.cc/.well-known/mcp.json` | Machine-readable MCP discovery manifest |
 
-## Quick Start
+## Quick start
 
-**1. Get your API key** from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
+**1. Get your API key** from [Dashboard → Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys)
 
 **2. List your websites:**
 
@@ -49,39 +49,39 @@ Access your analytics data programmatically with Databuddy's REST API. Most endp
 
 Use date presets like `last_7d`, `last_30d`, `this_month` instead of explicit dates for convenience.
 
-## API Sections
+## API sections
 
 <Cards>
   <Card title="Authentication" href="/docs/api/authentication">
     API keys, scopes, and authentication methods
   </Card>
-  <Card title="Analytics Queries" href="/docs/api/query">
+  <Card title="Analytics queries" href="/docs/api/query">
     Query website analytics with flexible parameters
   </Card>
-  <Card title="Event Tracking" href="/docs/api/events">
+  <Card title="Event tracking" href="/docs/api/events">
     Send custom events programmatically
   </Card>
-  <Card title="Link Analytics" href="/docs/api/links">
+  <Card title="Link analytics" href="/docs/api/links">
     Query link shortener click data
   </Card>
-  <Card title="Error Handling" href="/docs/api/errors">
+  <Card title="Error handling" href="/docs/api/errors">
     Error codes and troubleshooting
   </Card>
-  <Card title="Rate Limits" href="/docs/api/rate-limits">
+  <Card title="Rate limits" href="/docs/api/rate-limits">
     Rate limiting by plan and endpoint
   </Card>
 </Cards>
 
-## Available Query Types
+## Available query types
 
-### Website Analytics
+### Website analytics
 
 Query types for `website_id`:
 
 | Type | Description |
 |------|-------------|
 | `summary_metrics` | Overall website metrics and KPIs |
-| `top_pages` | Page views and visitors by path |
+| `top_pages` | Pageviews and visitors by path |
 | `traffic_sources` | Traffic source breakdown |
 | `top_referrers` | Top referrers |
 | `browser_name` | Browser usage breakdown |
@@ -92,7 +92,7 @@ Query types for `website_id`:
 | `recent_errors` | Latest JavaScript errors |
 | `error_summary` | Error counts and impact |
 | `vitals_overview` | Core Web Vitals overview |
-| `page_performance` | Load performance by page |
+| `page_performance` | Pageviews and visitors by page; for load timing use `vitals_by_page` |
 | `session_metrics` | Session metrics over time |
 | `session_list` | Individual sessions |
 | `custom_events` | Custom event data |
@@ -107,7 +107,7 @@ Query types for `website_id`:
 
 This is a subset. Use `GET /v1/query/types` for the full list.
 
-### Link Shortener Analytics
+### Link shortener analytics
 
 Query types for `link_id`:
 
@@ -124,7 +124,7 @@ Query types for `link_id`:
 | `link_top_devices` | Device breakdown |
 | `link_top_browsers` | Browser breakdown |
 
-## Health Check
+## Health check
 
 Check API availability:
 

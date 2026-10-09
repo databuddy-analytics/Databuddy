@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 	applicationName: "Databuddy Status",
 	title: {
 		template: "%s | Databuddy Status",
-		default: "Databuddy Status Pages",
+		default: "Databuddy status pages",
 	},
 	description:
 		"Live uptime, incident history, and service health for public Databuddy status pages.",
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
 	},
 	manifest: "/manifest.webmanifest",
 	openGraph: {
-		title: "Databuddy Status Pages",
+		title: "Databuddy status pages",
 		description:
 			"Live uptime, incident history, and service health for public Databuddy status pages.",
 		url: STATUS_URL,
@@ -79,7 +79,7 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary",
-		title: "Databuddy Status Pages",
+		title: "Databuddy status pages",
 		description:
 			"Live uptime, incident history, and service health for public Databuddy status pages.",
 	},

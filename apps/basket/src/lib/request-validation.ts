@@ -1,4 +1,10 @@
 import type { AiTrafficSpansInsert } from "@databuddy/db/clickhouse/tables";
+import { detectBot } from "@databuddy/shared/bot-detection";
+import {
+	type AgentSignals,
+	agentBotCategory,
+	identifyAiAgent,
+} from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	getWebsiteByIdV2,
 	isOriginAllowed,
@@ -10,24 +16,20 @@ import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
 import { extractAllowlistClientIp, extractIpFromRequest } from "@utils/ip-geo";
-import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
+	sanitizeUrl,
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
 import { useLogger } from "evlog/elysia";
 
-export interface ValidatedRequest {
+interface ValidatedRequest {
 	clientId: string;
 	ip: string;
 	organizationId?: string;
 	ownerId?: string;
 	userAgent: string;
-}
-
-export interface ValidateRequestOptions {
-	checkUsage?: boolean;
 }
 
 interface WebsiteSecuritySettings {
@@ -65,7 +67,7 @@ export function validateRequest(
 	body: unknown,
 	query: unknown,
 	request: Request,
-	options: ValidateRequestOptions = {}
+	options: { checkUsage?: boolean } = {}
 ): Promise<ValidatedRequest> {
 	return record("validateRequest", async () => {
 		const log = useLogger();
@@ -147,8 +149,8 @@ export function validateRequest(
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			) || "";
 
-		const botCheck = detectBot(userAgent, request);
-		const isBlockedBot = botCheck.isBot && botCheck.action !== "allow";
+		const bot = detectBot(userAgent);
+		const isBlockedBot = bot.isBot && bot.action !== "allow";
 
 		if (website.ownerId && options.checkUsage !== false && !isBlockedBot) {
 			const eventCount = Array.isArray(body)
@@ -264,80 +266,75 @@ export function checkForBot(
 	query: unknown,
 	clientId: string,
 	userAgent: string
-): Promise<{ error?: Response } | undefined> {
+): Promise<{ isTrackOnly: boolean; response: Response } | undefined> {
 	return record("checkForBot", () => {
-		const log = useLogger();
-		const bodyRecord = asRecord(body);
-		const queryRecord = asRecord(query);
-
-		const botCheck = detectBot(userAgent, request);
-
-		if (!botCheck.isBot) {
+		const bot = detectBot(userAgent);
+		if (!bot.isBot) {
 			return;
 		}
 
-		const { action, result } = botCheck;
-		const agent = result?.agent;
-		log.set({
+		useLogger().set({
 			bot: {
-				name: botCheck.botName,
-				category: botCheck.category,
-				action,
-				agent: agent?.id,
-				purpose: agent?.purpose,
+				name: bot.name,
+				category: bot.category,
+				action: bot.action,
+				agent: bot.agent?.id,
+				purpose: bot.agent?.purpose,
 			},
 		});
 
-		if (action === "allow") {
+		if (bot.action === "allow") {
 			return;
 		}
 
-		if (action === "track_only") {
-			const path =
-				(typeof bodyRecord.path === "string" ? bodyRecord.path : undefined) ||
-				(typeof bodyRecord.url === "string" ? bodyRecord.url : undefined) ||
-				(typeof queryRecord.path === "string" ? queryRecord.path : undefined) ||
-				request.headers.get("referer") ||
-				"";
-			const referrer =
-				(typeof bodyRecord.referrer === "string"
-					? bodyRecord.referrer
-					: undefined) ||
-				request.headers.get("referer") ||
-				undefined;
-
-			const span: AiTrafficSpansInsert = {
-				client_id: clientId,
-				timestamp: Date.now(),
-				bot_type: result?.category || "unknown",
-				bot_name: botCheck.botName || "unknown",
-				user_agent: userAgent,
-				path,
-				referrer,
-				agent_id: agent?.id,
-				agent_purpose: agent?.purpose,
-				source: "tracker",
-				format: "html",
-			};
-			runFork(send("analytics-ai-traffic-spans", span));
-
-			return {
-				error: new Response(null, { status: 204 }),
-			};
+		const isTrackOnly = bot.action === "track_only";
+		if (!isTrackOnly) {
+			logBlockedTraffic(
+				request,
+				body,
+				query,
+				bot.reason,
+				"Known Bot",
+				bot.name,
+				clientId
+			);
 		}
 
-		logBlockedTraffic(
-			request,
-			body,
-			query,
-			botCheck.reason || "unknown_bot",
-			botCheck.category || "Bot Detection",
-			botCheck.botName,
-			clientId
-		);
-
-		return {
-			error: new Response(null, { status: 204 }),
-		};
+		return { response: new Response(null, { status: 204 }), isTrackOnly };
 	});
+}
+
+export function agentSpanColumns(signals: AgentSignals) {
+	const bot = detectBot(signals.userAgent);
+	const agent = identifyAiAgent(signals, bot.category);
+	return {
+		agent_id: agent?.id ?? "",
+		agent_purpose: agent?.purpose ?? "",
+		bot_name: agent?.name ?? bot.name ?? "",
+		bot_type: agent ? agentBotCategory(agent) : (bot.category ?? "unknown"),
+	};
+}
+
+export function recordAiPageView(
+	event: unknown,
+	clientId: string,
+	userAgent: string
+): void {
+	const { name, path, referrer } = asRecord(event);
+	if (name !== "screen_view") {
+		return;
+	}
+	runFork(
+		send("analytics-ai-traffic-spans", {
+			...agentSpanColumns({ userAgent }),
+			client_id: clientId,
+			timestamp: Date.now(),
+			user_agent: userAgent,
+			path: sanitizeUrl(path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			referrer:
+				sanitizeUrl(referrer, VALIDATION_LIMITS.STRING_MAX_LENGTH) || null,
+			source: "tracker",
+			format: "html",
+		} satisfies AiTrafficSpansInsert)
+	);
 }

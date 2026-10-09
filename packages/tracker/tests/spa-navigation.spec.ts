@@ -1,3 +1,4 @@
+import type { TrackerOptions } from "../src/core/types";
 import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("SPA Navigation", () => {
@@ -309,5 +310,53 @@ test.describe("SPA Navigation", () => {
 
 		await page.waitForTimeout(500);
 		expect(screenViewCount).toBe(0);
+	});
+
+	test("masks the page left on SPA navigation", async ({ page }) => {
+		const config: TrackerOptions = {
+			clientId: "test-spa-exit-mask",
+			ignoreBotDetection: true,
+			batchTimeout: 200,
+			maskPatterns: ["/team/*"],
+		};
+		const sentBodies: string[] = [];
+		page.on("request", (req) => {
+			if (req.method() === "POST") {
+				sentBodies.push(req.postData() ?? "");
+			}
+		});
+
+		await page.goto("/test");
+		await page.evaluate((options) => {
+			window.databuddyConfig = options;
+		}, config);
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await expect
+			.poll(async () => await page.evaluate(() => Boolean(window.db)))
+			.toBeTruthy();
+
+		await page.evaluate(() => history.pushState({}, "", "/team/jane-doe"));
+		await page.waitForTimeout(300);
+		await page.evaluate(() => history.pushState({}, "", "/settings"));
+
+		await expect
+			.poll(() =>
+				sentBodies.some(
+					(body) =>
+						body.includes('"name":"page_exit"') &&
+						body.includes('"path":"http://127.0.0.1:3033/team/*"')
+				)
+			)
+			.toBe(true);
+		await expect
+			.poll(() =>
+				sentBodies.some(
+					(body) =>
+						body.includes('"exitType":"spa"') &&
+						body.includes('"path":"/team/*"')
+				)
+			)
+			.toBe(true);
+		expect(sentBodies.join("\n")).not.toContain("jane-doe");
 	});
 });

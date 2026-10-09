@@ -208,7 +208,7 @@ export function EditGoalDialog({
 						</div>
 						<div>
 							<Sheet.Title className="text-lg">
-								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
+								{isCreateMode ? "Create goal" : formData.name || "Edit goal"}
 							</Sheet.Title>
 							<Sheet.Description>
 								{isCreateMode
@@ -226,7 +226,7 @@ export function EditGoalDialog({
 								<Field.Label>Name</Field.Label>
 								<Input
 									onChange={(e) => updateField("name", e.target.value)}
-									placeholder="e.g., Newsletter Signup"
+									placeholder="Newsletter signup"
 									value={formData.name}
 								/>
 							</Field>
@@ -258,7 +258,7 @@ export function EditGoalDialog({
 								<div className="flex flex-1 gap-2">
 									<DropdownMenu>
 										<DropdownMenu.Trigger className="flex h-8 w-28 shrink-0 cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs transition-colors hover:bg-interactive-hover">
-											{formData.type === "PAGE_VIEW" ? "Page View" : "Event"}
+											{formData.type === "PAGE_VIEW" ? "Pageview" : "Event"}
 										</DropdownMenu.Trigger>
 										<DropdownMenu.Content align="start" side="bottom">
 											<DropdownMenu.RadioGroup
@@ -266,7 +266,7 @@ export function EditGoalDialog({
 												value={formData.type}
 											>
 												<DropdownMenu.RadioItem value="PAGE_VIEW">
-													Page View
+													Pageview
 												</DropdownMenu.RadioItem>
 												<DropdownMenu.RadioItem value="EVENT">
 													Event
@@ -369,7 +369,7 @@ export function EditGoalDialog({
 											variant="secondary"
 										>
 											<PlusIcon className="size-3.5" />
-											Add Filter
+											Add filter
 										</Button>
 									</Accordion.Content>
 								</Accordion>
@@ -382,7 +382,7 @@ export function EditGoalDialog({
 							Cancel
 						</Button>
 						<Button disabled={!isFormValid} loading={isSaving} type="submit">
-							{isCreateMode ? "Create Goal" : "Save Changes"}
+							{isCreateMode ? "Create goal" : "Save changes"}
 						</Button>
 					</Sheet.Footer>
 				</Sheet.Form>

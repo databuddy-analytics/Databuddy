@@ -47,8 +47,12 @@ async function setupRestore() {
 			id: crypto.randomUUID(),
 			createdBy: user.id,
 			deletedAt: new Date("2026-01-01T00:00:00Z"),
+			description: "Deleted description",
 			key: "restore-audience",
 			name: "Deleted flag",
+			organizationId: org.id,
+			payload: { variant: "deleted" },
+			persistAcrossAuth: true,
 			websiteId: site.id,
 		})
 		.returning();
@@ -101,7 +105,7 @@ describe("flag restoration target-group scope", () => {
 			await expect(fixture.restore([group.id])).rejects.toMatchObject({
 				code: "BAD_REQUEST",
 				message:
-					"One or more target groups not found or do not belong to this website",
+					"One or more target groups were not found on this website. They may have been deleted. Refresh the page and try again.",
 			});
 			const [unchanged] = await db()
 				.select()
@@ -141,7 +145,12 @@ describe("flag restoration target-group scope", () => {
 		expect(restored).toMatchObject({
 			id: fixture.flag.id,
 			deletedAt: null,
+			description: null,
 			name: "Restored flag",
+			organizationId: null,
+			payload: null,
+			persistAcrossAuth: false,
+			websiteId: fixture.site.id,
 		});
 		expect(
 			await db()
@@ -155,5 +164,29 @@ describe("flag restoration target-group scope", () => {
 				.from(flagChangeEvents)
 				.where(eq(flagChangeEvents.flagId, fixture.flag.id))
 		).toEqual([{ changeType: "restored" }]);
+	});
+
+	iit("rejects an org flag reusing a legacy website flag key", async () => {
+		const fixture = await setupRestore();
+		const create = call(
+			appRouter.flags.create,
+			apiKeyContext(fixture.org.id, ["read:data", "manage:flags"])
+		);
+
+		await expect(
+			create({
+				organizationId: fixture.org.id,
+				key: fixture.flag.key,
+				name: "Organization flag",
+				type: "boolean",
+				status: "inactive",
+				defaultValue: false,
+				rolloutPercentage: 0,
+			})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message:
+				"A feature flag with this key already exists. Pick a different key.",
+		});
 	});
 });

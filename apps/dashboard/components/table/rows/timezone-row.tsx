@@ -31,7 +31,7 @@ export function createTimezoneColumns(): ColumnDef<TimezoneEntry>[] {
 		},
 		{
 			id: "current_time",
-			header: "Current Time",
+			header: "Current time",
 			cell: (info: CellContext<TimezoneEntry, any>) => {
 				const entry = info.row.original;
 				const timezoneName = entry.name;

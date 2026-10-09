@@ -3,12 +3,15 @@
 import { useAuthCapabilities } from "../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
-import { safeCallbackPath } from "@/lib/safe-callback";
+import {
+	newUserCallbackPath,
+	OAUTH_AUTHORIZE_PATH_PREFIX,
+	safeCallbackPath,
+} from "@/lib/safe-callback";
 import { EnvelopeSimpleIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import {
 	Badge,
@@ -22,21 +25,47 @@ import {
 } from "@databuddy/ui";
 import { storeVerificationEmail } from "./verification-email-storage";
 
+const SIGNED_OAUTH_QUERY_PARAMS = ["sig", "exp", "ba_iat", "ba_pl", "ba_param"];
+const SIGN_IN_PROMPTS = new Set(["login", "create"]);
+const PROMPT_SEPARATOR = /\s+/;
+
+function oauthAuthorizePath(searchParams: URLSearchParams): string | null {
+	if (!searchParams.has("sig")) {
+		return null;
+	}
+	const authorizeParams = new URLSearchParams(searchParams);
+	for (const param of SIGNED_OAUTH_QUERY_PARAMS) {
+		authorizeParams.delete(param);
+	}
+	authorizeParams.delete("max_age");
+	const prompt = authorizeParams
+		.get("prompt")
+		?.split(PROMPT_SEPARATOR)
+		.filter((value) => value && !SIGN_IN_PROMPTS.has(value))
+		.join(" ");
+	if (prompt) {
+		authorizeParams.set("prompt", prompt);
+	} else {
+		authorizeParams.delete("prompt");
+	}
+	return `${OAUTH_AUTHORIZE_PATH_PREFIX}${authorizeParams.toString()}`;
+}
+
 function LoginPage() {
 	const capabilities = useAuthCapabilities();
 	const hasAlternatives =
 		capabilities.github || capabilities.google || capabilities.email;
 	const router = useRouter();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const searchParams = useSearchParams();
+	const callback = searchParams.get("callback");
 	const [isLoading, setIsLoading] = useState(false);
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const isHydrated = useHydrated();
-	const safeCallback = safeCallbackPath(callback);
+	const safeCallback = safeCallbackPath(
+		callback ?? oauthAuthorizePath(searchParams)
+	);
 
 	const lastUsed = isHydrated ? authClient.getLastUsedLoginMethod() : null;
 	const callbackQuery = `?callback=${encodeURIComponent(safeCallback)}`;
@@ -46,22 +75,18 @@ function LoginPage() {
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
-		const newUserCallbackURL =
-			safeCallback === "/websites" ? "/onboarding" : safeCallback;
-
 		try {
 			const result = await authClient.signIn.social({
 				provider,
 				callbackURL: safeCallback,
-				newUserCallbackURL,
+				newUserCallbackURL: newUserCallbackPath(safeCallback),
 				disableRedirect: true,
 			});
 
 			if (result.error) {
-				toast.error(
-					result.error.message ||
-						`${getProviderLabel(provider)} login failed. Please try again.`
-				);
+				toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+					description: "Try again in a moment.",
+				});
 				setIsLoading(false);
 				return;
 			}
@@ -71,14 +96,14 @@ function LoginPage() {
 				return;
 			}
 
-			toast.error(
-				`${getProviderLabel(provider)} login failed. Please try again.`
-			);
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		} catch {
-			toast.error(
-				`${getProviderLabel(provider)} login failed. Please try again.`
-			);
+			toast.error(`Failed to sign in with ${getProviderLabel(provider)}`, {
+				description: "Try again in a moment.",
+			});
 			setIsLoading(false);
 		}
 	};
@@ -86,7 +111,7 @@ function LoginPage() {
 	const handleEmailPasswordLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!(email && password)) {
-			toast.error("Please enter both email and password");
+			toast.error("Enter your email and password.");
 			return;
 		}
 
@@ -108,10 +133,12 @@ function LoginPage() {
 							`/login/verification-needed?callback=${encodeURIComponent(safeCallback)}`
 						);
 					} else {
-						toast.error(
-							error?.error?.message ||
-								"Login failed. Please check your credentials and try again."
-						);
+						toast.error("Failed to sign in", {
+							description:
+								error?.error?.status === 429
+									? "Too many attempts. Wait a moment and try again."
+									: "Check your email and password and try again.",
+						});
 					}
 				},
 			},
@@ -186,7 +213,7 @@ function LoginPage() {
 									>
 										<Link href={`/login/magic${callbackQuery}`}>
 											<EnvelopeSimpleIcon className="size-4" />
-											Sign in with Magic Link
+											Sign in with magic link
 										</Link>
 									</Button>
 									{lastUsed === "magic-link" && (

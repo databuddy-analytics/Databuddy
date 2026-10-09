@@ -1,6 +1,6 @@
+import { ORPCError } from "@orpc/server";
 import dayjs from "dayjs";
 import { z } from "zod";
-import { funnelStepSchema } from "@databuddy/rpc/funnel-steps";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
@@ -8,31 +8,33 @@ import {
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
 import {
-	DEEP_LINK_APP_IDS,
-	isDeepLinkTarget,
-} from "@databuddy/shared/constants/deep-link-apps";
-import {
 	annotationChartContextSchema,
 	annotationCoordinateSchema,
-	httpUrlSchema,
-	isoDateOrOffsetDateTimeSchema,
 } from "@databuddy/validation";
-import {
-	flagFormShape,
-	userRuleSchema,
-	variantSchema,
-} from "@databuddy/shared/flags";
+import { flagFormShape, userRuleSchema } from "@databuddy/shared/flags";
+import { DatePresetSchema } from "../../lib/date-presets";
 import { executeBatch } from "../../query";
-import { runInvestigationAction } from "../tools/investigations";
-import { callRPCProcedure } from "../tools/utils";
+import type { AppContext } from "../config/context";
+import { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 import {
-	LinkFolderSelectorSchema,
+	flagConfigFields,
+	flagCreatePayload,
+	planUserTargeting,
+	userTargetingFields,
+} from "../tools/flags";
+import { funnelFields } from "../tools/funnels";
+import { goalFields } from "../tools/goals";
+import { runInvestigationAction } from "../tools/investigations";
+import { callRPCProcedure, omitUndefined } from "../tools/utils";
+import {
+	countUnfiledLinks,
+	createOrganizationLink,
 	LinkFolderWithUsageSchema,
 	LinkRowOutputSchema,
-	getLinkSummary,
+	linkCreateFields,
 	listLinkFolders,
 	listLinks,
-	parseLinkRow,
+	refineDeepLinkTarget,
 	resolveLinkFolder,
 	searchLinks,
 	summarizeLink,
@@ -42,6 +44,7 @@ import {
 import {
 	defineMcpTool,
 	metadataForResource,
+	type McpHandlerContext,
 	McpToolError,
 	type McpRequestContext,
 	type McpToolFactory,
@@ -51,46 +54,68 @@ import {
 	buildBatchQueryRequests,
 	FilterSchema,
 	formatMcpQueryResults,
-	getFilteredQueryTypeDescriptions,
-	getQueryTypeDescriptions,
-	getQueryTypeDetails,
-	getSchemaDocumentation,
-	getSchemaSummary,
-	MCP_DATE_PRESETS,
+	gateQueryPlan,
+	getFilteredQueryTypes,
+	getMcpSchemaDocumentation,
+	MCP_RESULT_ROW_LIMIT,
 	QUERY_CATEGORY_KEYS,
-	SCHEMA_SECTIONS,
+	queryFailedMessage,
+	SCHEMA_SUMMARY,
 	type McpQueryItem,
 } from "./mcp-utils";
 import {
 	buildRpcContext,
 	getCachedAccessibleWebsites,
-	getOrganizationId,
-	resolveOrganizationIds,
+	resolveOrganizationId,
 } from "./tool-context";
 import { createMcpWorkspaceTools } from "./workspace-tools";
 import {
+	ANNOTATION_FIELDS,
 	ConfirmedSchema,
 	DynamicObjectSchema,
+	FLAG_FIELDS,
+	FLAG_IDENTITY_FIELDS,
+	FLAG_WRITE_FIELDS,
+	FUNNEL_FIELDS,
+	GOAL_FIELDS,
+	getResolvedOrganizationId,
 	getResolvedWebsiteId,
 	McpDateRangeSchema,
 	MutationResultSchema,
+	PageSchema,
+	paginate,
+	pickFields,
+	pickFlagFields,
+	readConversionAnalytics,
 	resolveMcpDateRange,
+	summarizeConversionAnalytics,
+	updatePreview,
 	WebsiteSelectorSchema,
-	WorkflowFilterSchema,
 } from "./tool-contracts";
 
 const TIME_UNIT = ["minute", "hour", "day", "week", "month"] as const;
+const CREATE_WRITE = { destructive: false } as const;
+const IDEMPOTENT_WRITE = { idempotent: true } as const;
+const ANALYTICS_RATE_LIMIT = { limit: 20, windowSec: 60 } as const;
+
+const QueryLimitSchema = z
+	.number()
+	.int()
+	.min(1)
+	.max(MCP_RESULT_ROW_LIMIT)
+	.optional()
+	.describe(
+		`Rows to return, 1-${MCP_RESULT_ROW_LIMIT}. Defaults to the query type's own limit; at most ${MCP_RESULT_ROW_LIMIT} rows are returned.`
+	);
 
 const QueryItemSchema = z.object({
 	type: z.string(),
-	preset: z.enum(MCP_DATE_PRESETS as [string, ...string[]]).optional(),
-	// Batch queries report invalid ranges per item rather than rejecting every item.
+	preset: DatePresetSchema.optional(),
 	from: z.string().optional(),
 	to: z.string().optional(),
 	timeUnit: z.enum(TIME_UNIT).optional(),
-	limit: z.number().int().min(1).max(1000).optional(),
+	limit: QueryLimitSchema,
 	filters: z.array(FilterSchema).optional(),
-	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 });
 
@@ -99,18 +124,26 @@ const WebsiteSummarySchema = z.object({
 	name: z.string().nullable(),
 	domain: z.string().nullable(),
 	isPublic: z.boolean().nullable(),
+	organizationId: z.string(),
+	organizationName: z.string(),
 });
 
-const FlagRuleSchema = userRuleSchema;
-const FlagVariantSchema = variantSchema;
-
-const FlagStatusSchema = flagFormShape.status;
-const FlagTypeSchema = flagFormShape.type;
+const FlagIdSchema = z.string().describe("Flag ID from list_flags.");
+const FlagRulesSchema = z
+	.array(
+		userRuleSchema.extend({
+			valuesTruncated: z
+				.never({
+					error:
+						"list_flags cuts long target lists. Copy rules from the update_flag preview (confirmed=false), which returns every target.",
+				})
+				.optional(),
+		})
+	)
+	.optional();
 
 function createChartContext(input: {
 	from?: string;
-	granularity?: "hourly" | "daily" | "weekly" | "monthly";
-	metrics?: string[];
 	to?: string;
 }): z.infer<typeof annotationChartContextSchema> {
 	return {
@@ -118,37 +151,43 @@ function createChartContext(input: {
 			start_date:
 				input.from ?? dayjs().subtract(30, "day").format("YYYY-MM-DD"),
 			end_date: input.to ?? dayjs().format("YYYY-MM-DD"),
-			granularity: input.granularity ?? "daily",
+			granularity: "daily",
 		},
-		...(input.metrics ? { metrics: input.metrics } : {}),
 	};
+}
+
+function queryFailure(
+	result: { error?: string; type: string },
+	planLimited: boolean
+): McpToolError {
+	return new McpToolError(
+		planLimited
+			? "plan_limit"
+			: result.error === queryFailedMessage(result.type)
+				? "query_failed"
+				: "invalid_input",
+		result.error ?? `The ${result.type} query failed.`
+	);
 }
 
 const listWebsitesTool = defineMcpTool(
 	{
 		name: "list_websites",
 		description:
-			"List accessible websites when the user hasn't named one. Most website-scoped tools accept websiteId, websiteName, or websiteDomain.",
-		inputSchema: z.object({}),
+			"List the websites this account can access, with IDs, names, domains, and organizations. Website-scoped tools accept websiteId, websiteName, or websiteDomain.",
+		inputSchema: z.object({ ...PageSchema }),
 		outputSchema: z.object({
 			websites: z.array(WebsiteSummarySchema),
 			total: z.number(),
+			hasMore: z.boolean(),
 		}),
 		metadata: metadataForResource("organization", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (_input, ctx) => {
-		const list = await getCachedAccessibleWebsites(ctx);
+	async (input, ctx) => {
+		const page = paginate(await getCachedAccessibleWebsites(ctx), input);
 
-		return {
-			websites: list.map((w) => ({
-				id: w.id,
-				name: w.name,
-				domain: w.domain,
-				isPublic: w.isPublic,
-			})),
-			total: list.length,
-		};
+		return { websites: page.items, total: page.total, hasMore: page.hasMore };
 	}
 );
 
@@ -156,11 +195,10 @@ const listInsightsTool = defineMcpTool(
 	{
 		name: "list_insights",
 		description:
-			"List published insights, including quiet findings and their evidence-backed recommendations. Present the returned intelligence as written without adding advice.",
+			"List published insights for an organization or website: title, summary, evidence, impact, and the recorded next step (null when no step was recorded, when a later finding for the same case superseded it, or when the case resolved).",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			limit: z.number().int().min(1).max(100).optional().default(20),
-			offset: z.number().int().min(0).optional().default(0),
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			hasMore: z.boolean(),
@@ -171,15 +209,8 @@ const listInsightsTool = defineMcpTool(
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const organizationIds = await resolveOrganizationIds(ctx.websiteId, ctx);
-		if (organizationIds instanceof Error || !organizationIds[0]) {
-			throw new McpToolError(
-				"not_found",
-				organizationIds instanceof Error
-					? organizationIds.message
-					: "Could not determine organization"
-			);
-		}
+		const organizationId =
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		const result = await runInvestigationAction(
 			{
 				action: "brief",
@@ -189,7 +220,7 @@ const listInsightsTool = defineMcpTool(
 			},
 			{
 				...buildRpcContext(ctx),
-				organizationId: organizationIds[0],
+				organizationId,
 			}
 		);
 		if (result.action !== "brief") {
@@ -203,11 +234,10 @@ const listInvestigationsTool = defineMcpTool(
 	{
 		name: "list_investigations",
 		description:
-			"List the latest durable investigations for an organization or website. Returns current case status and IDs; use get_investigation for evidence, history, and replies.",
+			"List the latest investigation per subject, with status and IDs. Cases with a dashboard analysis or verification queued or running are left out until it finishes, and an older case may appear instead; get_investigation reads one by ID.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			limit: z.number().int().min(1).max(100).optional().default(20),
-			offset: z.number().int().min(0).optional().default(0),
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			hasMore: z.boolean(),
@@ -218,15 +248,8 @@ const listInvestigationsTool = defineMcpTool(
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const organizationIds = await resolveOrganizationIds(ctx.websiteId, ctx);
-		if (organizationIds instanceof Error || !organizationIds[0]) {
-			throw new McpToolError(
-				"not_found",
-				organizationIds instanceof Error
-					? organizationIds.message
-					: "Could not determine organization"
-			);
-		}
+		const organizationId =
+			ctx.websiteOrganizationId ?? resolveOrganizationId(ctx);
 		const result = await runInvestigationAction(
 			{
 				action: "list",
@@ -236,7 +259,7 @@ const listInvestigationsTool = defineMcpTool(
 			},
 			{
 				...buildRpcContext(ctx),
-				organizationId: organizationIds[0],
+				organizationId,
 			}
 		);
 		if (result.action !== "list") {
@@ -246,17 +269,25 @@ const listInvestigationsTool = defineMcpTool(
 	}
 );
 
+const InvestigationIdSchema = z
+	.string()
+	.min(1)
+	.max(256)
+	.describe(
+		"Investigation ID from list_investigations, list_insights (investigationId), or Slack."
+	);
+
 const getInvestigationTool = defineMcpTool(
 	{
 		name: "get_investigation",
 		description:
 			"Get one durable investigation, including its current status, evidence-backed observations, and human replies. The ID may come from Slack or list_investigations.",
 		inputSchema: z.object({
-			investigationId: z.string().min(1).max(256),
+			investigationId: InvestigationIdSchema,
 		}),
 		outputSchema: z.object({
 			canReply: z.boolean(),
-			investigation: historyInsightSchema.nullable(),
+			investigation: historyInsightSchema,
 			timeline: z.array(insightTimelineItemSchema),
 		}),
 		metadata: metadataForResource("website", ["read"]),
@@ -270,6 +301,15 @@ const getInvestigationTool = defineMcpTool(
 		if (result.action !== "get") {
 			throw new McpToolError("internal", "Unexpected investigation action");
 		}
+		if (!result.investigation) {
+			throw new McpToolError(
+				"not_found",
+				"No investigation with this ID is accessible to this connection.",
+				{
+					hint: "Use an id from list_investigations or an investigationId from list_insights.",
+				}
+			);
+		}
 		return {
 			canReply: result.canReply,
 			investigation: result.investigation,
@@ -282,17 +322,22 @@ const replyToInvestigationTool = defineMcpTool(
 	{
 		name: "reply_to_investigation",
 		description:
-			"Ask an included clarification of the same investigation using its saved evidence. No fresh measurements or actions run. Read the answer with get_investigation. New questions or fresh $1 analyses require the explicit dashboard control.",
+			"Add a clarification to an existing investigation. It is answered from the case's saved evidence, without new measurements or actions. The answer appears in get_investigation. It cannot start a new investigation.",
 		inputSchema: z.object({
-			investigationId: z.string().min(1).max(256),
-			body: z.string().trim().min(1).max(2000),
+			investigationId: InvestigationIdSchema,
+			body: z
+				.string()
+				.trim()
+				.min(1)
+				.max(2000)
+				.describe("Your question or clarification."),
 			replyId: z
 				.string()
 				.trim()
 				.min(1)
 				.max(200)
 				.refine((value) => !value.includes(":"), {
-					message: "Reply ids cannot contain colons",
+					message: "Reply IDs cannot contain colons",
 				})
 				.describe(
 					"Unique stable idempotency key. Reuse it if this tool call is retried."
@@ -300,6 +345,7 @@ const replyToInvestigationTool = defineMcpTool(
 		}),
 		outputSchema: z.object({ reply: insightTimelineReplySchema }),
 		metadata: metadataForResource("website", ["update"]),
+		annotations: { destructive: false, idempotent: true },
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -322,8 +368,9 @@ const replyToInvestigationTool = defineMcpTool(
 const getDataTool = defineMcpTool(
 	{
 		name: "get_data",
+		title: "Query analytics",
 		description:
-			"Run one query or batch 2-10 for a website. Use preset or from/to; default last_30d. Returns definition, scope, rowCount, returnedRows, truncated and up to 20 rows. Read definition for population limits; capabilities/get_schema to discover.",
+			"Query Databuddy's analytics API (www.databuddy.cc/docs/api) for a website: one query or a batch of 2-10. Query types come from capabilities. Default range last_30d. Returns at most 20 rows per query.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			type: z
@@ -332,12 +379,9 @@ const getDataTool = defineMcpTool(
 				.describe(
 					"Query type for single-query mode. Use capabilities to see all types."
 				),
-			preset: z
-				.enum(MCP_DATE_PRESETS as [string, ...string[]])
-				.optional()
-				.describe(
-					"Date preset (e.g. 'last_7d', 'last_30d'). Alternative to from/to."
-				),
+			preset: DatePresetSchema.optional().describe(
+				"Date preset (e.g. 'last_7d', 'last_30d'). Alternative to from/to."
+			),
 			from: z
 				.string()
 				.optional()
@@ -350,36 +394,35 @@ const getDataTool = defineMcpTool(
 				.enum(TIME_UNIT)
 				.optional()
 				.describe("Time granularity for time-series data."),
-			limit: z
-				.number()
-				.int()
-				.min(1)
-				.max(1000)
-				.optional()
-				.describe("Max rows to return (1-1000)."),
+			limit: QueryLimitSchema,
 			filters: z
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a ClickHouse column name — call get_schema if unsure — or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' must be in the query type's allowedFilters (capabilities detail='full'), or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
-			groupBy: z.array(z.string()).optional().describe("Fields to group by."),
-			orderBy: z.string().optional().describe("Field to order results by."),
+			orderBy: z
+				.string()
+				.optional()
+				.describe(
+					"Output metric to sort by, such as 'visitors' or 'pageviews DESC'. Rejected values return the allowed list."
+				),
 			queries: z
 				.array(QueryItemSchema)
 				.min(2)
 				.max(10)
 				.optional()
 				.describe(
-					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to. Omit 'type' when using this."
+					"Batch mode: 2-10 query items, each with type and optionally its own preset or from/to. Items without a date range use the top-level preset or from/to, and items inherit the top-level timeUnit, limit, filters, and orderBy unless they set their own. Omit 'type' when using this."
 				),
 			timezone: z
 				.string()
 				.optional()
-				.describe("IANA timezone. Defaults to UTC."),
+				.describe(
+					"IANA timezone for date presets and date or hour buckets. Defaults to UTC. Row timestamps such as time, first_visit, or last_visit are returned in UTC."
+				),
 		}),
 		outputSchema: z.object({
-			// Single-query shape
 			definition: z.string().optional(),
 			data: z.array(z.record(z.string(), z.unknown())).optional(),
 			returnedRows: z.number().optional(),
@@ -387,7 +430,6 @@ const getDataTool = defineMcpTool(
 			summary: z.string().optional(),
 			truncated: z.boolean().optional(),
 			type: z.string().optional(),
-			// Batch shape
 			batch: z.boolean().optional(),
 			results: z
 				.array(
@@ -403,9 +445,8 @@ const getDataTool = defineMcpTool(
 					})
 				)
 				.optional(),
-			// Shared
-			error: z.string().optional(),
 		}),
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
 		ratelimit: { limit: 30, windowSec: 60 },
 	},
@@ -413,62 +454,66 @@ const getDataTool = defineMcpTool(
 		const websiteId = getResolvedWebsiteId(ctx);
 		const timezone = input.timezone ?? "UTC";
 
-		const rawQueries = input.queries;
+		const queries: z.infer<typeof QueryItemSchema>[] =
+			input.queries ?? (input.type ? [{ type: input.type }] : []);
 
-		const items: McpQueryItem[] =
-			rawQueries && rawQueries.length >= 2
-				? rawQueries.map((query) =>
-						query.preset || query.from || query.to
-							? query
-							: {
-									...query,
-									preset: input.preset,
-									from: input.from,
-									to: input.to,
-									timeUnit: query.timeUnit ?? input.timeUnit,
-								}
-					)
-				: input.type
-					? [
-							{
-								type: input.type,
-								preset: input.preset,
-								from: input.from,
-								to: input.to,
-								timeUnit: input.timeUnit,
-								limit: input.limit,
-								filters: input.filters,
-								groupBy: input.groupBy,
-								orderBy: input.orderBy,
-							},
-						]
-					: [];
-
-		if (items.length === 0) {
+		if (queries.length === 0) {
 			throw new McpToolError(
 				"invalid_input",
 				"Either 'type' (single query) or 'queries' array (batch, 2-10 items) is required.",
 				{
-					hint: "Single: {type:'top_pages',preset:'last_7d'}. Batch: {queries:[{type:'summary',preset:'last_7d'},{type:'top_pages',preset:'last_7d'}]}",
+					hint: "Single: {type:'top_pages',preset:'last_7d'}. Batch: {queries:[{type:'summary_metrics',preset:'last_7d'},{type:'top_pages',preset:'last_7d'}]}",
 				}
 			);
 		}
 
-		const plan = buildBatchQueryRequests(items, websiteId, timezone);
-		if (items.length === 1 && plan.requests.length === 0) {
-			throw new McpToolError(
-				"invalid_input",
-				plan.invalid[0]?.error ?? "The query could not be executed."
-			);
-		}
-
-		// ctx.websiteDomain is guaranteed set by defineMcpTool when resolveWebsite is true
-		const websiteDomain = ctx.websiteDomain ?? "unknown";
+		const items: McpQueryItem[] = queries.map((query) => ({
+			...query,
+			...(query.preset || query.from || query.to
+				? {}
+				: { preset: input.preset, from: input.from, to: input.to }),
+			timeUnit: query.timeUnit ?? input.timeUnit,
+			limit: query.limit ?? input.limit,
+			filters: query.filters ?? input.filters,
+			orderBy: query.orderBy ?? input.orderBy,
+		}));
+		const plan = await gateQueryPlan(
+			buildBatchQueryRequests(items, websiteId, timezone),
+			getResolvedOrganizationId(ctx)
+		);
 		const results = await executeBatch(plan.requests, {
-			websiteDomain,
+			websiteDomain: ctx.websiteDomain ?? "unknown",
 			timezone,
+			abortSignal: ctx.abortSignal,
 		});
 		const formatted = formatMcpQueryResults(plan, results);
+		if (formatted.every((result) => result.error)) {
+			const planLimited = new Set(
+				plan.invalid.flatMap((query) =>
+					query.planLimited ? [query.inputIndex] : []
+				)
+			);
+			const failures = formatted.map((result, index) =>
+				queryFailure(result, planLimited.has(index))
+			);
+			const [firstFailure] = failures;
+			if (firstFailure && failures.length === 1) {
+				throw firstFailure;
+			}
+			throw new McpToolError(
+				failures.some((failure) => failure.code === "query_failed")
+					? "query_failed"
+					: failures.every((failure) => failure.code === "plan_limit")
+						? "plan_limit"
+						: "invalid_input",
+				`All ${failures.length} queries failed. ${formatted
+					.map(
+						(result, index) =>
+							`Query ${index + 1} (${result.type}): ${failures[index]?.message}`
+					)
+					.join(" ")}`
+			);
+		}
 
 		if (items.length > 1) {
 			return { batch: true, results: formatted };
@@ -478,24 +523,16 @@ const getDataTool = defineMcpTool(
 		if (!first) {
 			throw new McpToolError("internal", "No results returned");
 		}
-		return {
-			definition: first.definition,
-			data: first.data,
-			returnedRows: first.returnedRows,
-			rowCount: first.rowCount,
-			summary: first.summary,
-			truncated: first.truncated,
-			type: first.type,
-			...(first.error && { error: first.error }),
-		};
+		return first;
 	}
 );
 
 const getSchemaTool = defineMcpTool(
 	{
 		name: "get_schema",
+		title: "List analytics columns",
 		description:
-			"Return the ClickHouse analytics schema (column names + types). Use when an unknown field name shows up in a filter rejection or when composing a custom query. Filter by section and toggle examples/guidelines to slim.",
+			"Return the analytics tables with column names and types as a reference.",
 		inputSchema: z.object({
 			sections: z
 				.array(z.enum(SCHEMA_SECTIONS))
@@ -503,16 +540,6 @@ const getSchemaTool = defineMcpTool(
 				.describe(
 					`Only return these schema sections. Default = all. Options: ${SCHEMA_SECTIONS.join(", ")}`
 				),
-			includeExamples: z
-				.boolean()
-				.optional()
-				.default(true)
-				.describe("Include SQL example patterns (default true)"),
-			includeGuidelines: z
-				.boolean()
-				.optional()
-				.default(true)
-				.describe("Include query guidelines block (default true)"),
 		}),
 		outputSchema: z.object({
 			schema: z.string(),
@@ -523,11 +550,7 @@ const getSchemaTool = defineMcpTool(
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	(input) => {
-		const schema = getSchemaDocumentation({
-			sections: input.sections,
-			includeExamples: input.includeExamples,
-			includeGuidelines: input.includeGuidelines,
-		});
+		const schema = getMcpSchemaDocumentation(input.sections);
 		return {
 			schema,
 			sections:
@@ -555,16 +578,18 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 ];
 
 const HINTS: readonly string[] = [
-	"For a deeper reference (workflow + footguns), read the databuddy://guide MCP resource.",
-	"capabilities is filterable: include=['queryTypes'] to fetch the heavy catalog, category='Errors' or contains='vital' to narrow, detail='full' for allowedFilters.",
-	"get_schema is sectionable: sections=['events'] + includeExamples=false for the smallest useful payload.",
+	"The databuddy://guide resource documents query conventions and what insight and investigation fields mean.",
+	"capabilities is filterable: include=['queryTypes'] returns the full catalog, category='Errors' or contains='vital' narrows it, detail='full' adds each type's allowedFilters.",
+	"get_schema is sectionable: sections=['events'] returns the smallest useful payload.",
+	`get_data returns at most ${MCP_RESULT_ROW_LIMIT} rows per query; limit can lower that.`,
 ];
 
 const capabilitiesTool = defineMcpTool(
 	{
 		name: "capabilities",
+		title: "List query types",
 		description:
-			"Return tool hints, date presets, categories, and (optionally) query types. Use 'include' to control response shape and 'category' to filter queryTypes — defaults OMIT queryTypes for a small payload.",
+			"Return get_data query types, date presets, categories, and a schema summary. 'include' selects sections; queryTypes are omitted unless requested or filtered by category or contains.",
 		inputSchema: z.object({
 			include: z
 				.array(z.enum(CAPABILITY_SECTIONS))
@@ -573,7 +598,7 @@ const capabilitiesTool = defineMcpTool(
 					`Sections to include. Default: ${CAPABILITY_DEFAULTS.join(", ")}. Pass ['queryTypes'] to request the heavy query-type list.`
 				),
 			category: z
-				.enum(QUERY_CATEGORY_KEYS as [string, ...string[]])
+				.enum(QUERY_CATEGORY_KEYS)
 				.optional()
 				.describe(
 					`Filter queryTypes to a category. Options: ${QUERY_CATEGORY_KEYS.join(", ")}`
@@ -587,7 +612,7 @@ const capabilitiesTool = defineMcpTool(
 				.optional()
 				.default("summary")
 				.describe(
-					"'summary' returns descriptions only; 'full' includes allowedFilters per type. Only applied when queryTypes is included."
+					"'summary' returns descriptions only; 'full' adds each type's allowedFilters, also when filtering by category or contains."
 				),
 		}),
 		outputSchema: z.object({
@@ -617,28 +642,22 @@ const capabilitiesTool = defineMcpTool(
 			out.hints = HINTS;
 		}
 		if (selected.has("datePresets")) {
-			out.datePresets = MCP_DATE_PRESETS;
+			out.datePresets = DatePresetSchema.options;
 			out.dateFormat = "YYYY-MM-DD";
-			out.maxLimit = 1000;
+			out.maxLimit = MCP_RESULT_ROW_LIMIT;
 		}
 		if (selected.has("schemaSummary")) {
-			out.schemaSummary = getSchemaSummary();
+			out.schemaSummary = SCHEMA_SUMMARY;
 		}
 		if (selected.has("categories")) {
 			out.categories = QUERY_CATEGORY_KEYS;
 		}
 		if (selected.has("queryTypes")) {
-			if (input.category || input.contains) {
-				out.queryTypes = getFilteredQueryTypeDescriptions({
-					category: input.category,
-					contains: input.contains,
-				});
-			} else {
-				out.queryTypes =
-					input.detail === "full"
-						? getQueryTypeDetails()
-						: getQueryTypeDescriptions();
-			}
+			out.queryTypes = getFilteredQueryTypes({
+				category: input.category,
+				contains: input.contains,
+				detail: input.detail,
+			});
 		}
 		return out;
 	}
@@ -648,34 +667,35 @@ const listFunnelsTool = defineMcpTool(
 	{
 		name: "list_funnels",
 		description:
-			"List funnels for a website with their steps and filters. Use before get_funnel_analytics or to enumerate available funnels.",
+			"List funnels for a website with their steps and filters. Funnel IDs are used by get_funnel_analytics.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			funnels: z.array(z.record(z.string(), z.unknown())),
-			count: z.number(),
+			total: z.number(),
+			hasMore: z.boolean(),
 			hint: z.string().optional(),
 		}),
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (_input, ctx) => {
+	async (input, ctx) => {
 		const result = await callRPCProcedure(
 			"funnels",
 			"list",
 			{ websiteId: ctx.websiteId },
 			buildRpcContext(ctx)
 		);
-		const funnels = Array.isArray(result) ? result : [];
-		if (funnels.length === 0) {
-			return {
-				funnels,
-				count: 0,
-				hint: "No funnels yet for this website. Create one in the dashboard.",
-			};
-		}
-		return { funnels, count: funnels.length };
+		const page = paginate(Array.isArray(result) ? result : [], input);
+		return {
+			funnels: page.items.map((funnel) => pickFields(funnel, FUNNEL_FIELDS)),
+			total: page.total,
+			hasMore: page.hasMore,
+			...(page.total === 0 && { hint: "This website has no funnels yet." }),
+		};
 	}
 );
 
@@ -683,28 +703,31 @@ const getFunnelAnalyticsTool = defineMcpTool(
 	{
 		name: "get_funnel_analytics",
 		description:
-			"Return per-step conversion, drop-off, and timing for one funnel. Use after list_funnels to analyze a specific funnelId.",
+			"Return per-step conversion and drop-off for one funnel, by funnelId from list_funnels. range is the window measured. time_series holds at most the latest 90 points.",
 		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			funnelId: z.string().describe("Funnel ID from list_funnels"),
 		}),
-		// Passthrough from RPC — shape varies by funnel. Permissive by design.
 		outputSchema: DynamicObjectSchema,
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
-		ratelimit: { limit: 60, windowSec: 60 },
+		ratelimit: ANALYTICS_RATE_LIMIT,
 	},
-	(input, ctx) => {
-		const { from, to } = resolveMcpDateRange(input);
-		return callRPCProcedure(
-			"funnels",
-			"getAnalytics",
-			{
-				funnelId: input.funnelId,
-				websiteId: ctx.websiteId,
-				startDate: from,
-				endDate: to,
-			},
-			buildRpcContext(ctx)
+	async (input, ctx) => {
+		const range = resolveMcpDateRange(input);
+		return summarizeConversionAnalytics(
+			await readConversionAnalytics(
+				"get_funnel_analytics",
+				["funnels", "getAnalytics"],
+				{
+					funnelId: input.funnelId,
+					websiteId: ctx.websiteId,
+					startDate: range.from,
+					endDate: range.to,
+				},
+				ctx
+			),
+			range
 		);
 	}
 );
@@ -713,19 +736,16 @@ const createFunnelTool = defineMcpTool(
 	{
 		name: "create_funnel",
 		description:
-			"Create a funnel for a website. Call with confirmed=false for preview, then confirmed=true after explicit user approval.",
+			"Create a funnel for a website. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			name: z.string().min(1).max(100),
-			description: z.string().optional(),
-			steps: z.array(funnelStepSchema).min(2).max(10),
-			filters: z.array(WorkflowFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
+			...funnelFields,
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("website", ["update"]),
+		annotations: CREATE_WRITE,
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -762,7 +782,7 @@ const createFunnelTool = defineMcpTool(
 		return {
 			success: true,
 			message: `Funnel "${input.name}" created successfully.`,
-			funnel: result,
+			funnel: pickFields(result, FUNNEL_FIELDS),
 		};
 	}
 );
@@ -771,34 +791,35 @@ const listGoalsTool = defineMcpTool(
 	{
 		name: "list_goals",
 		description:
-			"List conversion goals for a website with their type, target, and filters. Use before get_goal_analytics.",
+			"List conversion goals for a website with their type, target, and filters. Goal IDs are used by get_goal_analytics.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			goals: z.array(z.record(z.string(), z.unknown())),
-			count: z.number(),
+			total: z.number(),
+			hasMore: z.boolean(),
 			hint: z.string().optional(),
 		}),
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (_input, ctx) => {
+	async (input, ctx) => {
 		const result = await callRPCProcedure(
 			"goals",
 			"list",
 			{ websiteId: ctx.websiteId },
 			buildRpcContext(ctx)
 		);
-		const goals = Array.isArray(result) ? result : [];
-		if (goals.length === 0) {
-			return {
-				goals,
-				count: 0,
-				hint: "No goals yet for this website. Create one in the dashboard.",
-			};
-		}
-		return { goals, count: goals.length };
+		const page = paginate(Array.isArray(result) ? result : [], input);
+		return {
+			goals: page.items.map((goal) => pickFields(goal, GOAL_FIELDS)),
+			total: page.total,
+			hasMore: page.hasMore,
+			...(page.total === 0 && { hint: "This website has no goals yet." }),
+		};
 	}
 );
 
@@ -806,28 +827,31 @@ const getGoalAnalyticsTool = defineMcpTool(
 	{
 		name: "get_goal_analytics",
 		description:
-			"Return entered/completed counts and conversion rate for one goalId. Use after list_goals.",
+			"Return entered and completed counts and the conversion rate for one goal, by goalId from list_goals.",
 		inputSchema: McpDateRangeSchema.safeExtend({
 			...WebsiteSelectorSchema,
 			goalId: z.string().describe("Goal ID from list_goals"),
 		}),
-		// Passthrough from RPC — shape varies by goal. Permissive by design.
 		outputSchema: DynamicObjectSchema,
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
-		ratelimit: { limit: 60, windowSec: 60 },
+		ratelimit: ANALYTICS_RATE_LIMIT,
 	},
-	(input, ctx) => {
-		const { from, to } = resolveMcpDateRange(input);
-		return callRPCProcedure(
-			"goals",
-			"getAnalytics",
-			{
-				goalId: input.goalId,
-				websiteId: ctx.websiteId,
-				startDate: from,
-				endDate: to,
-			},
-			buildRpcContext(ctx)
+	async (input, ctx) => {
+		const range = resolveMcpDateRange(input);
+		return summarizeConversionAnalytics(
+			await readConversionAnalytics(
+				"get_goal_analytics",
+				["goals", "getAnalytics"],
+				{
+					goalId: input.goalId,
+					websiteId: ctx.websiteId,
+					startDate: range.from,
+					endDate: range.to,
+				},
+				ctx
+			),
+			range
 		);
 	}
 );
@@ -836,20 +860,16 @@ const createGoalTool = defineMcpTool(
 	{
 		name: "create_goal",
 		description:
-			"Create a conversion goal. Call with confirmed=false for preview, then confirmed=true after explicit user approval.",
+			"Create a conversion goal. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-			target: z.string().min(1),
-			name: z.string().min(1).max(100),
-			description: z.string().nullable().optional(),
-			filters: z.array(WorkflowFilterSchema).optional(),
-			ignoreHistoricData: z.boolean().optional(),
+			...goalFields,
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("website", ["update"]),
+		annotations: CREATE_WRITE,
 		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -887,7 +907,7 @@ const createGoalTool = defineMcpTool(
 		return {
 			success: true,
 			message: `Goal "${input.name}" created successfully.`,
-			goal: result,
+			goal: pickFields(result, GOAL_FIELDS),
 		};
 	}
 );
@@ -896,13 +916,15 @@ const listLinkFoldersTool = defineMcpTool(
 	{
 		name: "list_link_folders",
 		description:
-			"List existing short-link folders for the website organization, including link counts. Use this before assigning a link to a folder.",
+			"List short-link folders for the website's organization, with link counts. Links can only be assigned to these existing folders.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			folders: z.array(LinkFolderWithUsageSchema),
-			count: z.number(),
+			total: z.number(),
+			hasMore: z.boolean(),
 			unfiledCount: z.number(),
 			hint: z.string(),
 		}),
@@ -910,26 +932,24 @@ const listLinkFoldersTool = defineMcpTool(
 		metadata: metadataForResource("link", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (_input, ctx) => {
-		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (orgId instanceof Error) {
-			throw new McpToolError("not_found", orgId.message);
-		}
-
+	async (input, ctx) => {
+		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const [folders, summary] = await Promise.all([
+		const [folders, unfiledCount] = await Promise.all([
 			listLinkFolders(rpcContext, orgId),
-			getLinkSummary(rpcContext, orgId),
+			countUnfiledLinks(rpcContext, orgId),
 		]);
+		const page = paginate(summarizeLinkFoldersWithUsage(folders), input);
 
 		return {
-			folders: summarizeLinkFoldersWithUsage(folders),
-			count: folders.length,
-			unfiledCount: summary.unfiledTotal,
+			folders: page.items,
+			total: page.total,
+			hasMore: page.hasMore,
+			unfiledCount,
 			hint:
 				folders.length === 0
-					? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
-					: "Use folderId or folderSlug from this list. Do not invent new folders from the agent.",
+					? "This organization has no link folders. Folders are created in the Databuddy dashboard; links stay unfiled until then."
+					: "create_link and update_link accept folderId or folderSlug from this list. They cannot create folders.",
 		};
 	}
 );
@@ -938,13 +958,15 @@ const listLinksTool = defineMcpTool(
 	{
 		name: "list_links",
 		description:
-			"List the newest short links and existing folders for the website's organization. The count covers the full catalog; use search_links to find a specific older link.",
+			"List short links for the website's organization, newest first, with existing folders. total covers the full catalog; search_links finds a specific link.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			links: z.array(LinkRowOutputSchema),
-			count: z.number(),
+			total: z.number(),
+			hasMore: z.boolean(),
 			folders: z.array(LinkFolderWithUsageSchema),
 			unfiledCount: z.number(),
 			hint: z.string().optional(),
@@ -953,35 +975,26 @@ const listLinksTool = defineMcpTool(
 		metadata: metadataForResource("link", ["read"]),
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
-	async (_input, ctx) => {
-		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (orgId instanceof Error) {
-			throw new McpToolError("not_found", orgId.message);
-		}
+	async (input, ctx) => {
+		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const [page, folders, summary] = await Promise.all([
-			listLinks(rpcContext, orgId),
+		const [page, folders, unfiledCount] = await Promise.all([
+			listLinks(rpcContext, orgId, {
+				limit: input.limit,
+				offset: input.offset,
+			}),
 			listLinkFolders(rpcContext, orgId),
-			getLinkSummary(rpcContext, orgId),
+			countUnfiledLinks(rpcContext, orgId),
 		]);
-		if (page.items.length === 0) {
-			return {
-				links: page.items,
-				count: 0,
-				folders: summarizeLinkFoldersWithUsage(folders),
-				unfiledCount: summary.unfiledTotal,
-				hint: "No links yet for this organization.",
-			};
-		}
 		return {
 			links: page.items.map((link) => summarizeLink(link, folders)),
-			count: summary.total,
-			folders: summarizeLinkFoldersWithUsage(folders, page.items),
-			unfiledCount: summary.unfiledTotal,
-			hint:
-				page.hasMore || summary.total > page.items.length
-					? `Showing the ${page.items.length} newest of ${summary.total} links. Use search_links for older links.`
-					: undefined,
+			total: page.total,
+			hasMore: page.hasMore,
+			folders: summarizeLinkFoldersWithUsage(folders),
+			unfiledCount,
+			...(page.total === 0 && {
+				hint: "No links yet for this organization.",
+			}),
 		};
 	}
 );
@@ -990,7 +1003,7 @@ const searchLinksTool = defineMcpTool(
 	{
 		name: "search_links",
 		description:
-			"Find short links across the full catalog matching a substring on name, slug, target URL, or external ID. Returns at most the newest 50 matches.",
+			"Find short links across the full catalog matching a substring on name, slug, target URL, or external ID, newest first.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			query: z
@@ -999,21 +1012,11 @@ const searchLinksTool = defineMcpTool(
 				.min(1)
 				.max(255)
 				.describe("Search query (matches name, slug, URL, or external ID)"),
+			...PageSchema,
 		}),
 		outputSchema: z.object({
-			links: z.array(
-				z.object({
-					id: z.string(),
-					name: z.string(),
-					slug: z.string(),
-					targetUrl: z.string(),
-					deepLinkApp: z.string().nullable(),
-					folderId: z.string().nullable(),
-					folder: LinkRowOutputSchema.shape.folder,
-					externalId: z.string().nullable(),
-				})
-			),
-			count: z.number(),
+			links: z.array(LinkRowOutputSchema),
+			total: z.number().optional(),
 			hasMore: z.boolean(),
 		}),
 		resolveWebsite: true,
@@ -1021,27 +1024,19 @@ const searchLinksTool = defineMcpTool(
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (orgId instanceof Error) {
-			throw new McpToolError("not_found", orgId.message);
-		}
+		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
 		const [page, folders] = await Promise.all([
-			searchLinks(rpcContext, orgId, input.query),
+			searchLinks(rpcContext, orgId, input.query, {
+				includeTotal: true,
+				limit: input.limit,
+				offset: input.offset,
+			}),
 			listLinkFolders(rpcContext, orgId),
 		]);
 		return {
-			links: page.items.map((link) => ({
-				id: link.id,
-				name: link.name,
-				slug: link.slug,
-				targetUrl: link.targetUrl,
-				deepLinkApp: link.deepLinkApp ?? null,
-				folderId: link.folderId ?? null,
-				folder: summarizeLink(link, folders).folder,
-				externalId: link.externalId,
-			})),
-			count: page.items.length,
+			links: page.items.map((link) => summarizeLink(link, folders)),
+			...(page.total === undefined ? {} : { total: page.total }),
 			hasMore: page.hasMore,
 		};
 	}
@@ -1051,71 +1046,53 @@ const createLinkTool = defineMcpTool(
 	{
 		name: "create_link",
 		description:
-			"Create a short link for the website organization. Call with confirmed=false for preview first.",
+			"Create a short link in the website's organization. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z
 			.object({
 				...WebsiteSelectorSchema,
-				name: z.string().min(1).max(255),
-				targetUrl: httpUrlSchema,
-				slug: z
-					.string()
-					.min(3)
-					.max(50)
-					.regex(/^[a-zA-Z0-9_-]+$/)
-					.optional(),
-				expiresAt: isoDateOrOffsetDateTimeSchema.optional(),
-				expiredRedirectUrl: httpUrlSchema.optional(),
-				ogTitle: z.string().max(200).optional(),
-				ogDescription: z.string().max(500).optional(),
-				ogImageUrl: httpUrlSchema.optional(),
-				externalId: z.string().max(255).optional(),
-				...LinkFolderSelectorSchema.shape,
-				deepLinkApp: z.enum(DEEP_LINK_APP_IDS).optional(),
+				...linkCreateFields,
 				confirmed: ConfirmedSchema,
 			})
-			.superRefine(({ deepLinkApp, targetUrl }, context) => {
-				if (deepLinkApp && !isDeepLinkTarget(deepLinkApp, targetUrl)) {
-					context.addIssue({
-						code: "custom",
-						message:
-							"Deep link URLs must use HTTPS and match the selected app.",
-						path: ["targetUrl"],
-					});
-				}
-			}),
+			.superRefine(refineDeepLinkTarget),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("link", ["read", "create"]),
+		annotations: CREATE_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
-	async (input, ctx) => {
-		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
-		if (orgId instanceof Error) {
-			throw new McpToolError("not_found", orgId.message);
-		}
-
+	async (
+		{
+			confirmed,
+			websiteId: _websiteId,
+			websiteName: _websiteName,
+			websiteDomain: _websiteDomain,
+			...link
+		},
+		ctx
+	) => {
+		const orgId = getResolvedOrganizationId(ctx);
 		const rpcContext = buildRpcContext(ctx);
-		const folderSelection = await resolveLinkFolder(rpcContext, orgId, {
-			folderId: input.folderId,
-			folderSlug: input.folderSlug,
-		});
+		const folderSelection = await resolveLinkFolder(rpcContext, orgId, link);
 		if (!folderSelection.ok) {
 			throw new McpToolError("invalid_input", folderSelection.message);
 		}
 
-		if (!input.confirmed) {
+		if (!confirmed) {
 			return {
 				preview: true,
 				message: "Review this short link before creating it.",
 				confirmationRequired: true,
 				link: {
-					name: input.name,
-					targetUrl: input.targetUrl,
-					slug: input.slug ?? "(auto-generated)",
-					expiresAt: input.expiresAt ?? null,
-					ogTitle: input.ogTitle ?? null,
-					ogDescription: input.ogDescription ?? null,
-					externalId: input.externalId ?? null,
+					name: link.name,
+					targetUrl: link.targetUrl,
+					slug: link.slug ?? "(auto-generated)",
+					deepLinkApp: link.deepLinkApp ?? null,
+					expiresAt: link.expiresAt ?? null,
+					expiredRedirectUrl: link.expiredRedirectUrl ?? null,
+					ogTitle: link.ogTitle ?? null,
+					ogDescription: link.ogDescription ?? null,
+					ogImageUrl: link.ogImageUrl ?? null,
+					externalId: link.externalId ?? null,
 					folder: folderSelection.folder
 						? summarizeLinkFolder(folderSelection.folder)
 						: "Unfiled",
@@ -1124,30 +1101,15 @@ const createLinkTool = defineMcpTool(
 			};
 		}
 
-		const result = parseLinkRow(
-			await callRPCProcedure(
-				"links",
-				"create",
-				{
-					organizationId: orgId,
-					name: input.name,
-					targetUrl: input.targetUrl,
-					slug: input.slug,
-					folderId: folderSelection.folderId ?? null,
-					expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-					expiredRedirectUrl: input.expiredRedirectUrl ?? null,
-					ogTitle: input.ogTitle ?? null,
-					ogDescription: input.ogDescription ?? null,
-					ogImageUrl: input.ogImageUrl ?? null,
-					externalId: input.externalId ?? null,
-					deepLinkApp: input.deepLinkApp ?? null,
-				},
-				rpcContext
-			)
+		const result = await createOrganizationLink(
+			rpcContext,
+			orgId,
+			link,
+			folderSelection.folderId
 		);
 		return {
 			success: true,
-			message: `Link "${input.name}" created successfully.`,
+			message: `Link "${link.name}" created successfully.`,
 			link: summarizeLink(result, folderSelection.folders),
 		};
 	}
@@ -1156,17 +1118,18 @@ const createLinkTool = defineMcpTool(
 const listAnnotationsTool = defineMcpTool(
 	{
 		name: "list_annotations",
-		description: "List chart annotations for a website.",
+		description:
+			"List chart annotations for a website: text, time range, tags, color, and visibility.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			granularity: z.enum(["hourly", "daily", "weekly", "monthly"]).optional(),
-			metrics: z.array(z.string()).optional(),
-			chartContext: annotationChartContextSchema.optional(),
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			annotations: z.array(z.record(z.string(), z.unknown())),
-			count: z.number(),
+			total: z.number(),
+			hasMore: z.boolean(),
 		}),
+		metadata: { access: { kind: "read" } },
 		resolveWebsite: true,
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
@@ -1177,12 +1140,18 @@ const listAnnotationsTool = defineMcpTool(
 			{
 				websiteId: ctx.websiteId,
 				chartType: "metrics",
-				chartContext: input.chartContext ?? createChartContext(input),
+				chartContext: createChartContext({}),
 			},
 			buildRpcContext(ctx)
 		);
-		const annotations = Array.isArray(result) ? result : [];
-		return { annotations, count: annotations.length };
+		const page = paginate(Array.isArray(result) ? result : [], input);
+		return {
+			annotations: page.items.map((annotation) =>
+				pickFields(annotation, ANNOTATION_FIELDS)
+			),
+			total: page.total,
+			hasMore: page.hasMore,
+		};
 	}
 );
 
@@ -1190,20 +1159,45 @@ const createAnnotationTool = defineMcpTool(
 	{
 		name: "create_annotation",
 		description:
-			"Create a chart annotation. Call with confirmed=false for preview before writing.",
+			"Create a chart annotation. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: annotationCoordinateSchema.safeExtend({
 			...WebsiteSelectorSchema,
-			chartContext: annotationChartContextSchema.optional(),
-			yValue: z.number().optional(),
-			text: z.string().min(1).max(500),
-			tags: z.array(z.string()).optional(),
-			color: z.string().optional(),
-			isPublic: z.boolean().optional(),
+			annotationType: annotationCoordinateSchema.shape.annotationType.describe(
+				"point or line marks one moment; range covers xValue to xEndValue."
+			),
+			xValue: annotationCoordinateSchema.shape.xValue.describe(
+				"Start as YYYY-MM-DD or an ISO datetime with offset."
+			),
+			xEndValue: annotationCoordinateSchema.shape.xEndValue.describe(
+				"End as YYYY-MM-DD or an ISO datetime with offset. Required for range."
+			),
+			chartContext: annotationChartContextSchema
+				.optional()
+				.describe(
+					"Chart view the annotation belongs to. Defaults to a daily view covering xValue to xEndValue."
+				),
+			yValue: z
+				.number()
+				.optional()
+				.describe("Y-axis value to pin the annotation to."),
+			text: z.string().min(1).max(500).describe("Annotation text."),
+			tags: z
+				.array(z.string())
+				.optional()
+				.describe("Labels such as launch, campaign, or incident."),
+			color: z.string().optional().describe("Hex color. Defaults to #3B82F6."),
+			isPublic: z
+				.boolean()
+				.optional()
+				.describe(
+					"true shows the annotation to everyone in the organization; false (default) keeps it private to its creator."
+				),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("website", ["update"]),
+		annotations: CREATE_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
@@ -1212,7 +1206,6 @@ const createAnnotationTool = defineMcpTool(
 			createChartContext({
 				from: dayjs(input.xValue).format("YYYY-MM-DD"),
 				to: dayjs(input.xEndValue ?? input.xValue).format("YYYY-MM-DD"),
-				granularity: "daily",
 			});
 
 		if (!input.confirmed) {
@@ -1253,36 +1246,230 @@ const createAnnotationTool = defineMcpTool(
 		return {
 			success: true,
 			message: "Annotation created successfully.",
-			annotation: result,
+			annotation: pickFields(result, ANNOTATION_FIELDS),
 		};
 	}
 );
+
+type FlagStatus = z.infer<typeof flagFormShape.status>;
+
+interface FlagScope {
+	notFoundHint: string;
+	rpcContext: AppContext;
+	scope: { websiteId: string } | { organizationId: string };
+}
+
+function resolveFlagScope(ctx: McpHandlerContext): FlagScope {
+	const rpcContext = buildRpcContext(ctx);
+	if (ctx.websiteId) {
+		return {
+			notFoundHint:
+				"Flag IDs come from list_flags for the same website. Organization-wide flags are updated without a website.",
+			rpcContext,
+			scope: { websiteId: ctx.websiteId },
+		};
+	}
+	return {
+		notFoundHint:
+			"Website flags need websiteId, websiteName, or websiteDomain. list_flags shows each website's flags.",
+		rpcContext,
+		scope: { organizationId: resolveOrganizationId(ctx) },
+	};
+}
+
+function readFlag(
+	id: string,
+	{ notFoundHint, rpcContext, scope }: FlagScope
+): Promise<unknown> {
+	return callRPCProcedure(
+		"flags",
+		"getById",
+		{ id, ...scope },
+		rpcContext
+	).catch((error: unknown) => {
+		if (error instanceof ORPCError && error.code === "NOT_FOUND") {
+			throw new McpToolError("not_found", "Flag not found", {
+				hint: notFoundHint,
+			});
+		}
+		throw error;
+	});
+}
+
+const FlagDependencyRowSchema = z.object({
+	key: z.string(),
+	status: flagFormShape.status,
+	dependencies: z.array(z.string()).nullable().optional(),
+});
+type FlagDependencyRow = z.infer<typeof FlagDependencyRowSchema>;
+
+const MAX_FLAG_CASCADE_DEPTH = 10;
+const FLAG_LIST_PAGE_SIZE = 200;
+
+async function listScopeFlags({
+	rpcContext,
+	scope,
+}: FlagScope): Promise<FlagDependencyRow[]> {
+	const rows: FlagDependencyRow[] = [];
+	let page: FlagDependencyRow[];
+	do {
+		page = z
+			.array(FlagDependencyRowSchema)
+			.parse(
+				await callRPCProcedure(
+					"flags",
+					"list",
+					{ ...scope, limit: FLAG_LIST_PAGE_SIZE, offset: rows.length },
+					rpcContext
+				)
+			);
+		rows.push(...page);
+	} while (page.length === FLAG_LIST_PAGE_SIZE);
+	return rows;
+}
+
+interface FlagStatusPlan {
+	dependentsActivated: string[];
+	dependentsDeactivated: string[];
+	inactiveDependencies: string[];
+	savedStatus: FlagStatus;
+}
+
+function planFlagStatus(
+	scopeFlags: FlagDependencyRow[],
+	change: {
+		currentStatus?: FlagStatus;
+		dependencies: string[];
+		key: string;
+		status: FlagStatus;
+	}
+): FlagStatusPlan {
+	const statuses = new Map(scopeFlags.map((flag) => [flag.key, flag.status]));
+	const inactiveDependencies = change.dependencies.filter((key) => {
+		const status = statuses.get(key);
+		return status !== undefined && status !== "active";
+	});
+	const plan: FlagStatusPlan = {
+		dependentsActivated: [],
+		dependentsDeactivated: [],
+		inactiveDependencies,
+		savedStatus:
+			inactiveDependencies.length > 0 &&
+			(change.status === "active" || !change.currentStatus)
+				? "inactive"
+				: change.status,
+	};
+	if (!change.currentStatus || change.currentStatus === plan.savedStatus) {
+		return plan;
+	}
+
+	statuses.set(change.key, plan.savedStatus);
+	const visited = new Set<string>();
+	const cascade = (key: string, status: FlagStatus, depth: number) => {
+		if (
+			status === "archived" ||
+			depth >= MAX_FLAG_CASCADE_DEPTH ||
+			visited.has(key)
+		) {
+			return;
+		}
+		visited.add(key);
+		const changed = scopeFlags.filter((flag) => {
+			const dependencies = flag.dependencies ?? [];
+			if (!dependencies.includes(key)) {
+				return false;
+			}
+			const current = statuses.get(flag.key);
+			return status === "inactive"
+				? current === "active"
+				: current === "inactive" &&
+						dependencies.every(
+							(dependency) => statuses.get(dependency) === "active"
+						);
+		});
+		for (const flag of changed) {
+			statuses.set(flag.key, status);
+			if (status === "active") {
+				plan.dependentsActivated.push(flag.key);
+			} else {
+				plan.dependentsDeactivated.push(flag.key);
+			}
+		}
+		for (const flag of changed) {
+			cascade(flag.key, status, depth + 1);
+		}
+	};
+	cascade(change.key, plan.savedStatus, 0);
+	return plan;
+}
+
+function flagStatusNotes(
+	requestedStatus: FlagStatus | undefined,
+	savedStatus: unknown,
+	plan: FlagStatusPlan | null
+): string | undefined {
+	const notes: string[] = [];
+	if (requestedStatus && savedStatus !== requestedStatus) {
+		const reason = plan?.inactiveDependencies.length
+			? ` because these dependencies are not active: ${plan.inactiveDependencies.join(", ")}`
+			: "";
+		notes.push(
+			`Requested status ${requestedStatus} is stored as ${String(savedStatus)}${reason}.`
+		);
+	}
+	if (plan && savedStatus === plan.savedStatus) {
+		if (plan.dependentsActivated.length > 0) {
+			notes.push(
+				`Dependent flags turned on: ${plan.dependentsActivated.join(", ")}.`
+			);
+		}
+		if (plan.dependentsDeactivated.length > 0) {
+			notes.push(
+				`Dependent flags turned off: ${plan.dependentsDeactivated.join(", ")}.`
+			);
+		}
+	}
+	return notes.length > 0 ? notes.join(" ") : undefined;
+}
 
 const listFlagsTool = defineMcpTool(
 	{
 		name: "list_flags",
 		description:
-			"List feature flags for a website. Use before updating flag rollout, rules, or status.",
+			"List feature flags with their status, rollout, rules, and variants: a website's flags when a website is given, otherwise the organization-wide flags. Flag IDs are used by update_flag and add_users_to_flag.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			status: FlagStatusSchema.optional(),
+			status: flagFormShape.status
+				.optional()
+				.describe("Only return flags with this status."),
+			...PageSchema,
 		}),
 		outputSchema: z.object({
 			flags: z.array(z.record(z.string(), z.unknown())),
-			count: z.number(),
+			hasMore: z.boolean(),
 		}),
-		resolveWebsite: true,
+		metadata: { access: { kind: "read" } },
+		resolveWebsite: "optional",
 		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
+		const page = {
+			status: input.status,
+			limit: input.limit + 1,
+			offset: input.offset,
+		};
+		const { rpcContext, scope } = resolveFlagScope(ctx);
 		const result = await callRPCProcedure(
 			"flags",
 			"list",
-			{ websiteId: ctx.websiteId, status: input.status },
-			buildRpcContext(ctx)
+			{ ...page, ...scope },
+			rpcContext
 		);
-		const flags = Array.isArray(result) ? result : [];
-		return { flags, count: flags.length };
+		const rows = Array.isArray(result) ? result : [];
+		return {
+			flags: rows.slice(0, input.limit).map((flag) => pickFlagFields(flag)),
+			hasMore: rows.length > input.limit,
+		};
 	}
 );
 
@@ -1290,52 +1477,50 @@ const createFlagTool = defineMcpTool(
 	{
 		name: "create_flag",
 		description:
-			"Create a feature flag. Defaults to inactive boolean flag until explicitly configured.",
+			"Create a feature flag, inactive and boolean unless configured. confirmed=false (default) returns a preview without writing; confirmed=true creates it.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			key: flagFormShape.key,
-			name: z.string().min(1).max(100).optional(),
-			description: z.string().optional(),
-			type: FlagTypeSchema.optional(),
-			status: FlagStatusSchema.optional(),
-			defaultValue: z.boolean().optional(),
-			payload: z.record(z.string(), z.unknown()).optional(),
-			persistAcrossAuth: z.boolean().optional(),
-			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: z.string().optional(),
-			rules: z.array(FlagRuleSchema).optional(),
-			variants: z.array(FlagVariantSchema).optional(),
-			dependencies: z.array(z.string()).optional(),
-			environment: z.string().nullable().optional(),
-			targetGroupIds: z.array(z.string()).optional(),
+			key: flagFormShape.key.describe(
+				"Key your code checks. Letters, numbers, underscores, and hyphens."
+			),
+			...flagConfigFields,
+			rules: FlagRulesSchema.describe(
+				"Targeting rules by user ID, email, or property."
+			),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: metadataForResource("flag", ["create"]),
+		annotations: CREATE_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
-	async (input, ctx) => {
-		const payload = {
-			websiteId: ctx.websiteId,
-			key: input.key,
-			name: input.name,
-			description: input.description,
-			type: input.type ?? "boolean",
-			status: input.status ?? "inactive",
-			defaultValue: input.defaultValue ?? false,
-			payload: input.payload,
-			persistAcrossAuth: input.persistAcrossAuth,
-			rolloutPercentage: input.rolloutPercentage ?? 0,
-			rolloutBy: input.rolloutBy,
-			rules: input.rules,
-			variants: input.variants,
-			dependencies: input.dependencies,
-			environment: input.environment,
-			targetGroupIds: input.targetGroupIds,
-		};
+	async (
+		{
+			confirmed,
+			websiteId: _websiteId,
+			websiteName: _websiteName,
+			websiteDomain: _websiteDomain,
+			...fields
+		},
+		ctx
+	) => {
+		const payload = flagCreatePayload({ ...fields, websiteId: ctx.websiteId });
+		const flagScope = resolveFlagScope(ctx);
+		const statusPlan = payload.dependencies?.length
+			? planFlagStatus(await listScopeFlags(flagScope), {
+					dependencies: payload.dependencies,
+					key: payload.key,
+					status: payload.status,
+				})
+			: null;
 
-		if (!input.confirmed) {
+		if (!confirmed) {
+			const warning = flagStatusNotes(
+				payload.status,
+				statusPlan?.savedStatus ?? payload.status,
+				statusPlan
+			);
 			return {
 				preview: true,
 				message: "Review this feature flag before creating it.",
@@ -1344,12 +1529,15 @@ const createFlagTool = defineMcpTool(
 					key: payload.key,
 					name: payload.name ?? payload.key,
 					type: payload.type,
-					status: payload.status,
+					status: statusPlan?.savedStatus ?? payload.status,
 					defaultValue: payload.defaultValue,
 					rolloutPercentage: payload.rolloutPercentage,
+					rolloutBy: payload.rolloutBy ?? "user",
+					dependencies: payload.dependencies ?? [],
 					ruleCount: payload.rules?.length ?? 0,
 					variantCount: payload.variants?.length ?? 0,
 				},
+				...(warning && { warning }),
 			};
 		}
 
@@ -1357,12 +1545,21 @@ const createFlagTool = defineMcpTool(
 			"flags",
 			"create",
 			payload,
-			buildRpcContext(ctx)
+			flagScope.rpcContext
 		);
+		const flag = pickFlagFields(result, FLAG_WRITE_FIELDS);
+		const notes = flagStatusNotes(payload.status, flag.status, statusPlan);
 		return {
 			success: true,
-			message: `Feature flag "${input.key}" created successfully.`,
-			flag: result,
+			message: [`Feature flag "${payload.key}" created successfully.`, notes]
+				.filter(Boolean)
+				.join(" "),
+			flag: {
+				...flag,
+				...(payload.targetGroupIds && {
+					targetGroupIds: payload.targetGroupIds,
+				}),
+			},
 		};
 	}
 );
@@ -1371,54 +1568,84 @@ const updateFlagTool = defineMcpTool(
 	{
 		name: "update_flag",
 		description:
-			"Update feature flag config, status, rollout, rules, or variants after explicit confirmation.",
+			"Update a feature flag's config, status, rollout, rules, or variants. rules replaces every rule. confirmed=false (default) returns the current flag, with full rule targets, and the changes without writing; confirmed=true applies them.",
 		inputSchema: z.object({
-			id: z.string(),
-			name: z.string().min(1).max(100).optional(),
-			description: z.string().optional(),
-			type: FlagTypeSchema.optional(),
-			status: FlagStatusSchema.optional(),
-			defaultValue: z.boolean().optional(),
-			payload: z.record(z.string(), z.unknown()).optional(),
-			rules: z.array(FlagRuleSchema).optional(),
-			persistAcrossAuth: z.boolean().optional(),
-			rolloutPercentage: z.number().min(0).max(100).optional(),
-			rolloutBy: z.string().optional(),
-			variants: z.array(FlagVariantSchema).optional(),
-			dependencies: z.array(z.string()).optional(),
-			environment: z.string().optional(),
-			targetGroupIds: z.array(z.string()).optional(),
+			...WebsiteSelectorSchema,
+			id: FlagIdSchema,
+			...flagConfigFields,
+			rules: FlagRulesSchema.describe(
+				"Replaces every existing rule. Copy full targets from the confirmed=false preview."
+			),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
+		resolveWebsite: "optional",
 		metadata: metadataForResource("flag", ["update"]),
+		annotations: IDEMPOTENT_WRITE,
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const { confirmed, id, ...updates } = input;
-		const cleanUpdates = Object.fromEntries(
-			Object.entries(updates).filter(([, value]) => value !== undefined)
-		);
-		if (!confirmed) {
-			return {
-				preview: true,
-				message: "Review this feature flag update before applying it.",
-				confirmationRequired: true,
-				flagId: id,
-				updates: cleanUpdates,
-			};
+		const {
+			confirmed,
+			id,
+			websiteId: _websiteId,
+			websiteName: _websiteName,
+			websiteDomain: _websiteDomain,
+			...changes
+		} = input;
+		const updates = omitUndefined(changes);
+		const flagScope = resolveFlagScope(ctx);
+		const current = await readFlag(id, flagScope);
+		const currentFlag = FlagDependencyRowSchema.parse(current);
+		const statusPlan = changes.status
+			? planFlagStatus(await listScopeFlags(flagScope), {
+					currentStatus: currentFlag.status,
+					dependencies: changes.dependencies ?? currentFlag.dependencies ?? [],
+					key: currentFlag.key,
+					status: changes.status,
+				})
+			: null;
+
+		if (!confirmed || Object.keys(updates).length === 0) {
+			const warning = flagStatusNotes(
+				changes.status,
+				statusPlan?.savedStatus,
+				statusPlan
+			);
+			return updatePreview(
+				"feature flag",
+				pickFlagFields(current, FLAG_FIELDS, Number.POSITIVE_INFINITY),
+				updates,
+				{
+					...(statusPlan && { statusChange: statusPlan }),
+					...(warning && { warning }),
+				}
+			);
 		}
 
 		const result = await callRPCProcedure(
 			"flags",
 			"update",
-			{ id, ...cleanUpdates },
-			buildRpcContext(ctx)
+			{ id, ...updates },
+			flagScope.rpcContext
 		);
+		const flag = pickFlagFields(result, FLAG_WRITE_FIELDS);
+		const notes = flagStatusNotes(changes.status, flag.status, statusPlan);
 		return {
 			success: true,
-			message: "Feature flag updated successfully.",
-			flag: result,
+			message: ["Feature flag updated successfully.", notes]
+				.filter(Boolean)
+				.join(" "),
+			flag: {
+				...flag,
+				...(changes.targetGroupIds && {
+					targetGroupIds: changes.targetGroupIds,
+				}),
+			},
+			...(statusPlan &&
+				flag.status === statusPlan.savedStatus && {
+					statusChange: statusPlan,
+				}),
 		};
 	}
 );
@@ -1427,85 +1654,47 @@ const addUsersToFlagTool = defineMcpTool(
 	{
 		name: "add_users_to_flag",
 		description:
-			"Add user IDs or emails to a feature flag targeting rule. Appends by default, replaces when mode=replace.",
+			"Target user IDs or emails on a feature flag. mode=append (default) adds one rule; mode=replace deletes every existing rule first. confirmed=false (default) previews.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
-			flagId: z.string(),
-			users: z.array(z.string().trim().min(1)).min(1).max(500),
-			matchBy: z.enum(["email", "user_id"]).optional().default("email"),
-			mode: z.enum(["append", "replace"]).optional().default("append"),
+			flagId: FlagIdSchema,
+			...userTargetingFields,
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		resolveWebsite: true,
+		resolveWebsite: "optional",
 		metadata: metadataForResource("flag", ["update"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
-	async (input, ctx) => {
-		const uniqueUsers = [
-			...new Set(input.users.map((user) => user.trim())),
-		].filter(Boolean);
-		const currentFlag = z
-			.object({
-				id: z.string(),
-				key: z.string(),
-				name: z.string().nullable().optional(),
-				rules: z.array(FlagRuleSchema).optional(),
-				status: FlagStatusSchema.optional(),
-			})
-			.passthrough()
-			.parse(
-				await callRPCProcedure(
-					"flags",
-					"getById",
-					{ id: input.flagId, websiteId: ctx.websiteId },
-					buildRpcContext(ctx)
-				)
-			);
-		const currentRules = currentFlag.rules ?? [];
-		const nextRule = {
-			batch: true,
-			batchValues: uniqueUsers,
-			enabled: true,
-			operator: "in",
-			type: input.matchBy,
-			values: uniqueUsers,
-		} satisfies z.infer<typeof FlagRuleSchema>;
-		const nextRules =
-			input.mode === "replace" ? [nextRule] : [...currentRules, nextRule];
+	async ({ confirmed, flagId, matchBy, mode, users }, ctx) => {
+		const flagScope = resolveFlagScope(ctx);
+		const { flag, rules, targeting } = planUserTargeting(
+			await readFlag(flagId, flagScope),
+			{ matchBy, mode, users }
+		);
 
-		if (!input.confirmed) {
+		if (!confirmed) {
 			return {
 				preview: true,
 				message:
 					"Review this feature flag targeting change before applying it.",
 				confirmationRequired: true,
-				flag: {
-					id: currentFlag.id,
-					key: currentFlag.key,
-					name: currentFlag.name,
-					status: currentFlag.status,
-				},
-				targeting: {
-					matchBy: input.matchBy,
-					mode: input.mode,
-					userCount: uniqueUsers.length,
-					ruleCountBefore: currentRules.length,
-					ruleCountAfter: nextRules.length,
-				},
+				flag,
+				targeting,
 			};
 		}
 
 		const result = await callRPCProcedure(
 			"flags",
 			"update",
-			{ id: input.flagId, rules: nextRules },
-			buildRpcContext(ctx)
+			{ id: flagId, rules },
+			flagScope.rpcContext
 		);
 		return {
 			success: true,
-			message: `Added ${uniqueUsers.length} user target${uniqueUsers.length === 1 ? "" : "s"} to the flag.`,
-			flag: result,
+			message: `Added ${targeting.userCount} user target${targeting.userCount === 1 ? "" : "s"} to the flag.`,
+			flag: pickFields(result, FLAG_IDENTITY_FIELDS),
+			targeting,
 		};
 	}
 );

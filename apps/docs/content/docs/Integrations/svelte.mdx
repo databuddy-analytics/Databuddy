@@ -1,6 +1,6 @@
 ---
-title: Svelte (Vite / Client-Side)
-description: Add privacy-first analytics to your Svelte application
+title: Svelte (Vite, client-side)
+description: Add cookieless product analytics to your Svelte application
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,14 +8,14 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-This guide explains how to integrate Databuddy with your standard client-side Svelte applications, typically built using Vite (e.g., via `npm create vite@latest -- --template svelte`).
+This guide explains how to integrate Databuddy with your standard client-side Svelte applications, typically built using Vite (e.g. via `npm create vite@latest -- --template svelte`).
 
-## How to Add Databuddy to Your Client-Side Svelte App
+## How to add Databuddy to your client-side Svelte app
 
 The most straightforward method is to add the Databuddy tracking script directly to your `index.html` file.
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Navigate to your [Databuddy dashboard](https://app.databuddy.cc) to get your tracking code snippet:
 
     <CodeBlock
@@ -31,11 +31,11 @@ The most straightforward method is to add the Databuddy tracking script directly
     Replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Locate Your index.html File">
+  <Step title="Locate your index.html file">
     For Vite-based Svelte projects, this file is typically located at the root of your project as `index.html`.
   </Step>
 
-  <Step title="Add the Snippet to index.html">
+  <Step title="Add the snippet to index.html">
     Open `index.html` and paste the Databuddy tracking snippet just before the closing `</head>` tag or `</body>` tag.
 
     <CodeBlock
@@ -67,16 +67,16 @@ The most straightforward method is to add the Databuddy tracking script directly
     Ensure `YOUR_CLIENT_ID` is replaced with your actual Client ID.
   </Step>
 
-  <Step title="Verify Installation">
+  <Step title="Verify installation">
     Deploy your application and check your [Databuddy dashboard](https://app.databuddy.cc) for incoming data. You can also inspect your browser's network tab to confirm the script is loaded.
   </Step>
 </Steps>
 
 <Callout type="info">
-  **SPA Page View Tracking**: Databuddy automatically tracks route changes in client-side Svelte SPAs. If you're using a custom router or page views aren't tracked correctly after navigation, you can manually trigger `window.databuddy.screenView()` after each route change using your router's navigation events.
+  **SPA pageview tracking**: Databuddy automatically tracks route changes in client-side Svelte SPAs. If you're using a custom router or pageviews aren't tracked correctly after navigation, you can manually trigger `window.databuddy.screenView()` after each route change using your router's navigation events.
 </Callout>
 
-## Custom Event Tracking
+## Custom event tracking
 
 Track custom events from any Svelte component:
 
@@ -101,11 +101,11 @@ Track custom events from any Svelte component:
 
 Always check for `window.databuddy` before calling its methods.
 
-## Tracking Route Changes
+## Tracking route changes
 
 SPA navigation is tracked automatically: Databuddy detects browser history changes, so routers that use the History API (including svelte-routing and svelte-spa-router with hash tracking enabled) need no extra code.
 
-## Using Data Attributes
+## Using data attributes
 
 Enable automatic tracking with data attributes by adding this to your script tag:
 
@@ -141,7 +141,7 @@ Then add `data-track` attributes directly to elements in your Svelte components:
 </a>`}
 />
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features:
 
@@ -160,9 +160,9 @@ Enable additional tracking features:
 ></script>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### Form Submissions
+### Form submissions
 
 Track form submissions:
 
@@ -189,7 +189,7 @@ Track form submissions:
 </form>`}
 />
 
-### Component Interactions
+### Component interactions
 
 Track interactions within specific components:
 
@@ -215,33 +215,33 @@ Track interactions within specific components:
 </button>`}
 />
 
-## SvelteKit Integration
+## SvelteKit integration
 
 Using SvelteKit? Follow the dedicated [SvelteKit guide](/docs/Integrations/sveltekit) for layout and `app.html` setup.
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the correct location (`<head>` or before `</body>`)
 - Check browser console for errors
 - Ensure your Client ID is correct
 - Clear browser cache and reload
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Check browser console for any errors
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 - Use browser dev tools Network tab to confirm requests are being sent
 
-### Route Changes Not Tracked
+### Route changes not tracked
 
 - Databuddy automatically tracks route changes for most routers
 - If using a custom router, manually call `window.databuddy.screenView()` on route changes
 - Check that your router triggers browser history changes
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="SvelteKit" href="/docs/Integrations/sveltekit">

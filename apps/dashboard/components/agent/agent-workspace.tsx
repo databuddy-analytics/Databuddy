@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { orpc } from "@/lib/orpc";
-import { Tooltip } from "@databuddy/ui";
+import { StageBadge, Tooltip } from "@databuddy/ui";
 import { Avatar } from "@databuddy/ui/client";
 import { AgentChatSurface } from "./agent-chat-surface";
 import { AgentCreditBalance } from "./agent-credit-balance";
@@ -60,11 +60,7 @@ export function AgentWorkspace({
 									Databunny
 								</h1>
 								{titleSlot}
-								{!showChatTitle && (
-									<span className="shrink-0 rounded border border-border/60 px-1.5 py-px font-medium text-[10px] text-muted-foreground uppercase">
-										Alpha
-									</span>
-								)}
+								{!showChatTitle && <StageBadge stage="alpha" />}
 								{isChatMetaPending ? (
 									<>
 										<span aria-hidden className="mx-1 h-4 w-px bg-border/60" />
@@ -95,7 +91,7 @@ export function AgentWorkspace({
 					<TopBar.Actions>
 						<AgentCreditBalance />
 						<span aria-hidden className="mx-1 h-4 w-px bg-border/60" />
-						<Tooltip content="Chat History">
+						<Tooltip content="Chat history">
 							<div className="inline-flex max-w-full">
 								<ChatHistory
 									onCurrentChatDeleted={onCurrentChatDeleted}
@@ -108,7 +104,7 @@ export function AgentWorkspace({
 					</TopBar.Actions>
 
 					<AgentChatSurface
-						autoSendPromptFromUrl
+						prefillPromptFromUrl
 						chatId={chatId}
 						defaultWebsiteId={defaultWebsiteId}
 						organizationId={organizationId}

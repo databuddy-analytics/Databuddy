@@ -14,6 +14,7 @@ import {
 	createScopedLlmsText as createSharedScopedLlmsText,
 	createSoftwareJsonl as createSharedSoftwareJsonl,
 	createUcpProfile as createSharedUcpProfile,
+	type ScopedLlmsArea,
 } from "@databuddy/shared/agent-discovery";
 import {
 	API_OPENAPI_SPEC_URL,
@@ -116,7 +117,7 @@ export function createFeedbackMarkdown() {
 	return createSharedFeedbackMarkdown(discoveryUrls);
 }
 
-export function createScopedLlmsText(area: "api" | "developers" | "docs") {
+export function createScopedLlmsText(area: ScopedLlmsArea) {
 	return createSharedScopedLlmsText(discoveryUrls, area);
 }
 

@@ -1,5 +1,9 @@
 import { audit, defineAuditAction } from "evlog";
 
+// Hosts must configure the evlog copy this module emits through: Bun can link
+// a separate copy per package when peers differ, and each copy keeps its own drain.
+export { initLogger } from "evlog";
+
 export const auditActorTypes = ["user", "api", "system", "agent"] as const;
 export type AuditActorType = (typeof auditActorTypes)[number];
 
@@ -130,7 +134,7 @@ export const auditActionLabels = {
 	"organization.created": "Created organization",
 	"organization.deleted": "Deleted organization",
 	"organization.invitation_accepted": "Accepted organization invitation",
-	"organization.invitation_cancelled": "Cancelled organization invitation",
+	"organization.invitation_cancelled": "Canceled organization invitation",
 	"organization.invitation_created": "Created organization invitation",
 	"organization.invitation_rejected": "Rejected organization invitation",
 	"organization.member_added": "Added organization member",
@@ -257,6 +261,18 @@ export interface AuditMirrorInput<TAction extends AuditActionDefinition> {
 	target: { id: string };
 }
 
+function toAuditSnapshots(changes: AuditChanges) {
+	const entries = Object.entries(changes);
+	return {
+		before: Object.fromEntries(
+			entries.map(([field, change]) => [field, change.before])
+		),
+		after: Object.fromEntries(
+			entries.map(([field, change]) => [field, change.after])
+		),
+	};
+}
+
 export function emitAuditMirror<TAction extends AuditActionDefinition>(
 	input: AuditMirrorInput<TAction>
 ): void {
@@ -267,7 +283,7 @@ export function emitAuditMirror<TAction extends AuditActionDefinition>(
 			outcome: input.outcome,
 			reason: input.reason,
 		}),
-		...(input.changes ? { changes: { after: input.changes } } : {}),
+		...(input.changes ? { changes: toAuditSnapshots(input.changes) } : {}),
 		correlationId: input.correlationId,
 	});
 }

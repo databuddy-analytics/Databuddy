@@ -587,24 +587,9 @@ const investigationActNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe("One short measured condition that proves the repair worked."),
-	check: insightVerificationCheckSchema
-		.nullable()
-		.optional()
-		.describe(
-			"For a goal or funnel repair with known verification dates, bind the condition to that exact definition's analytics: completed users or conversion percent, inclusive UTC dates, minimum entrants, and an evidence-backed threshold. Null when the dates are unknown, the definition is deleted, or another metric/cohort is needed; never invent a check."
-		),
-	recheckAt: z.iso
-		.datetime()
-		.optional()
-		.describe(
-			"Exact ISO 8601 time to remeasure the verification condition. Required from the investigation agent; optional only to preserve historical outcomes."
-		),
-	execution: insightDefinitionExecutionSchema
-		.nullable()
-		.optional()
-		.describe(
-			"Exact edit or delete Databuddy can apply when this action is clicked. Use only for the signal's existing goal or funnel; null is accepted only for agent transport and normalized before persistence."
-		),
+	check: insightVerificationCheckSchema.nullable().optional(),
+	recheckAt: z.iso.datetime().optional(),
+	execution: insightDefinitionExecutionSchema.nullable().optional(),
 });
 
 const investigationAskNextSchema = z.object({
@@ -620,20 +605,9 @@ const investigationAskNextSchema = z.object({
 
 const investigationWatchNextSchema = z.object({
 	type: z.literal("watch"),
-	escalation: z
-		.string()
-		.trim()
-		.min(1)
-		.describe(
-			"One short, exact measurable condition from a historical watch outcome."
-		),
-	recheckAt: z.iso
-		.datetime()
-		.optional()
-		.describe("Exact ISO 8601 time to remeasure a historical watch outcome."),
-	threshold: insightWatchThresholdSchema
-		.optional()
-		.describe("Machine-readable condition from a historical watch outcome."),
+	escalation: z.string().trim().min(1),
+	recheckAt: z.iso.datetime().optional(),
+	threshold: insightWatchThresholdSchema.optional(),
 });
 
 const investigationResolveNextSchema = z.object({
@@ -664,13 +638,10 @@ const agentInvestigationNextSchema = z.discriminatedUnion("type", [
 			.object(insightVerificationCheckSchema.shape)
 			.omit({ definition: true })
 			.nullable()
-			.optional()
 			.describe(
-				"Save a structured check when its metric, future dates and healthy threshold are known. Databuddy binds the expected definition; do not repeat it."
+				"Required: save a structured check when its metric, future dates, population and healthy threshold are known; otherwise explicitly use null. Databuddy binds the expected definition; do not repeat it. Preserve a supported check when correcting other fields."
 			),
-		recheckAt: z.iso
-			.datetime()
-			.describe("Exact ISO 8601 time to remeasure the verification condition."),
+		recheckAt: z.iso.datetime(),
 		execution: agentInsightDefinitionExecutionSchema
 			.nullable()
 			.describe(
@@ -695,6 +666,22 @@ export const insightPublicationBasisSchema = z.enum([
 	"decision_safety",
 ]);
 
+export function publicationBasisFor(
+	findingKind: z.infer<typeof insightFindingKindSchema>,
+	publish: boolean
+): z.infer<typeof insightPublicationBasisSchema> | null {
+	if (!publish) {
+		return null;
+	}
+	if (findingKind === "reliability_exposure") {
+		return "measured_reliability";
+	}
+	return findingKind === "measurement_definition" ||
+		findingKind === "measurement_coverage"
+		? "decision_safety"
+		: "measured_impact";
+}
+
 export const investigationOutcomeSchema = z
 	.object({
 		verification: z
@@ -706,24 +693,15 @@ export const investigationOutcomeSchema = z
 				source: agentEvidenceReferenceSchema.nullable(),
 			})
 			.optional(),
-		findingKind: insightFindingKindSchema
-			.optional()
-			.describe(
-				"Semantic classification of the finding. User experience requires a directly measured downstream experience; reliability exposure reports a directly measured error or performance exposure without implying a downstream outcome; a measurement definition or coverage finding must not imply product harm. Optional only for legacy stored outcomes."
-			),
-		title: z
-			.string()
-			.trim()
-			.min(1)
-			.describe(
-				"A short news headline stating the verified finding. For a directly measured user experience, lead with the affected visitor or customer count and observed problem. For a measurement definition or coverage finding, name the mismatch or blind spot, never an implied user failure. Never translate occurrences, sessions, entrants, or performance samples into people, or use a raw identifier, generic config label, schema label, arrow relationship, or measurement language as the title."
-			),
+		// Optional only for legacy stored outcomes.
+		findingKind: insightFindingKindSchema.optional(),
+		title: z.string().trim().min(1),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
 			.describe(
-				"In 8–10 words, add a concrete implication or material limit. No restatement of the headline, generic advice, or unmeasured customer/revenue harm. Keep comparisons in evidence and the inspected mechanism in rootCause."
+				"In 8–10 words, add one distinct supported control, scope limit, or consequence. No restatement of the headline, generic advice, or unmeasured customer/revenue harm. Keep comparisons in evidence and the inspected mechanism in rootCause."
 			),
 		// Retain stored briefs; new investigations include the consequence in summary.
 		impact: z.string().trim().min(1).nullable().default(null),
@@ -737,30 +715,9 @@ export const investigationOutcomeSchema = z
 			),
 		// Supplied background only; does not establish which facts influenced a claim.
 		contextSnapshot: businessContextSchema.optional(),
-		evidence: z
-			.array(
-				z
-					.string()
-					.trim()
-					.min(1)
-					.describe(
-						"One sourced fact for scale, comparison, or verified cohort coverage. Distinguish visitor identifiers, sessions, identified profiles, and attributed completed-payment history; unknown is not zero."
-					)
-			)
-			.min(1)
-			.max(2),
-		publish: z
-			.boolean()
-			.optional()
-			.describe(
-				"True only when this turn adds a new customer-relevant fact worth showing in Insights. False for unchanged, duplicate, or routine rechecks."
-			),
-		publicationBasis: insightPublicationBasisSchema
-			.nullable()
-			.optional()
-			.describe(
-				"Why a published turn deserves feed attention. Null for unpublished turns. Optional only for legacy stored outcomes."
-			),
+		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		publish: z.boolean().optional(),
+		publicationBasis: insightPublicationBasisSchema.nullable().optional(),
 		next: investigationNextSchema,
 	})
 	.strip()
@@ -824,47 +781,20 @@ export const investigationOutcomeSchema = z
 				path: ["publicationBasis"],
 			});
 		}
-		const isPublishedMeasurementFinding =
-			outcome.publish === true &&
-			(outcome.findingKind === "measurement_definition" ||
-				outcome.findingKind === "measurement_coverage");
-		const isPublishedMeasuredFinding =
-			outcome.publish === true &&
-			(outcome.findingKind === "user_experience" ||
-				outcome.findingKind === "product_outcome");
-		const isPublishedReliabilityFinding =
-			outcome.publish === true &&
-			outcome.findingKind === "reliability_exposure";
-		if (
-			isPublishedMeasurementFinding &&
-			outcome.publicationBasis !== "decision_safety"
-		) {
+		const expectedBasis = outcome.findingKind
+			? publicationBasisFor(outcome.findingKind, outcome.publish === true)
+			: null;
+		if (expectedBasis !== null && outcome.publicationBasis !== expectedBasis) {
 			context.addIssue({
 				code: "custom",
-				message:
-					"Published measurement findings must be published for decision safety",
-				path: ["publicationBasis"],
-			});
-		}
-		if (
-			isPublishedMeasuredFinding &&
-			outcome.publicationBasis !== "measured_impact"
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Published experience and product findings require measured impact",
-				path: ["publicationBasis"],
-			});
-		}
-		if (
-			isPublishedReliabilityFinding &&
-			outcome.publicationBasis !== "measured_reliability"
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Published reliability exposure findings require measured reliability",
+				message: {
+					decision_safety:
+						"Published measurement findings must be published for decision safety",
+					measured_impact:
+						"Published experience and product findings require measured impact",
+					measured_reliability:
+						"Published reliability exposure findings require measured reliability",
+				}[expectedBasis],
 				path: ["publicationBasis"],
 			});
 		}
@@ -872,6 +802,9 @@ export const investigationOutcomeSchema = z
 
 const RAW_IDENTIFIER_PATTERN =
 	/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b[a-z0-9]+(?:_[a-z0-9]+)+\b|https?:\/\//i;
+
+const TITLE_WORD_LIMIT = 10;
+const WHITESPACE = /\s+/;
 
 const agentTitleSchema = z
 	.string()
@@ -882,8 +815,11 @@ const agentTitleSchema = z
 		message:
 			"Titles must use natural product language, never raw identifiers, event names, or URLs",
 	})
+	.refine((title) => title.split(WHITESPACE).length <= TITLE_WORD_LIMIT, {
+		message: `Titles are headlines of at most ${TITLE_WORD_LIMIT} words; describe recorded names instead of copying them`,
+	})
 	.describe(
-		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
+		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count, never a bare count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
 	);
 
 export const agentInvestigationOutcomeSchema = z
@@ -907,16 +843,12 @@ export const agentInvestigationOutcomeSchema = z
 		publish: z
 			.boolean()
 			.describe(
-				"True for a new material measured change or coverage gap, inspected defect, or verification verdict. False for a baseline alone, normal maturation, explained/excluded changes, stale business context, or missing diagnostic access. Answering a question does not itself merit a feed incident."
+				"True for a new material measured change or coverage gap, inspected defect, or verification verdict; act and ask outcomes are always published. False for a baseline alone, normal maturation, explained/excluded changes, stale business context, or missing diagnostic access. Answering a question does not itself merit a feed incident."
 			),
 		findingKind: insightFindingKindSchema.describe(
 			"Classify the cited evidence: user_experience needs a measured downstream consequence; product_outcome needs a measured result of known-purpose behavior; reliability_exposure reports measured errors or performance. measurement_definition needs an inspected current definition or emitter mismatch, not a stale brief or reply alone. measurement_coverage needs a measured missing population or inspected collection defect, not immature cohorts or unavailable diagnostics. Event names alone establish no business purpose."
 		),
-		publicationBasis: insightPublicationBasisSchema
-			.nullable()
-			.describe(
-				"For published user experience or product outcomes, use measured_impact. For published reliability exposure, use measured_reliability. For published measurement definition or coverage findings, use decision_safety. Use null when publish is false."
-			),
+		publicationBasis: insightPublicationBasisSchema.nullable(),
 	})
 	.superRefine((outcome, context) => {
 		const stored = investigationOutcomeSchema.safeParse(outcome);
@@ -962,6 +894,12 @@ export const insightBriefItemSchema = z.object({
 	id: z.string(),
 	impact: z.string().trim().min(1).nullable(),
 	investigationId: z.string().nullable(),
+	next: z
+		.object({
+			text: z.string().trim().min(1),
+			type: z.enum(["act", "ask", "watch"]),
+		})
+		.nullable(),
 	rootCause: z.string().trim().min(1).nullable(),
 	signal: investigationSignalSchema,
 	summary: z.string().trim().min(1),

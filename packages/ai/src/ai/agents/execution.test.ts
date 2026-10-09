@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { createLogger } from "evlog";
 
 const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
+const actualAutumn = { ...(await import("@databuddy/rpc/autumn")) };
 
 const mockAutumnCheck = mock(async (input: { customerId: string }) => ({
 	allowed: true,
@@ -25,6 +26,7 @@ const mockGetOrganizationOwnerId = mock(async (organizationId: string) =>
 const mockMergeWideEvent = mock((_: Record<string, unknown>) => {});
 
 mock.module("@databuddy/rpc/autumn", () => ({
+	...actualAutumn,
 	getAutumn: () => ({
 		customers: {
 			get: async (input: { customerId: string }) => ({
@@ -65,7 +67,6 @@ mock.module("../../lib/tracing", () => ({
 
 const {
 	getAgentBillingAccess,
-	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
 	trackAgentUsage,
 	trackAgentUsageAndBill,
@@ -163,7 +164,6 @@ describe("resolveAgentBillingCustomerId", () => {
 			userId: "self-hosted-user",
 		});
 
-		expect(isAgentBillingConfigured()).toBe(false);
 		expect(customerId).toBeNull();
 		expect(mockGetBillingCustomerId).not.toHaveBeenCalled();
 		expect(mockGetOrganizationOwnerId).not.toHaveBeenCalled();
@@ -297,7 +297,6 @@ it("self-hosted AI keeps provider setup and skips all hosted billing", async () 
 		AI_GATEWAY_API_KEY: "synthetic-ai-key",
 	};
 	try {
-		expect(isAgentBillingConfigured()).toBe(false);
 		expect(
 			await resolveAgentBillingCustomerId({
 				organizationId: "synthetic-org",

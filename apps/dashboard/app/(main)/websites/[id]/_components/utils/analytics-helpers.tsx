@@ -1,4 +1,5 @@
 import { dayjs } from "@databuddy/ui";
+import { isDateOnly } from "@/hooks/use-date-filters";
 
 export function clampBounceRate(value: number | null | undefined): number {
 	if (value == null || Number.isNaN(value)) {
@@ -43,7 +44,16 @@ export function calculatePreviousPeriod<
 	start_date: string;
 } {
 	const start = dayjs(range.start_date);
-	const days = dayjs(range.end_date).diff(start, "day") + 1;
+	const end = dayjs(range.end_date);
+	if (!isDateOnly(range.start_date)) {
+		const spanMs = end.diff(start);
+		return {
+			start_date: start.subtract(spanMs, "millisecond").toISOString(),
+			end_date: start.toISOString(),
+			granularity: range.granularity,
+		};
+	}
+	const days = end.diff(start, "day") + 1;
 	return {
 		start_date: start.subtract(days, "day").format("YYYY-MM-DD"),
 		end_date: start.subtract(1, "day").format("YYYY-MM-DD"),

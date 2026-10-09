@@ -14,11 +14,12 @@ import {
 } from "@databuddy/ui/icons";
 import { Badge, Button, Field, Input } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";
+import { showErrorToast } from "@/lib/user-facing-error";
 
 const TOGGLES = [
 	{ key: "hideUrl", id: "hide-url", label: "Hide URL" },
-	{ key: "hideUptimePercentage", id: "hide-uptime", label: "Hide Uptime" },
-	{ key: "hideLatency", id: "hide-latency", label: "Hide Latency" },
+	{ key: "hideUptimePercentage", id: "hide-uptime", label: "Hide uptime" },
+	{ key: "hideLatency", id: "hide-latency", label: "Hide latency" },
 ] as const;
 
 type StatusPageMonitor = Awaited<
@@ -46,6 +47,9 @@ export function StatusPageMonitorRow({
 
 	const updateSettingsMutation = useMutation({
 		...orpc.statusPage.updateMonitorSettings.mutationOptions(),
+		onError: (error) =>
+			showErrorToast(error, "Failed to update monitor settings"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const schedule = monitor.uptimeSchedule;

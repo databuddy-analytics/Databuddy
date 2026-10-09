@@ -1,3 +1,9 @@
+import {
+	type ContentFormat,
+	contentFormat,
+	isAssetPath,
+	isMarkdownFirstAccept,
+} from "@databuddy/shared/bot-detection/types";
 import { detectClientId } from "../utils";
 
 export interface TrackAgentsOptions {
@@ -14,14 +20,8 @@ interface NodeRequest {
 }
 
 export const AI_AGENT_USER_AGENT =
-	/Claude-User \(claude-code\/|Google-Gemini-CLI\/|Aider\/[\d.]+ \+https:\/\/aider\.chat|^Zed\/[\d.]+ \(|^opencode$|\bDevin\/\d|\bv0bot\b|Manus-User|GoogleOther|AISearchBot|CCBot|Applebot|omgili|ICC-Crawler|Diffbot\/|VelenPublicWebCrawler|Bytespider|Amazonbot|PetalBot|GPTBot|ChatGPT-User|YouBot|ImagesiftBot|PerplexityBot\/|[cC]laude(?:[bB]ot|-[Ww]eb)|Claude-User|Claude-SearchBot|AI2Bot\s|Ai2Bot-Dolma|FriendlyCrawler|Google-CloudVertexBot|[Mm]eta-[Ee]xternal[Aa]gent|meta-externalfetcher|OAI-SearchBot|Timpibot|webzio-extended|cohere-ai|iaskspider|img2dataset|TikTokSpider|Perplexity-?User|SBIntuitionsBot\/|Google-(?:GeminiNotebook|NotebookLM)|Google-Agent|Gemini-Deep-Research|anthropic-ai|MistralAI-User|MistralAI-Index|MistralAI-Training|DuckAssistBot|FirecrawlAgent|Cloudflare-(?:AI-Search|AutoRAG)|TavilyBot|ShapBot|ZanistaBot|kagi-fetcher|Brightbot|atlassian-bot|AzureAI-SearchBot|Amzn-SearchBot|Amzn-User|Amazon-Bedrock-AgentCore-Browser|Anomura\/|ApifyBot|Channel3Bot|imageSpider|laion-huggingface-processor|LinkupBot|PhindBot|Flyriverbot|crawl4ai|Mozilla-Tabstack|ExaSearchBot|KimiBot|Kimi-User|Kimi-SearchBot|Crawlspace/;
+	/Claude-User \(claude-code\/|Google-Gemini-CLI\/|Aider\/[\d.]+ \+https:\/\/aider\.chat|^Zed\/[\d.]+ \(|^opencode$|\bDevin\/\d|\bv0bot\b|Manus-User|Trae-Agent|GoogleAgent-URLContext|LinerBot|Shap-User|cohere-training-data-crawler|DeepSeekBot|PanguBot|ChatGLM-Spider|GoogleOther|AISearchBot|CCBot|Applebot|omgili|ICC-Crawler|Diffbot\/|VelenPublicWebCrawler|Bytespider|Amazonbot|PetalBot|GPTBot|ChatGPT-User|YouBot|ImagesiftBot|PerplexityBot\/|[cC]laude(?:[bB]ot|-[Ww]eb)|Claude-User|Claude-SearchBot|AI2Bot\s|Ai2Bot-Dolma|FriendlyCrawler|Google-CloudVertexBot|[Mm]eta-[Ee]xternal[Aa]gent|meta-externalfetcher|OAI-SearchBot|Timpibot|webzio-extended|cohere-ai|iaskspider|img2dataset|TikTokSpider|Perplexity-?User|SBIntuitionsBot\/|Google-(?:GeminiNotebook|NotebookLM)|Google-Agent|Gemini-Deep-Research|meta-webindexer|anthropic-ai|MistralAI-User|MistralAI-Index|MistralAI-Training|DuckAssistBot|FirecrawlAgent|Cloudflare-(?:AI-Search|AutoRAG)|TavilyBot|ShapBot|ZanistaBot|kagi-fetcher|Brightbot|atlassian-bot|AzureAI-SearchBot|Amzn-SearchBot|Amzn-User|Amazon-Bedrock-AgentCore-Browser|Anomura\/|ApifyBot|Channel3Bot|imageSpider|laion-huggingface-processor|LinkupBot|PhindBot|Flyriverbot|crawl4ai|Mozilla-Tabstack|ExaSearchBot|KimiBot|Kimi-User|Kimi-SearchBot|Crawlspace/;
 
-const ASSET_PATH =
-	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
-const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
-const MARKDOWN_PATH = /\.mdx?$/i;
-const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
-const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
 const DEFAULT_TIMEOUT_MS = 3000;
 const MAX_HEADER_LENGTH = 512;
@@ -39,26 +39,9 @@ function header(request: Request | NodeRequest, name: string): string {
 	return (Array.isArray(value) ? value[0] : value) ?? "";
 }
 
-function isMarkdownMediaType(mediaType: string): boolean {
-	return MARKDOWN_MEDIA_TYPE.test(mediaType) && !ZERO_QUALITY.test(mediaType);
-}
-
-function contentFormat(
-	pathname: string,
-	accept: string
-): "llms" | "markdown" | "html" {
-	if (LLMS_TXT_PATH.test(pathname)) {
-		return "llms";
-	}
-	return MARKDOWN_PATH.test(pathname) ||
-		accept.split(",").some(isMarkdownMediaType)
-		? "markdown"
-		: "html";
-}
-
 interface AgentHit {
 	accept?: string;
-	format: "llms" | "markdown" | "html";
+	format: ContentFormat;
 	host: string;
 	path: string;
 	referrer?: string;
@@ -79,8 +62,7 @@ function readAgentHit(
 	const signatureAgent = header(request, "signature-agent");
 	const accept = header(request, "accept").slice(0, MAX_HEADER_LENGTH);
 	const isMarkdownFirstClient =
-		isMarkdownMediaType(accept.split(",")[0] ?? "") &&
-		!header(request, "sec-fetch-mode");
+		isMarkdownFirstAccept(accept) && !header(request, "sec-fetch-mode");
 	const isAgent =
 		signatureAgent !== "" ||
 		isMarkdownFirstClient ||
@@ -92,7 +74,7 @@ function readAgentHit(
 		("originalUrl" in request && request.originalUrl) || request.url || "/",
 		"http://localhost"
 	);
-	if (ASSET_PATH.test(url.pathname)) {
+	if (isAssetPath(url.pathname)) {
 		return null;
 	}
 	return {

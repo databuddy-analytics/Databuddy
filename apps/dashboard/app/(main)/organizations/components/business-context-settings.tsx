@@ -177,8 +177,8 @@ export function BusinessContextSettings({
 				>
 					<p className="text-muted-foreground text-sm">
 						{query.data
-							? "Couldn't refresh the brief. Your edits are still here."
-							: "Couldn't load the business brief."}
+							? "Failed to refresh the brief. Your edits are still here."
+							: "Failed to load the business brief."}
 					</p>
 					<Button
 						disabled={query.isFetching}

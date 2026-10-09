@@ -5,6 +5,7 @@ export const APP_EVENTS = {
 	firstReviewStarted: "first_review_started",
 	firstReviewViewed: "first_review_viewed",
 	invitationAccepted: "invitation_accepted",
+	mcpSetupCopied: "mcp_setup_copied",
 	onboardingCompleted: "onboarding_completed",
 	onboardingInviteSent: "onboarding_invite_sent",
 	onboardingSkipped: "onboarding_skipped",
@@ -65,7 +66,25 @@ export type UtmProperties = Partial<Record<UtmParamKey, string>>;
 export type MarketingParamKey = (typeof MARKETING_PARAM_KEYS)[number];
 export type MarketingProperties = Partial<Record<MarketingParamKey, string>>;
 export type SignupMethod = (typeof SIGNUP_METHODS)[number];
-export type OnboardingStepId = "website" | "tracking" | "team" | "explore";
+export type OnboardingStepId =
+	| "wants"
+	| "website"
+	| "tracking"
+	| "billing"
+	| "finish";
+export type OnboardingIntent =
+	| "traffic"
+	| "conversions"
+	| "performance"
+	| "ai_visibility";
+export type OnboardingWant =
+	| "analytics"
+	| "conversions"
+	| "performance"
+	| "ai_visibility"
+	| "uptime"
+	| "links"
+	| "mcp";
 
 type EmptyProperties = Record<never, never>;
 
@@ -112,6 +131,13 @@ export interface AppEventProperties {
 	[APP_EVENTS.onboardingStepCompleted]: {
 		step: OnboardingStepId;
 		verified?: boolean;
+		origin?: "ai" | "manual";
+		intent?: OnboardingIntent;
+		wants?: string;
+	};
+	[APP_EVENTS.mcpSetupCopied]: {
+		block: string;
+		method: "ai" | "manual";
 	};
 	[APP_EVENTS.onboardingStepViewed]: {
 		step: OnboardingStepId;

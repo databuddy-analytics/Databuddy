@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import {
-	AI_AGENTS,
-	isMarkdownFirstAccept,
-} from "@databuddy/shared/bot-detection/ai-agents";
+import { AI_AGENTS } from "@databuddy/shared/bot-detection/ai-agents";
+import { isMarkdownFirstAccept } from "@databuddy/shared/bot-detection/types";
 import { AI_AGENT_USER_AGENT, proxy, trackAgents } from "../src/agents/index";
 
 const GPTBOT =

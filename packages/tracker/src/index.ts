@@ -5,6 +5,7 @@ import type {
 	TrackerOptions,
 } from "./core/types";
 import {
+	buildPagePath,
 	clearStoredTrackingState,
 	dataAttributeKey,
 	generateUUIDv4,
@@ -12,6 +13,7 @@ import {
 	isDebugMode,
 	isOptedOut,
 	logger,
+	maskPathname,
 	sanitizePageUrl,
 } from "./core/utils";
 import { initErrorTracking } from "./plugins/errors";
@@ -65,6 +67,13 @@ export class Databuddy extends BaseTracker {
 				setTraits: (traits: ProfileTraits) => this.setTraits(traits),
 				clearProfile: () => this.clearProfile(),
 				getProfileId: () => this.getProfileId(),
+				getTrackingIds: () =>
+					isOptedOut()
+						? { anonId: null, sessionId: null }
+						: {
+								anonId: this.anonymousId ?? null,
+								sessionId: this.sessionId ?? null,
+							},
 				flush: () => {
 					Promise.all(
 						this.queues.map(([queue, meta]) => this._flushQueue(queue, meta))
@@ -110,7 +119,7 @@ export class Databuddy extends BaseTracker {
 		}
 		const scrollCleanup = initScrollDepthTracking(this);
 		this.cleanupFns.push(scrollCleanup);
-		if (this.options.trackInteractions) {
+		if (this.options.trackInteractions !== false) {
 			const interactionCleanup = initInteractionTracking(this);
 			this.cleanupFns.push(interactionCleanup);
 		}
@@ -337,22 +346,33 @@ export class Databuddy extends BaseTracker {
 
 	private trackPageExit(exitPath?: string) {
 		const now = Date.now();
+		const exitUrl = sanitizePageUrl(exitPath ?? "");
+		const exit = exitUrl ? new URL(exitUrl) : null;
+		const { maskPatterns } = this.options;
 		this._trackInternal("page_exit", {
-			path: exitPath ? sanitizePageUrl(exitPath) : undefined,
+			path: exit
+				? buildPagePath(exit.origin, exit.pathname, maskPatterns)
+				: undefined,
 			timestamp: now,
 			...this.pageEngagement(now),
 		});
-		this.sendEngagement(this.buildEngagementSpan(now, "spa", exitPath));
+		this.sendEngagement(
+			this.buildEngagementSpan(
+				now,
+				"spa",
+				exit ? maskPathname(exit.pathname, maskPatterns) : ""
+			)
+		);
 	}
 
 	private buildEngagementSpan(
 		now: number,
 		exitType: EngagementSpan["exitType"],
-		exitPath?: string
+		exitPathname?: string
 	): EngagementSpan {
 		return {
 			timestamp: now,
-			path: exitPath ? sanitizePageUrl(exitPath) : this.getMaskedPath(),
+			path: exitPathname ?? this.getMaskedPath(),
 			anonymousId: this.anonymousId,
 			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
 			sessionId: this.sessionId,
@@ -498,6 +518,7 @@ export class Databuddy extends BaseTracker {
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
 			} catch {}
+			this.resetPageEngagement();
 		}
 		this.clearUrlParamStorage();
 		this.clearProfile();
@@ -506,16 +527,6 @@ export class Databuddy extends BaseTracker {
 		this.sessionStartTime = Date.now();
 		this.pageCount = 0;
 		this.lastPath = "";
-		this.interactionCount = 0;
-		this.clickCount = 0;
-		this.keyCount = 0;
-		this.scrollCount = 0;
-		this.rageClickCount = 0;
-		this.deadClickCount = 0;
-		this.formFieldCount = 0;
-		this.formSubmitCount = 0;
-		this.errorCount = 0;
-		this.maxScrollDepth = 0;
 	}
 
 	destroy() {
@@ -555,6 +566,7 @@ function initializeDatabuddy() {
 			setTraits: () => {},
 			clearProfile: () => {},
 			getProfileId: () => null,
+			getTrackingIds: () => ({ anonId: null, sessionId: null }),
 			clear: () => {},
 			flush: () => {},
 			setGlobalProperties: () => {},

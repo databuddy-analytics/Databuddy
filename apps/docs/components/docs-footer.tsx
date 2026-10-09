@@ -21,7 +21,7 @@ export function DocsFooter() {
 								rel="noopener noreferrer"
 								target="_blank"
 							>
-								START FREE
+								Start free
 							</a>
 						</SciFiButton>
 					</div>
@@ -38,7 +38,7 @@ export function DocsFooter() {
 									className="text-muted-foreground hover:text-foreground"
 									href="/docs"
 								>
-									Getting Started
+									Getting started
 								</a>
 							</li>
 							<li>
@@ -46,7 +46,7 @@ export function DocsFooter() {
 									className="text-muted-foreground hover:text-foreground"
 									href="/docs/api"
 								>
-									API Reference
+									API reference
 								</a>
 							</li>
 							<li>
@@ -54,7 +54,7 @@ export function DocsFooter() {
 									className="text-muted-foreground hover:text-foreground"
 									href="/docs/sdk"
 								>
-									SDK Guide
+									SDK guide
 								</a>
 							</li>
 							<li>
@@ -102,7 +102,7 @@ export function DocsFooter() {
 									className="text-muted-foreground hover:text-foreground"
 									href="/api"
 								>
-									API Playground
+									API playground
 								</a>
 							</li>
 						</ul>
@@ -134,7 +134,7 @@ export function DocsFooter() {
 									rel="noopener"
 									target="_blank"
 								>
-									Open Source
+									Open source
 								</Link>
 							</li>
 						</ul>
@@ -195,14 +195,14 @@ export function DocsFooter() {
 							className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
 							href="/privacy"
 						>
-							Privacy Policy
+							Privacy policy
 						</Link>
 						<span className="text-muted-foreground/50 text-xs">•</span>
 						<Link
 							className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
 							href="/terms"
 						>
-							Terms of Service
+							Terms of service
 						</Link>
 					</div>
 				</div>
@@ -210,11 +210,11 @@ export function DocsFooter() {
 				{/* Copyright Row */}
 				<div className="mt-4 flex flex-col items-center justify-between gap-4 border-border border-t pt-4 sm:flex-row">
 					<p className="text-muted-foreground text-sm sm:text-base">
-						© {new Date().getFullYear()} Databuddy
+						© {new Date().getFullYear()} Databuddy Analytics, Inc.
 					</p>
 					<div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
 						<p className="text-muted-foreground text-sm sm:text-base">
-							Privacy-first analytics
+							Product analytics for startups
 						</p>
 					</div>
 				</div>

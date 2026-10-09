@@ -13,6 +13,8 @@ const dashboardCommand = serveBuild
 export default defineConfig({
 	testDir: "./test/e2e/specs",
 	fullyParallel: true,
+	timeout: 60_000,
+	expect: { timeout: 10_000 },
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? "50%" : undefined,
@@ -21,7 +23,6 @@ export default defineConfig({
 		baseURL,
 		trace: "retain-on-failure",
 		screenshot: "only-on-failure",
-		video: "retain-on-failure",
 	},
 	webServer: {
 		command: `bash -c 'PORT=${API_PORT} bun --cwd ../api src/index.ts & api_pid=$!; trap "kill $api_pid 2>/dev/null || true" EXIT; until curl -sf --max-time 2 ${apiURL}/health >/dev/null; do kill -0 $api_pid 2>/dev/null || { echo "The e2e API exited before it became healthy." >&2; exit 1; }; sleep 0.2; done; ${dashboardCommand}'`,
@@ -43,7 +44,6 @@ export default defineConfig({
 				process.env.BETTER_AUTH_SECRET ??
 				"databuddy-e2e-secret-at-least-32-bytes",
 			RESEND_API_KEY: process.env.RESEND_API_KEY ?? "re_e2e_dummy",
-			AUTUMN_SECRET_KEY: process.env.AUTUMN_SECRET_KEY ?? "e2e-autumn-secret",
 			GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID ?? "e2e-github-client-id",
 			GITHUB_CLIENT_SECRET:
 				process.env.GITHUB_CLIENT_SECRET ?? "e2e-github-client-secret",

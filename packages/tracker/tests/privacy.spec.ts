@@ -205,13 +205,18 @@ test.describe("Privacy & Opt-out", () => {
 		await page.evaluate(() => {
 			document.body.innerHTML = `
 				<button>Reply to Jane Doe</button>
-				<a id="profile-4821" href="#jane">Jane Doe</a>
+				<a id="profile-4821" href="/u/4821/settings?token=secret#billing" onclick="event.preventDefault()">Jane Doe</a>
+				<a href="/team/jane-doe" onclick="event.preventDefault()">Jane Doe</a>
+				<a href="mailto:jane@example.com" onclick="event.preventDefault()">Email Jane</a>
+				<div role="dialog" aria-label="Conversation with Jane Doe"><button>Send</button></div>
+				<a href="#comment-by-sarah" onclick="event.preventDefault()">Sarah's comment</a>
 				<button data-track="save_settings">Save</button>
-				<label>Email <input id="field-1234"></label>`;
+				<form><label>Email <input id="field-1234"></label></form>`;
 			window.databuddyConfig = {
 				clientId: "test-click-descriptors",
 				ignoreBotDetection: true,
 				trackInteractions: true,
+				maskPatterns: ["/team/*"],
 			};
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
@@ -229,8 +234,17 @@ test.describe("Privacy & Opt-out", () => {
 		expect(await rageClickTarget("text=Reply to Jane Doe")).toBe(
 			"button:unnamed"
 		);
-		expect(await rageClickTarget("a")).toBe("a:unnamed");
+		expect(await rageClickTarget("#profile-4821")).toBe("a:/u/*");
+		expect(await rageClickTarget("text=Send")).toBe("button:unnamed in dialog");
+		expect(await rageClickTarget('a[href="#comment-by-sarah"]')).toBe(
+			"a:unnamed"
+		);
+		expect(await rageClickTarget('a[href^="/team"]')).toBe("a:/team/*");
+		expect(await rageClickTarget('a[href^="mailto"]')).toBe("a:mailto");
 		expect(await rageClickTarget("text=Save")).toBe("button:save_settings");
-		expect(await rageClickTarget("input")).toBe("input:text:email");
+		await page.click("input");
+		expect(
+			await page.evaluate(() => (window.__tracker as BaseTracker).lastFormField)
+		).toBe("input:text:email");
 	});
 });

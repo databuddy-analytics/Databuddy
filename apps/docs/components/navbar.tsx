@@ -85,6 +85,16 @@ export const Navbar = ({ stars, variant = "default" }: NavbarProps) => {
 						)}
 					</NavLink>
 
+					<NavLink
+						className={cn(docsNavTopLink, "hidden px-2 md:inline-flex")}
+						external
+						href="https://app.databuddy.cc/login"
+						navItem="sign_in"
+						target="_self"
+					>
+						Sign in
+					</NavLink>
+
 					<Button asChild className="hidden md:inline-flex" size="sm">
 						<a
 							data-destination="register"
@@ -165,6 +175,28 @@ export const Navbar = ({ stars, variant = "default" }: NavbarProps) => {
 									{stars.toLocaleString()}
 								</span>
 							)}
+						</NavLink>
+
+						<NavLink
+							className={cn(
+								"flex items-center gap-2 rounded px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+								isMobileMenuOpen
+									? "translate-x-0 opacity-100"
+									: "-translate-x-4 opacity-0"
+							)}
+							external
+							href="https://app.databuddy.cc/login"
+							navItem="sign_in"
+							onClick={() => setIsMobileMenuOpen(false)}
+							section="navbar_mobile"
+							style={{
+								transitionDelay: isMobileMenuOpen
+									? `${(navMenu.length + 2) * 40}ms`
+									: "0ms",
+							}}
+							target="_self"
+						>
+							Sign in
 						</NavLink>
 
 						<div className="pt-2">

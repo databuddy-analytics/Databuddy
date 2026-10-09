@@ -122,7 +122,7 @@ export function CancelSubscriptionDialog({
 				{step === "feedback" ? (
 					<>
 						<Dialog.Header>
-							<Dialog.Title>Before you go...</Dialog.Title>
+							<Dialog.Title>Before you go…</Dialog.Title>
 							<Dialog.Description>
 								We'd love to know why you're canceling so we can improve
 							</Dialog.Description>
@@ -161,7 +161,7 @@ export function CancelSubscriptionDialog({
 								<Textarea
 									className="mt-2 resize-none"
 									onChange={(event) => setFeedbackDetails(event.target.value)}
-									placeholder="Tell us more (optional)..."
+									placeholder="Tell us more (optional)…"
 									rows={3}
 									value={feedbackDetails}
 								/>
@@ -174,7 +174,7 @@ export function CancelSubscriptionDialog({
 								onClick={resetAndClose}
 								variant="secondary"
 							>
-								Keep subscription
+								Keep plan
 							</Button>
 							<Button
 								className="w-full sm:w-auto"

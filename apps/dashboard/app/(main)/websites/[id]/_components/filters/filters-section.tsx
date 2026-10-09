@@ -54,7 +54,7 @@ export function FiltersSection() {
 	const handleSave = useCallback(
 		(name: string) => {
 			if (filters.length === 0) {
-				toast.error("No filters to save");
+				toast.error("Add a filter before saving.");
 				return;
 			}
 			setIsSaving(true);
@@ -67,7 +67,10 @@ export function FiltersSection() {
 				setIsSaveDialogOpen(false);
 				setEditing(null);
 			} else if (result.error) {
-				toast.error(result.error.message);
+				toast.error(
+					editing ? "Failed to update saved filter" : "Failed to save filter",
+					{ description: result.error.message }
+				);
 			}
 			setIsSaving(false);
 		},
@@ -89,6 +92,10 @@ export function FiltersSection() {
 		const result = updateFilter(editing.id, editing.name, filters);
 		if (result.success) {
 			setEditing(null);
+		} else if (result.error) {
+			toast.error("Failed to update saved filter", {
+				description: result.error.message,
+			});
 		}
 		setIsSaving(false);
 	}, [editing, filters, updateFilter, setEditing]);

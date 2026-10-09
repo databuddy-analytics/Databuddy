@@ -16,6 +16,14 @@ export const STRIPE_WEBHOOK_EVENTS = {
 			purpose: "Records successful one-time payments and payment context",
 		},
 		{
+			event: "checkout.session.completed",
+			purpose: "Links one-time Checkout metadata to its payment",
+		},
+		{
+			event: "checkout.session.async_payment_succeeded",
+			purpose: "Links Checkout metadata for delayed payment methods",
+		},
+		{
 			event: "invoice.paid",
 			purpose: "Carries the invoice metadata that links a payment to a visitor",
 		},

@@ -12,7 +12,7 @@ export const COMMON_ANNOTATION_TAGS: AnnotationTag[] = [
 	{ label: "Launch", value: "launch", color: "#10B981" },
 	{ label: "Incident", value: "incident", color: "#EF4444" },
 	{ label: "Feature", value: "feature", color: "#8B5CF6" },
-	{ label: "Bug Fix", value: "bug", color: "#F59E0B" },
+	{ label: "Bug fix", value: "bug", color: "#F59E0B" },
 	{ label: "Holiday", value: "holiday", color: "#EC4899" },
 	{ label: "Marketing", value: "marketing", color: "#06B6D4" },
 	{ label: "Update", value: "update", color: "#84CC16" },

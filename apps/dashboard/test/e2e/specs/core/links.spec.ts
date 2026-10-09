@@ -3,207 +3,145 @@ import {
 	createLinkFolder,
 	createShortLink,
 	escapedText,
-	idFromPath,
+	LINK_PATH_RE,
 	linkRow,
 	openLinkActions,
 	scopeSuffix,
+	SHORT_LINK_LABEL_RE,
 } from "@/test/e2e/utils/dashboard";
 
-const SHORT_LINK_LABEL_RE = /Short Link/;
 const SLUG_CONFLICT_RE = /slug.*(taken|exists)/i;
+const INVALID_SLUGS = [
+	{ error: "Slug must be at least 3 characters", value: "ab" },
+	{
+		error: "Only letters, numbers, hyphens, and underscores",
+		value: "bad/slug",
+	},
+];
 
-test("creates, filters, updates, opens, and deletes short links", {
+test("validates, creates, filters, updates, opens, and deletes short links", {
 	tag: "@core",
-}, async ({ authenticatedPage, e2eSession }) => {
+}, async ({ authenticatedPage: page, e2eSession }) => {
 	const suffix = scopeSuffix(e2eSession);
-	const folderName = `E2E Folder ${suffix}`;
-	const primaryToken = `primary-${suffix}`;
-	const primaryName = `E2E Link ${primaryToken}`;
-	const secondaryName = `E2E Other ${suffix}`;
-	const updatedName = `${primaryName} Updated`;
-	const primarySlug = `e2e-${primaryToken}`;
-	const secondarySlug = `e2e-other-${suffix}`;
+	const folderName = `Folder ${suffix}`;
+	const primaryName = `Link primary-${suffix}`;
+	const secondaryName = `Link other ${suffix}`;
+	const renamed = `${primaryName} renamed`;
+	const primarySlug = `e2e-primary-${suffix}`;
 	const targetUrl = `e2e-${suffix}.local/start`;
-	const updatedTargetUrl = `e2e-${suffix}.local/updated`;
 
-	await authenticatedPage.goto("/links");
-	await expect(
-		authenticatedPage.getByRole("heading", { name: "Links" })
-	).toBeVisible();
+	await page.goto("/links");
+	await expect(page.getByRole("heading", { name: "Links" })).toBeVisible();
+	await createLinkFolder(page, folderName);
 
-	await createLinkFolder(authenticatedPage, folderName);
-
-	const primaryRow = await createShortLink(authenticatedPage, {
-		folderName,
-		name: primaryName,
-		slug: primarySlug,
-		targetUrl,
-	});
-	await expect(primaryRow).toBeVisible();
-	await expect(
-		authenticatedPage.getByText(escapedText(primarySlug))
-	).toBeVisible();
-	await expect(
-		authenticatedPage.getByText(folderName, { exact: true })
-	).toBeVisible();
-
-	const secondaryRow = await createShortLink(authenticatedPage, {
-		name: secondaryName,
-		slug: secondarySlug,
-		targetUrl: `other-${targetUrl}`,
-	});
-	await expect(secondaryRow).toBeVisible();
-
-	await authenticatedPage.getByRole("button", { name: "All folders" }).click();
-	await authenticatedPage
-		.getByRole("menuitemradio", { name: "Unfiled" })
-		.click();
-	await expect(linkRow(authenticatedPage, secondaryName)).toBeVisible();
-	await expect(linkRow(authenticatedPage, primaryName)).toBeHidden();
-	await authenticatedPage.getByRole("button", { name: "Unfiled" }).click();
-	await authenticatedPage
-		.getByRole("menuitemradio", { name: "All folders" })
-		.click();
-	await expect(linkRow(authenticatedPage, primaryName)).toBeVisible();
-
-	await authenticatedPage
-		.getByRole("textbox", { name: "Search links" })
-		.fill(primaryToken);
-	await expect(linkRow(authenticatedPage, primaryName)).toBeVisible();
-	await expect(linkRow(authenticatedPage, secondaryName)).toBeHidden();
-	await authenticatedPage.getByRole("button", { name: "Clear search" }).click();
-	await expect(linkRow(authenticatedPage, secondaryName)).toBeVisible();
-
-	await linkRow(authenticatedPage, primaryName).click();
-	await expect(authenticatedPage).toHaveURL(/\/links\/[A-Za-z0-9_-]+/);
-	expect(idFromPath(authenticatedPage.url(), "links")).toBeTruthy();
-	await expect(authenticatedPage.getByText(primaryName)).toBeVisible();
-	await expect(authenticatedPage.getByText("Total Clicks")).toBeVisible();
-
-	await authenticatedPage.goto("/links");
-	await openLinkActions(authenticatedPage, primaryName);
-	await authenticatedPage.getByRole("menuitem", { name: "Edit" }).click();
-	await expect(
-		authenticatedPage.getByRole("heading", { name: "Edit Link" })
-	).toBeVisible();
-	await authenticatedPage
-		.getByRole("textbox", { name: "Destination URL" })
-		.fill(updatedTargetUrl);
-	await authenticatedPage
-		.getByRole("textbox", { name: "Name" })
-		.fill(updatedName);
-	await authenticatedPage.getByRole("button", { name: "Save Changes" }).click();
-	await expect(
-		authenticatedPage.getByRole("heading", { name: "Edit Link" })
-	).toBeHidden();
-	await expect(linkRow(authenticatedPage, updatedName)).toBeVisible();
-	await expect(
-		authenticatedPage.getByText(primaryName, { exact: true })
-	).toBeHidden();
-
-	await openLinkActions(authenticatedPage, updatedName);
-	await authenticatedPage.getByRole("menuitem", { name: "Delete" }).click();
-	await expect(
-		authenticatedPage.getByRole("heading", { name: "Delete Link" })
-	).toBeVisible();
-	await authenticatedPage
-		.getByRole("dialog")
-		.getByRole("button", { name: "Delete Link" })
-		.click();
-
-	await expect(linkRow(authenticatedPage, updatedName)).toBeHidden();
-	await expect(linkRow(authenticatedPage, secondaryName)).toBeVisible();
-});
-
-test("validates short link slugs and rejects duplicates", {
-	tag: "@core",
-}, async ({ authenticatedPage, e2eSession }) => {
-	const suffix = scopeSuffix(e2eSession);
-	const name = `Slug Edge ${suffix}`;
-	const slug = `slug-edge-${suffix}`;
-	const targetUrl = `slug-edge-${suffix}.local/start`;
-
-	await authenticatedPage.goto("/links");
-	await authenticatedPage.getByRole("button", { name: "New Link" }).click();
-	await authenticatedPage.getByRole("menuitem", { name: "Short Link" }).click();
-	const dialog = authenticatedPage.getByRole("dialog", { name: "Create Link" });
+	await page.getByRole("button", { name: "New Link" }).click();
+	await page.getByRole("menuitem", { name: "Short Link" }).click();
+	const dialog = page.getByRole("dialog", { name: "Create Link" });
+	const slugField = dialog.getByRole("textbox", { name: SHORT_LINK_LABEL_RE });
 	await dialog
 		.getByRole("textbox", { name: "Destination URL" })
 		.fill(targetUrl);
-	await dialog.getByRole("textbox", { name: "Name" }).fill(name);
-
-	const invalidCases = [
-		{ error: "Slug must be at least 3 characters", value: "ab" },
-		{
-			error: "Only letters, numbers, hyphens, and underscores",
-			value: "bad/slug",
-		},
-	];
-	for (const { error, value } of invalidCases) {
-		await dialog
-			.getByRole("textbox", { name: SHORT_LINK_LABEL_RE })
-			.fill(value);
+	await dialog.getByRole("textbox", { name: "Name" }).fill(primaryName);
+	for (const { error, value } of INVALID_SLUGS) {
+		await slugField.fill(value);
 		await expect(dialog.getByText(error)).toBeVisible();
 		await expect(
 			dialog.getByRole("button", { name: "Create Link" })
 		).toBeDisabled();
 	}
-
-	await dialog.getByRole("textbox", { name: SHORT_LINK_LABEL_RE }).fill(slug);
+	await slugField.fill(primarySlug);
+	await dialog.getByRole("button", { name: "Folder: Unfiled" }).click();
+	await page.getByRole("menuitem", { name: folderName }).click();
 	await dialog.getByRole("button", { name: "Create Link" }).click();
-	await expect(linkRow(authenticatedPage, name)).toBeVisible();
+	await expect(linkRow(page, primaryName)).toBeVisible();
+	await expect(page.getByText(escapedText(primarySlug))).toBeVisible();
+	await expect(page.getByText(folderName, { exact: true })).toBeVisible();
 
-	await authenticatedPage.getByRole("button", { name: "New Link" }).click();
-	await authenticatedPage.getByRole("menuitem", { name: "Short Link" }).click();
-	const duplicateDialog = authenticatedPage.getByRole("dialog", {
-		name: "Create Link",
+	await createShortLink(page, {
+		name: `${primaryName} duplicate`,
+		slug: primarySlug,
+		targetUrl: `duplicate-${targetUrl}`,
 	});
-	await duplicateDialog
-		.getByRole("textbox", { name: "Destination URL" })
-		.fill(`duplicate-${targetUrl}`);
-	await duplicateDialog
-		.getByRole("textbox", { name: "Name" })
-		.fill(`${name} duplicate`);
-	await duplicateDialog
-		.getByRole("textbox", { name: SHORT_LINK_LABEL_RE })
-		.fill(slug);
-	await duplicateDialog.getByRole("button", { name: "Create Link" }).click();
+	await expect(page.getByText(SLUG_CONFLICT_RE).first()).toBeVisible();
+	await expect(linkRow(page, `${primaryName} duplicate`)).toBeHidden();
+	await page.keyboard.press("Escape");
+
 	await expect(
-		authenticatedPage.getByText(SLUG_CONFLICT_RE).first()
+		await createShortLink(page, {
+			name: secondaryName,
+			slug: `e2e-other-${suffix}`,
+			targetUrl: `other-${targetUrl}`,
+		})
 	).toBeVisible();
-	await expect(linkRow(authenticatedPage, `${name} duplicate`)).toBeHidden();
+
+	await page.getByRole("button", { name: "All folders" }).click();
+	await page.getByRole("menuitemradio", { name: "Unfiled" }).click();
+	await expect(linkRow(page, secondaryName)).toBeVisible();
+	await expect(linkRow(page, primaryName)).toBeHidden();
+	await page.getByRole("button", { name: "Unfiled" }).click();
+	await page.getByRole("menuitemradio", { name: "All folders" }).click();
+	await expect(linkRow(page, primaryName)).toBeVisible();
+
+	await page
+		.getByRole("textbox", { name: "Search links" })
+		.fill(`primary-${suffix}`);
+	await expect(linkRow(page, primaryName)).toBeVisible();
+	await expect(linkRow(page, secondaryName)).toBeHidden();
+	await page.getByRole("button", { name: "Clear search" }).click();
+	await expect(linkRow(page, secondaryName)).toBeVisible();
+
+	await linkRow(page, primaryName).click();
+	await expect(page).toHaveURL(LINK_PATH_RE, { timeout: 15_000 });
+	await expect(page.getByText(primaryName)).toBeVisible();
+	await expect(page.getByText("Total Clicks")).toBeVisible();
+
+	await page.goto("/links");
+	await openLinkActions(page, primaryName);
+	await page.getByRole("menuitem", { name: "Edit" }).click();
+	const edit = page.getByRole("dialog", { name: "Edit Link" });
+	await edit
+		.getByRole("textbox", { name: "Destination URL" })
+		.fill(`${targetUrl}-updated`);
+	await edit.getByRole("textbox", { name: "Name" }).fill(renamed);
+	await edit.getByRole("button", { name: "Save Changes" }).click();
+	await expect(edit).toBeHidden();
+	await expect(linkRow(page, renamed)).toBeVisible();
+	await expect(page.getByText(primaryName, { exact: true })).toBeHidden();
+
+	await openLinkActions(page, renamed);
+	await page.getByRole("menuitem", { name: "Delete" }).click();
+	await page
+		.getByRole("dialog", { name: "Delete Link" })
+		.getByRole("button", { name: "Delete Link" })
+		.click();
+	await expect(linkRow(page, renamed)).toBeHidden();
+	await expect(linkRow(page, secondaryName)).toBeVisible();
 });
 
 test("creates deep links without a feature flag", { tag: "@core" }, async ({
-	authenticatedPage,
+	authenticatedPage: page,
 	e2eSession,
 }) => {
 	const suffix = scopeSuffix(e2eSession);
-	const name = `E2E Instagram ${suffix}`;
-	const slug = `e2e-instagram-${suffix}`;
+	const name = `Instagram ${suffix}`;
 
-	await authenticatedPage.goto("/links");
-	await authenticatedPage.getByRole("button", { name: "New Link" }).click();
+	await page.goto("/links");
+	await page.getByRole("button", { name: "New Link" }).click();
+	await page.getByRole("menuitem", { name: "Deep Link" }).click();
 	await expect(
-		authenticatedPage.getByRole("menuitem", { name: "Short Link" })
+		page.getByRole("heading", { name: "Create Deep Link" })
 	).toBeVisible();
-	await authenticatedPage.getByRole("menuitem", { name: "Deep Link" }).click();
-	await expect(
-		authenticatedPage.getByRole("heading", { name: "Create Deep Link" })
-	).toBeVisible();
-	await authenticatedPage.getByRole("button", { name: /Instagram/ }).click();
-	await authenticatedPage
+	await page.getByRole("button", { name: /Instagram/ }).click();
+	await page
 		.getByRole("textbox", { name: "Instagram URL" })
 		.fill(`instagram.com/e2e-${suffix}`);
-	await authenticatedPage.getByRole("textbox", { name: "Name" }).fill(name);
-	await authenticatedPage
+	await page.getByRole("textbox", { name: "Name" }).fill(name);
+	await page
 		.getByRole("textbox", { name: SHORT_LINK_LABEL_RE })
-		.fill(slug);
-	await authenticatedPage
-		.getByRole("button", { name: "Create Deep Link" })
-		.click();
+		.fill(`e2e-instagram-${suffix}`);
+	await page.getByRole("button", { name: "Create Deep Link" }).click();
 
-	const row = linkRow(authenticatedPage, name);
+	const row = linkRow(page, name);
 	await expect(row).toBeVisible();
 	await expect(row.getByText("Instagram", { exact: true })).toBeVisible();
 });

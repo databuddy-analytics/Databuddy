@@ -1,5 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { dataUrl } from "@databuddy/env/app";
+import { CLICKHOUSE_OPTIONS } from "./client";
 import {
 	type ParsedTable,
 	parseTable,
@@ -9,10 +11,6 @@ import {
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const DATABASES = ["analytics", "uptime"];
-const UNMANAGED_OBJECTS = new Set([
-	"analytics.web_vitals_hourly",
-	"analytics.web_vitals_hourly_mv",
-]);
 const DATABASE_PATTERN =
 	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
@@ -30,12 +28,14 @@ function dbNameOf(sql: string): string {
 }
 
 async function fetchLive(): Promise<Map<string, ParsedTable>> {
-	const raw = process.env.CLICKHOUSE_READONLY_URL ?? process.env.CLICKHOUSE_URL;
+	const raw = process.env.CLICKHOUSE_READONLY_URL ?? dataUrl("CLICKHOUSE_URL");
 	if (!raw) {
 		throw new Error("CLICKHOUSE_READONLY_URL or CLICKHOUSE_URL must be set");
 	}
 	const url = new URL(raw);
-	const headers: Record<string, string> = {};
+	const headers: Record<string, string> = {
+		...CLICKHOUSE_OPTIONS.http_headers,
+	};
 	if (url.username) {
 		headers.Authorization = `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`, "utf-8").toString("base64")}`;
 		url.username = "";
@@ -138,6 +138,7 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 		"primaryKey",
 		"orderBy",
 		"settings",
+		"ttl",
 	] as const) {
 		if (repo[key] !== live[key]) {
 			lines.push(
@@ -154,7 +155,6 @@ const live = await fetchLive();
 const repoFiles = sqlFiles(SCHEMA_DIR);
 const seenLive = new Set<string>();
 let drifted = 0;
-let unmanaged = 0;
 
 for (const file of repoFiles) {
 	const sql = readSql(file);
@@ -185,13 +185,6 @@ for (const key of live.keys()) {
 	if (seenLive.has(key)) {
 		continue;
 	}
-	if (UNMANAGED_OBJECTS.has(key)) {
-		console.info(
-			`${c.yellow("⚠")} ${c.bold(key)} ${c.yellow("— unmanaged legacy object remains on cluster")}`
-		);
-		unmanaged++;
-		continue;
-	}
 	console.info(
 		`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`
 	);
@@ -201,9 +194,7 @@ for (const key of live.keys()) {
 console.info("");
 if (drifted === 0) {
 	console.info(
-		c.green(
-			`✓ schema in sync — ${repoFiles.length} managed objects match the cluster; ${unmanaged} unmanaged legacy object(s) acknowledged`
-		)
+		c.green(`✓ schema in sync — ${repoFiles.length} objects match the cluster`)
 	);
 	process.exit(0);
 }

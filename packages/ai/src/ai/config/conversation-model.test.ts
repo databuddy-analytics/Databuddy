@@ -6,6 +6,7 @@ describe("conversation model compatibility", () => {
 	it.each([
 		"openai/gpt-5.6-terra",
 		"openai/gpt-5.6-luna",
+		"openai/gpt-6.1-sol",
 	])("maps %s to OpenAI effort without inheriting Anthropic options", (modelId) => {
 		for (const effort of ["low", "medium", "high"] as const) {
 			const options = conversationModelOptions(modelId, effort);
@@ -50,7 +51,7 @@ describe("conversation model compatibility", () => {
 			const openai = conversationModelOptions(modelNames.balanced, thinking);
 			expect(openai.providerOptions).toBeUndefined();
 			expect(openai.systemProviderOptions).toBeUndefined();
-			expect(openai.temperature).toBe(0.1);
+			expect(openai.temperature).toBeUndefined();
 
 			const claude = conversationModelOptions(
 				"anthropic/claude-sonnet-4.6",

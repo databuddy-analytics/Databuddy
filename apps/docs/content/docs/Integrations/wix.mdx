@@ -1,6 +1,6 @@
 ---
 title: Wix
-description: Add privacy-first analytics to your Wix website
+description: Add cookieless product analytics to your Wix website
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,12 +8,12 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your Wix website to track page views, user interactions, and gather insights about your visitors.
+Add Databuddy's cookieless product analytics to your Wix website to track pageviews, user interactions, and gather insights about your visitors.
 
-## How to Add Databuddy to Wix
+## How to add Databuddy to Wix
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Get your Databuddy tracking script from your [Databuddy dashboard](https://app.databuddy.cc). It will look like this:
 
     <CodeBlock
@@ -29,13 +29,13 @@ Add Databuddy's privacy-first analytics to your Wix website to track page views,
     Replace `YOUR_CLIENT_ID` with your actual Client ID from your Databuddy dashboard.
   </Step>
 
-  <Step title="Go to Wix Dashboard">
+  <Step title="Go to Wix dashboard">
     Log in to your Wix account and select the site you want to track.
 
     From your site's dashboard, navigate to **Settings** (usually in the left-hand sidebar).
   </Step>
 
-  <Step title="Access Tracking Tools">
+  <Step title="Access tracking tools">
     In the Settings menu, look for a section related to tracking or advanced settings. This is often called:
 
     - **Tracking Tools & Analytics** (under "Marketing & SEO" or a similar category)
@@ -46,28 +46,28 @@ Add Databuddy's privacy-first analytics to your Wix website to track page views,
     </Callout>
   </Step>
 
-  <Step title="Add New Custom Code">
+  <Step title="Add new custom code">
     Once in the Tracking Tools or Custom Code section:
 
     - Click on **+ New Tool** or **+ Add Custom Code**
     - Choose **Custom** from the list of options if prompted
   </Step>
 
-  <Step title="Configure the Custom Code">
+  <Step title="Configure the custom code">
     You'll be presented with a form to add your code:
 
     - **Paste your Databuddy tracking script** into the main code snippet box
     - **Name your code:** Give it a recognizable name, like "Databuddy Analytics"
     - **Add Code to Pages:** Select **All pages** to track your entire site
-      - You might have an option to **Load code once** or **Load code on each new page**. Choose the option that loads the script on every page view
+      - You might have an option to **Load code once** or **Load code on each new page**. Choose the option that loads the script on every pageview
     - **Place Code in:** Choose **Body - end**. This is recommended for analytics scripts to avoid impacting perceived page load speed. Some Wix versions might offer "Head" or "Body - start" as well. "Body - end" is usually the best choice
   </Step>
 
-  <Step title="Apply Changes">
+  <Step title="Apply changes">
     Click **Apply** or **Save** to add the custom code to your site.
   </Step>
 
-  <Step title="Verify Integration">
+  <Step title="Verify integration">
     After applying the changes, Databuddy should start tracking visitors on your Wix site.
 
     - Open your Wix website in a new browser tab or incognito window
@@ -76,7 +76,7 @@ Add Databuddy's privacy-first analytics to your Wix website to track page views,
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -95,11 +95,11 @@ Enable additional tracking features by adding data attributes to your script tag
 ></script>`}
 />
 
-## Custom Event Tracking in Wix
+## Custom event tracking in Wix
 
 Track custom events in Wix by adding JavaScript code through the Custom Code section or using Wix's built-in code elements.
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -129,7 +129,7 @@ Then add `data-track` attributes directly to elements in Wix:
 </a>`}
 />
 
-### Tracking Button Clicks with Custom Code
+### Tracking button clicks with custom code
 
 Add custom JavaScript to track specific button interactions:
 
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-### Tracking Form Submissions
+### Tracking form submissions
 
 Track form submissions from Wix forms:
 
@@ -186,9 +186,9 @@ document.addEventListener('DOMContentLoaded', function() {
   - Test thoroughly as Wix's page structure may vary
 </Callout>
 
-## Common Use Cases
+## Common use cases
 
-### E-commerce Tracking
+### E-commerce tracking
 
 Track product views and purchases:
 
@@ -210,7 +210,7 @@ window.databuddy.track('add_to_cart', {
 });`}
 />
 
-### Newsletter Signups
+### Newsletter signups
 
 Track newsletter subscriptions:
 
@@ -233,28 +233,28 @@ Track newsletter subscriptions:
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the **Body - end** section of Custom Code
 - Check browser console for errors
 - Ensure your Client ID is correct
 - Confirm you have a Wix Premium plan with custom code enabled
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Use `setTimeout` to wait for Wix to fully initialize
 - Check that elements exist before attaching event listeners
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 
-### Wix-Specific Issues
+### Wix-specific issues
 
 - Wix may load pages dynamically, so ensure scripts run after page load
 - Some Wix elements may have dynamically generated IDs
 - Test in different browsers and devices
 - Clear Wix cache and republish your site if needed
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="WordPress" href="/docs/Integrations/wordpress">

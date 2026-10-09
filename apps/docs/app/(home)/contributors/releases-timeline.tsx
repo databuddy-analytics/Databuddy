@@ -102,7 +102,7 @@ export default function ReleasesTimeline({ data }: Props) {
 			<div>
 				<div className="mb-8">
 					<h3 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-						Release Timeline
+						Release timeline
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Project delivery momentum and release cadence
@@ -151,7 +151,7 @@ export default function ReleasesTimeline({ data }: Props) {
 		<div>
 			<div className="mb-8">
 				<h3 className="mb-2 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Release Timeline
+					Release timeline
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Recent releases showing project delivery momentum •{" "}
@@ -189,7 +189,7 @@ export default function ReleasesTimeline({ data }: Props) {
 			{/* Timeline */}
 			<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm">
 				<h3 className="mb-6 font-semibold text-foreground text-lg">
-					Recent Releases
+					Recent releases
 				</h3>
 
 				<div className="space-y-6">

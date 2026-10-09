@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { handleAppError } from "@/http/errors";
 import { agentTelemetryRoute } from "./agent-telemetry";
+import { emailUnsubscribeRoute } from "./email-unsubscribe";
 import { flagsRoute } from "./flags";
 import { scanRoute } from "./scan";
 
@@ -35,6 +36,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	)
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(agentTelemetryRoute)
+	.use(emailUnsubscribeRoute)
 	.use(flagsRoute)
 	.use(scanRoute)
 	.onError(function handlePublicError({ error, code, request }) {

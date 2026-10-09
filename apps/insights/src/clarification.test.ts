@@ -40,10 +40,6 @@ const snapshot = createEvidenceSnapshot({
 	capturedAt: "2026-09-12T00:00:00.000Z",
 	signal,
 	evidence: [],
-	descriptions: {
-		get_funnel_analytics:
-			"Stored step conditions are not evaluated; counts are entrants, not attempted tasks.",
-	},
 	reads: [
 		{
 			toolName: "get_funnel_analytics",

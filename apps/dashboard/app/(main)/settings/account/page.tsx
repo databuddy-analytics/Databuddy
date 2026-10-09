@@ -2,17 +2,24 @@
 
 import { authClient } from "@databuddy/auth/client";
 import {
+	decodeMcpGrantReference,
+	MCP_API_SCOPES,
+	MCP_PERMISSIONS,
+} from "@databuddy/shared/mcp-access";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import {
 	GlobeIcon,
 	KeyIcon,
 	LinkBreakIcon,
 	LinkIcon,
+	PlugIcon,
 	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 import { Avatar, Dialog } from "@databuddy/ui/client";
 import {
@@ -84,6 +91,14 @@ function formatAccountScopes(scopes: string[]): string {
 	].join(", ");
 }
 
+function urlHost(value: string): string | null {
+	try {
+		return new URL(value).host;
+	} catch {
+		return null;
+	}
+}
+
 function getInitials(name: string): string {
 	return name
 		.split(" ")
@@ -106,9 +121,6 @@ function ChangePasswordDialog({
 
 	const changePasswordMutation = useMutation({
 		mutationFn: async () => {
-			if (newPassword !== confirmPassword) {
-				throw new Error("Passwords do not match");
-			}
 			const result = await authClient.changePassword({
 				currentPassword,
 				newPassword,
@@ -120,26 +132,37 @@ function ChangePasswordDialog({
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Password changed successfully");
+			toast.success("Password changed");
 			onOpenChange(false);
 			setCurrentPassword("");
 			setNewPassword("");
 			setConfirmPassword("");
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to change password", { description: error.message }),
 	});
+
+	const submitPasswordChange = () => {
+		if (newPassword !== confirmPassword) {
+			toast.error("The new passwords do not match.");
+			return;
+		}
+		changePasswordMutation.mutate();
+	};
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Change Password</Dialog.Title>
+					<Dialog.Title>Change password</Dialog.Title>
 					<Dialog.Description>
 						Enter your current password and choose a new one.
 					</Dialog.Description>
 				</Dialog.Header>
 				<Dialog.Body className="space-y-4">
 					<Field>
-						<Field.Label>Current Password</Field.Label>
+						<Field.Label>Current password</Field.Label>
 						<Input
 							autoComplete="current-password"
 							onChange={(e) => setCurrentPassword(e.target.value)}
@@ -149,7 +172,7 @@ function ChangePasswordDialog({
 						/>
 					</Field>
 					<Field>
-						<Field.Label>New Password</Field.Label>
+						<Field.Label>New password</Field.Label>
 						<Input
 							autoComplete="new-password"
 							onChange={(e) => setNewPassword(e.target.value)}
@@ -159,7 +182,7 @@ function ChangePasswordDialog({
 						/>
 					</Field>
 					<Field>
-						<Field.Label>Confirm New Password</Field.Label>
+						<Field.Label>Confirm new password</Field.Label>
 						<Input
 							autoComplete="new-password"
 							onChange={(e) => setConfirmPassword(e.target.value)}
@@ -179,9 +202,9 @@ function ChangePasswordDialog({
 							changePasswordMutation.isPending
 						}
 						loading={changePasswordMutation.isPending}
-						onClick={() => changePasswordMutation.mutate()}
+						onClick={submitPasswordChange}
 					>
-						Change Password
+						Change password
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -207,7 +230,7 @@ function UnlinkConfirmDialog({
 		<Dialog onOpenChange={(open) => !open && onClose()} open={!!account}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Disconnect {providerName} sign-in?</Dialog.Title>
+					<Dialog.Title>Disconnect {providerName} sign-in</Dialog.Title>
 					<Dialog.Description>
 						This removes {providerName} as a way to sign in to Databuddy. It
 						does not disconnect an organization data integration. You can
@@ -248,7 +271,6 @@ function DeleteAccountDialog({
 	userEmail: string;
 	hasPassword: boolean;
 }) {
-	const router = useRouter();
 	const [password, setPassword] = useState("");
 	const [confirmEmail, setConfirmEmail] = useState("");
 	const [emailSent, setEmailSent] = useState(false);
@@ -273,19 +295,12 @@ function DeleteAccountDialog({
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
-			return result;
+			return result.data;
 		},
-		onSuccess: () => {
-			if (hasPassword) {
-				toast.success("Your account has been deleted");
-				router.push("/login");
-			} else {
-				setEmailSent(true);
-			}
-		},
-		onError: (error) => {
-			toast.error(error.message || "Failed to delete account");
-		},
+		onSuccess: () => setEmailSent(true),
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to delete account", { description: error.message }),
 	});
 
 	const emailMatches = confirmEmail.toLowerCase() === userEmail.toLowerCase();
@@ -296,7 +311,7 @@ function DeleteAccountDialog({
 			<Dialog onOpenChange={onOpenChange} open={open}>
 				<Dialog.Content>
 					<Dialog.Header>
-						<Dialog.Title>Check Your Email</Dialog.Title>
+						<Dialog.Title>Check your email</Dialog.Title>
 						<Dialog.Description>
 							We sent a confirmation link to{" "}
 							<span className="font-medium text-foreground">{userEmail}</span>.
@@ -317,7 +332,7 @@ function DeleteAccountDialog({
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Delete Account</Dialog.Title>
+					<Dialog.Title>Delete account</Dialog.Title>
 					<Dialog.Description>
 						This action is permanent and cannot be undone. All your data,
 						sessions, and connected accounts will be removed.
@@ -327,8 +342,9 @@ function DeleteAccountDialog({
 					<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
 						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
-							You will lose access to all organizations you own. Transfer
-							ownership before deleting your account if needed.
+							Organizations where you are the only member are deleted with their
+							websites and analytics. If you are the only owner of an
+							organization with other members, transfer ownership first.
 						</Text>
 					</div>
 					<Field>
@@ -353,11 +369,10 @@ function DeleteAccountDialog({
 								value={password}
 							/>
 						</Field>
-					) : (
-						<Text tone="muted" variant="caption">
-							We'll send a confirmation email to verify this is you.
-						</Text>
-					)}
+					) : null}
+					<Text tone="muted" variant="caption">
+						We'll send a confirmation email to verify this is you.
+					</Text>
 				</Dialog.Body>
 				<Dialog.Footer>
 					<Dialog.Close>
@@ -369,7 +384,7 @@ function DeleteAccountDialog({
 						onClick={() => deleteAccount.mutate()}
 						tone="destructive"
 					>
-						{hasPassword ? "Delete My Account" : "Send Confirmation Email"}
+						Send confirmation email
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -378,6 +393,7 @@ function DeleteAccountDialog({
 }
 
 export default function AccountSettingsPage() {
+	const { organizations } = useOrganizationsContext();
 	const queryClient = useQueryClient();
 	const { data: session, isPending: isSessionLoading } =
 		authClient.useSession();
@@ -411,6 +427,41 @@ export default function AccountSettingsPage() {
 		},
 	});
 
+	const {
+		data: connectedApps = [],
+		isError: isConnectedAppsError,
+		isLoading: isConnectedAppsLoading,
+		refetch: refetchConnectedApps,
+	} = useQuery({
+		queryKey: ["oauth-connected-apps"],
+		queryFn: async () => {
+			const consents = await authClient.oauth2.getConsents({
+				fetchOptions: { throw: true },
+			});
+			return Promise.all(
+				consents.map(async (consent) => {
+					const client = await authClient.oauth2.publicClient({
+						query: { client_id: consent.clientId },
+					});
+					return {
+						...consent,
+						name:
+							client.data?.client_name ??
+							urlHost(consent.clientId) ??
+							consent.clientId,
+					};
+				})
+			);
+		},
+	});
+
+	const disconnectApp = useMutation({
+		mutationFn: (id: string) =>
+			authClient.oauth2.deleteConsent({ id }, { throw: true }),
+		onSuccess: () => refetchConnectedApps(),
+		meta: { errorTitle: "Failed to disconnect app" },
+	});
+
 	const updateProfileMutation = useMutation({
 		mutationFn: async () => {
 			const result = await authClient.updateUser({
@@ -423,8 +474,11 @@ export default function AccountSettingsPage() {
 			return result;
 		},
 		onSuccess: () => {
-			toast.success("Profile updated successfully");
+			toast.success("Profile updated");
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to update profile", { description: error.message }),
 	});
 
 	const linkSocial = useMutation({
@@ -438,6 +492,9 @@ export default function AccountSettingsPage() {
 			}
 			return result;
 		},
+		meta: { suppressGlobalErrorToast: true },
+		onError: (error) =>
+			toast.error("Failed to connect account", { description: error.message }),
 	});
 
 	const unlinkAccount = useMutation({
@@ -456,6 +513,9 @@ export default function AccountSettingsPage() {
 			toast.success(`${providerName} sign-in disconnected`);
 			queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
 		},
+		onError: (error) =>
+			showErrorToast(error, "Failed to disconnect sign-in method"),
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const hasCredentialAccount = accounts.some(
@@ -473,7 +533,7 @@ export default function AccountSettingsPage() {
 				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
-							<Card.Title>Profile Photo</Card.Title>
+							<Card.Title>Profile photo</Card.Title>
 							<Card.Description>
 								Upload a photo to personalize your account
 							</Card.Description>
@@ -515,7 +575,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Basic Information</Card.Title>
+							<Card.Title>Basic information</Card.Title>
 							<Card.Description>
 								Update your personal information
 							</Card.Description>
@@ -529,7 +589,7 @@ export default function AccountSettingsPage() {
 							) : (
 								<div className="grid gap-4 sm:grid-cols-2">
 									<Field>
-										<Field.Label>Full Name</Field.Label>
+										<Field.Label>Full name</Field.Label>
 										<Input
 											onChange={(e) => setName(e.target.value)}
 											placeholder="Your name…"
@@ -537,7 +597,7 @@ export default function AccountSettingsPage() {
 										/>
 									</Field>
 									<Field>
-										<Field.Label>Email Address</Field.Label>
+										<Field.Label>Email address</Field.Label>
 										<Input disabled type="email" value={user?.email ?? ""} />
 										<Field.Description>
 											Email cannot be changed
@@ -550,7 +610,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Account Status</Card.Title>
+							<Card.Title>Account status</Card.Title>
 							<Card.Description>
 								Your account verification and security status
 							</Card.Description>
@@ -607,7 +667,7 @@ export default function AccountSettingsPage() {
 							icon={
 								<ShieldCheckIcon className="size-4 text-muted-foreground" />
 							}
-							title="Two-Factor Authentication"
+							title="Two-factor authentication"
 						>
 							<Button
 								onClick={() => setShowTwoFactorDialog(true)}
@@ -621,7 +681,7 @@ export default function AccountSettingsPage() {
 							<SettingCard
 								description="Update your password regularly for security"
 								icon={<KeyIcon className="size-4 text-muted-foreground" />}
-								title="Change Password"
+								title="Change password"
 							>
 								<Button
 									onClick={() => setShowPasswordDialog(true)}
@@ -636,7 +696,7 @@ export default function AccountSettingsPage() {
 
 					<Card>
 						<Card.Header>
-							<Card.Title>Connected Identities</Card.Title>
+							<Card.Title>Connected identities</Card.Title>
 							<Card.Description>
 								Personal sign-in methods for your Databuddy account. These are
 								not organization data integrations.
@@ -740,7 +800,7 @@ export default function AccountSettingsPage() {
 													<div>
 														<Text variant="label">Password</Text>
 														<Text tone="muted" variant="caption">
-															Email and password login
+															Email and password sign-in
 														</Text>
 													</div>
 												</div>
@@ -753,14 +813,111 @@ export default function AccountSettingsPage() {
 						</Card.Content>
 					</Card>
 
+					<Card>
+						<Card.Header>
+							<Card.Title>Connected apps</Card.Title>
+							<Card.Description>
+								Apps you allowed to use Databuddy with your account, like
+								Claude. Disconnecting an app revokes all its connections.
+								Reconnect to change its approved access.
+							</Card.Description>
+						</Card.Header>
+						<Card.Content>
+							{isConnectedAppsLoading ? (
+								<div className="space-y-3">
+									<Skeleton className="h-5 w-full" />
+									<Skeleton className="h-5 w-full" />
+								</div>
+							) : isConnectedAppsError ? (
+								<div className="flex items-center justify-between gap-3">
+									<Text tone="muted" variant="caption">
+										Failed to load connected apps.
+									</Text>
+									<Button
+										onClick={() => refetchConnectedApps()}
+										size="sm"
+										variant="secondary"
+									>
+										Try again
+									</Button>
+								</div>
+							) : connectedApps.length === 0 ? (
+								<Text tone="muted" variant="caption">
+									No apps connected yet.
+								</Text>
+							) : (
+								<div className="space-y-3">
+									{connectedApps.map((app, index) => {
+										const host = urlHost(app.clientId);
+										const grant = app.referenceId
+											? decodeMcpGrantReference(app.referenceId)
+											: null;
+										const organization = organizations.find(
+											({ id }) => id === grant?.organizationId
+										);
+										const accessSummary = grant
+											? `${organization?.name ?? "Organization unavailable"} · ${grant.websiteIds === null ? "All websites" : `${grant.websiteIds.length} selected website${grant.websiteIds.length === 1 ? "" : "s"}`}`
+											: "Reconnect to choose access";
+										const permissions = MCP_API_SCOPES.filter((scope) =>
+											app.scopes.includes(scope)
+										)
+											.map((scope) => MCP_PERMISSIONS[scope].label)
+											.join(", ");
+										const connectedOn = `Connected ${dayjs(app.createdAt).format("MMM D, YYYY")}`;
+										return (
+											<div key={app.id}>
+												{index > 0 && <Divider className="mb-3" />}
+												<div className="flex items-start justify-between gap-3">
+													<div className="flex min-w-0 items-start gap-3">
+														<PlugIcon className="size-4 text-muted-foreground" />
+														<div className="min-w-0">
+															<Text variant="label">{app.name}</Text>
+															<Text tone="muted" variant="caption">
+																{accessSummary}
+															</Text>
+															{permissions && (
+																<Text tone="muted" variant="caption">
+																	{permissions}
+																</Text>
+															)}
+															<Text tone="muted" variant="caption">
+																{host
+																	? `${host} · ${connectedOn}`
+																	: connectedOn}
+															</Text>
+														</div>
+													</div>
+													<Button
+														aria-label={`Disconnect app ${app.name}`}
+														disabled={disconnectApp.isPending}
+														loading={
+															disconnectApp.isPending &&
+															disconnectApp.variables === app.id
+														}
+														onClick={() => disconnectApp.mutate(app.id)}
+														size="sm"
+														variant="ghost"
+													>
+														<LinkBreakIcon className="size-3.5" />
+														Disconnect app
+													</Button>
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							)}
+						</Card.Content>
+					</Card>
+
 					<SettingsZone title="Destructive actions" variant="destructive">
 						<SettingsZoneRow
 							action={{
-								label: "Delete Account",
+								label: "Delete account",
 								onClick: () => setShowDeleteDialog(true),
 							}}
 							description="Permanently delete your account and all associated data"
-							title="Delete Account"
+							title="Delete account"
 						/>
 					</SettingsZone>
 				</div>
@@ -781,7 +938,7 @@ export default function AccountSettingsPage() {
 							size="sm"
 							variant="ghost"
 						>
-							Discard
+							Discard changes
 						</Button>
 						<Button
 							keyboard={{
@@ -793,7 +950,7 @@ export default function AccountSettingsPage() {
 							onClick={() => updateProfileMutation.mutate()}
 							size="sm"
 						>
-							Save Changes
+							Save changes
 						</Button>
 					</div>
 				</div>

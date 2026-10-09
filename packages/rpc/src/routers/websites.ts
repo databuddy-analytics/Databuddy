@@ -1,11 +1,15 @@
 import { successOutputSchema } from "../lib/schemas";
 import { BusinessMemoryRetirementError } from "@databuddy/services/business-memory";
-import { db } from "@databuddy/db";
-import { chQuery, purgeWebsiteAnalyticsData } from "@databuddy/db/clickhouse";
+import { and, db, desc, eq, sql } from "@databuddy/db";
+import { agentInstallTelemetry } from "@databuddy/db/schema";
+import { chQuery, purgeAnalyticsData } from "@databuddy/db/clickhouse";
 import { setTimeout as sleep } from "node:timers/promises";
 import { config } from "@databuddy/env/app";
-import { cacheable } from "@databuddy/redis";
-import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import { cacheable, redis } from "@databuddy/redis";
+import {
+	matchAiAgent,
+	setupCheckUserAgent,
+} from "@databuddy/shared/bot-detection/ai-agents";
 import {
 	ROBOTS_ACCESS,
 	type RobotsAccess,
@@ -60,104 +64,238 @@ import {
 	processChartData,
 } from "./websites-chart";
 
-const ROBOTS_COMMENT = /#.*$/;
+const ROBOTS_LINE_BREAK = /\r\n?|\n/;
+const ROBOTS_COMMENT = /#.*/;
 const ROBOTS_ROOT_PATHS = new Set(["/", "/*", "*"]);
 const ROBOTS_MAX_BYTES = 512_000;
+const ROBOTS_MAX_AGENTS = 500;
+const ROBOTS_MAX_AGENT_LENGTH = 128;
 
 interface RobotsGroup {
-	agents: string[];
-	rules: { isAllow: boolean; path: string }[];
+	hasAllow: boolean;
+	hasDisallow: boolean;
+	hasRootDisallow: boolean;
 }
 
-function parseRobotsTxt(robotsTxt: string): RobotsGroup[] {
-	const groups: RobotsGroup[] = [];
+function robotsAccessByAgent(robotsTxt: string): Map<string, RobotsAccess> {
+	const groupsByAgent = new Map<string, RobotsGroup[]>();
 	let current: RobotsGroup | undefined;
 	let isReadingAgents = false;
-	for (const line of robotsTxt.split("\n")) {
+	for (const line of robotsTxt.split(ROBOTS_LINE_BREAK)) {
 		const [rawKey = "", ...rest] = line.replace(ROBOTS_COMMENT, "").split(":");
 		const key = rawKey.trim().toLowerCase();
 		const value = rest.join(":").trim();
 		if (key === "user-agent") {
 			if (!(current && isReadingAgents)) {
-				current = { agents: [], rules: [] };
-				groups.push(current);
+				current = {
+					hasAllow: false,
+					hasDisallow: false,
+					hasRootDisallow: false,
+				};
 			}
-			if (value) {
-				current.agents.push(value.toLowerCase());
+			const agent = value.toLowerCase();
+			const agentGroups = groupsByAgent.get(agent);
+			if (agentGroups) {
+				agentGroups.push(current);
+			} else if (
+				agent &&
+				(agent === "*" ||
+					(agent.length <= ROBOTS_MAX_AGENT_LENGTH &&
+						groupsByAgent.size < ROBOTS_MAX_AGENTS))
+			) {
+				groupsByAgent.set(agent, [current]);
 			}
 			isReadingAgents = true;
 		} else if (key) {
 			isReadingAgents = false;
-			if ((key === "allow" || key === "disallow") && value && current) {
-				current.rules.push({ isAllow: key === "allow", path: value });
+			if (key === "allow" && value && current) {
+				current.hasAllow = true;
+			} else if (key === "disallow" && value && current) {
+				current.hasDisallow = true;
+				current.hasRootDisallow ||= ROBOTS_ROOT_PATHS.has(value);
 			}
 		}
 	}
-	return groups;
+	return new Map(
+		[...groupsByAgent]
+			.sort(([a], [b]) => b.length - a.length)
+			.map(([agent, groups]): [string, RobotsAccess] => {
+				const hasRootDisallow = groups.some((group) => group.hasRootDisallow);
+				if (hasRootDisallow && !groups.some((group) => group.hasAllow)) {
+					return [agent, "blocked"];
+				}
+				return [
+					agent,
+					groups.some((group) => group.hasDisallow) ? "partial" : "allowed",
+				];
+			})
+	);
 }
 
 function robotsAccessFor(
-	groups: RobotsGroup[],
+	accessByAgent: Map<string, RobotsAccess>,
 	userAgent: string
 ): RobotsAccess {
 	const ua = userAgent.toLowerCase();
-	const token =
-		groups
-			.flatMap((group) => group.agents)
-			.filter((agent) => agent !== "*" && ua.includes(agent))
-			.sort((a, b) => b.length - a.length)[0] ?? "*";
-	const rules = groups
-		.filter((group) => group.agents.includes(token))
-		.flatMap((group) => group.rules);
-	const isRootBlocked = rules.some(
-		(rule) => !rule.isAllow && ROBOTS_ROOT_PATHS.has(rule.path)
-	);
-	if (isRootBlocked && !rules.some((rule) => rule.isAllow)) {
-		return "blocked";
+	for (const [agent, access] of accessByAgent) {
+		if (agent !== "*" && ua.includes(agent)) {
+			return access;
+		}
 	}
-	return rules.some((rule) => !rule.isAllow) ? "partial" : "allowed";
+	return accessByAgent.get("*") ?? "allowed";
 }
 
 const fetchRobotsTxt = cacheable(
 	async (domain: string): Promise<string | null> => {
 		const response = await safeFetch(`https://${domain}/robots.txt`, {
+			decompress: false,
+			headers: { "accept-encoding": "identity" },
 			timeoutMs: 5000,
 		}).catch(() => null);
-		if (!response?.ok) {
+		if (
+			!(response?.ok && response.body) ||
+			(response.headers.get("content-encoding") ?? "identity") !== "identity" ||
+			Number(response.headers.get("content-length")) > ROBOTS_MAX_BYTES
+		) {
 			await response?.body?.cancel();
 			return null;
 		}
-		const robotsTxt = await response.text().catch(() => null);
-		return robotsTxt?.slice(0, ROBOTS_MAX_BYTES) ?? null;
+		const reader = response.body.getReader();
+		const chunks: Uint8Array[] = [];
+		let size = 0;
+		try {
+			while (size < ROBOTS_MAX_BYTES) {
+				const { done, value } = await reader.read();
+				if (done) {
+					break;
+				}
+				chunks.push(value.subarray(0, ROBOTS_MAX_BYTES - size));
+				size += value.byteLength;
+			}
+		} catch {
+			return null;
+		} finally {
+			await reader.cancel().catch(() => undefined);
+		}
+		return new TextDecoder().decode(Buffer.concat(chunks));
 	},
 	{ expireInSec: 600, prefix: "robots_txt" }
 );
 
-async function isAgentRequestRecorded(
-	websiteId: string,
-	url: string
-): Promise<boolean> {
+const AGENT_BLOCKERS = ["Cloudflare", "Vercel", "Akamai"] as const;
+type AgentBlocker = (typeof AGENT_BLOCKERS)[number];
+
+const BROWSER_HEADERS = {
+	accept: "text/html,application/xhtml+xml",
+	"user-agent":
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+};
+
+const agentProbeSchema = z.object({
+	status: z.number().nullable(),
+	blockedBy: z.enum(AGENT_BLOCKERS).nullable(),
+});
+
+function agentBlocker({ headers, status }: Response): AgentBlocker | null {
+	if (status < 400) {
+		return null;
+	}
+	if (
+		headers.has("cf-mitigated") ||
+		(headers.has("cf-ray") && (status === 403 || status === 503))
+	) {
+		return "Cloudflare";
+	}
+	if (headers.has("x-vercel-mitigated")) {
+		return "Vercel";
+	}
+	if (headers.get("server")?.includes("AkamaiGHost")) {
+		return "Akamai";
+	}
+	return null;
+}
+
+function fetchWithoutBody(
+	url: string,
+	headers: Record<string, string>,
+	timeoutMs: number
+): Promise<Response | null> {
+	return safeFetch(url, { decompress: false, headers, timeoutMs })
+		.then((response) => {
+			response.body?.cancel().catch(() => undefined);
+			return response;
+		})
+		.catch(() => null);
+}
+
+async function probeAgentRequest(
+	website: Pick<Website, "domain" | "id">,
+	path: string
+): Promise<{ probe: z.infer<typeof agentProbeSchema>; recorded: boolean }> {
 	const nonce = crypto.randomUUID();
-	await safeFetch(url, {
-		headers: { "user-agent": setupCheckUserAgent(nonce) },
-		timeoutMs: 8000,
-	})
-		.then((response) => response.body?.cancel())
-		.catch(() => undefined);
-	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(websiteId)}/${nonce}`;
-	for (let attempt = 0; attempt < 10; attempt++) {
+	const response = await fetchWithoutBody(
+		`https://${website.domain}${path}`,
+		{ "user-agent": setupCheckUserAgent(nonce) },
+		8000
+	);
+	const probe = {
+		status: response?.status ?? null,
+		blockedBy: response ? agentBlocker(response) : null,
+	};
+	const statusUrl = `${config.urls.basket}/ai-traffic/setup-check/${encodeURIComponent(website.id)}/${nonce}`;
+	for (let attempt = 0; attempt < 25; attempt++) {
 		const isRecorded = await fetch(statusUrl, {
 			signal: AbortSignal.timeout(2000),
 		})
-			.then((response) => (response.ok ? response.json() : null))
+			.then((statusResponse) =>
+				statusResponse.ok ? statusResponse.json() : null
+			)
 			.then((body) => body?.recorded === true)
 			.catch(() => false);
 		if (isRecorded) {
-			return true;
+			return { probe, recorded: true };
 		}
-		await sleep(300);
+		await sleep(600);
 	}
-	return false;
+	return { probe, recorded: false };
+}
+
+const ROBOTS_BLOCKED_SINCE_TTL_SEC = 365 * 24 * 60 * 60;
+
+async function robotsBlockedSince(
+	websiteId: string,
+	userAgents: string[],
+	access: RobotsAccess[]
+): Promise<(string | null)[]> {
+	const keys = userAgents.map((userAgent) => {
+		const agentId = matchAiAgent(userAgent)?.id;
+		return agentId ? `ai_robots_blocked_since:${websiteId}:${agentId}` : null;
+	});
+	const isBlocked = (index: number) => access[index] === "blocked";
+	const blockedKeys = keys.filter(
+		(key, index): key is string => key !== null && isBlocked(index)
+	);
+	const now = new Date().toISOString();
+	try {
+		const pipeline = redis.pipeline();
+		for (const [index, key] of keys.entries()) {
+			if (key && isBlocked(index)) {
+				pipeline.set(key, now, "EX", ROBOTS_BLOCKED_SINCE_TTL_SEC, "NX");
+			} else if (key) {
+				pipeline.del(key);
+			}
+		}
+		await pipeline.exec();
+		const since = blockedKeys.length > 0 ? await redis.mget(blockedKeys) : [];
+		const sinceByKey = new Map(
+			blockedKeys.map((key, index) => [key, since[index] ?? null])
+		);
+		return keys.map((key, index) =>
+			key && isBlocked(index) ? (sinceByKey.get(key) ?? null) : null
+		);
+	} catch {
+		return keys.map(() => null);
+	}
 }
 
 const websiteService = new WebsiteService(db);
@@ -175,7 +313,9 @@ function handleServiceError(error: unknown): never {
 	if (error instanceof WebsiteNotFoundError) {
 		throw rpcError.notFound("website");
 	}
-	throw rpcError.internal("Website operation failed");
+	throw rpcError.internal(
+		"The website could not be saved. Try again in a moment."
+	);
 }
 
 const TRACKING_HEALTH_WINDOW_HOURS = 24;
@@ -226,6 +366,25 @@ function buildTrackingIssue(
 		recentEvents === 0 ? "critical" : "warning";
 	const originHost = getTrackingBlockOriginHost(row.origin);
 	const expectedDomain = websiteDomain || null;
+
+	if (
+		row.issueType === "origin_not_authorized" &&
+		originHost &&
+		isIgnoredTrackingBlockOrigin(row.origin)
+	) {
+		const target = expectedDomain ?? "your live site";
+		return {
+			count: row.count,
+			expectedDomain,
+			fix: `Install the script on ${target} to start collecting data. To test locally first, add ${originHost} under Security → Allowed Origins.`,
+			lastSeen: row.lastSeen,
+			message: `The script is running on ${originHost}, but Databuddy only records visits to ${target}.`,
+			origin: row.origin || null,
+			originHost,
+			severity,
+			type: row.issueType,
+		};
+	}
 
 	if (row.issueType === "origin_not_authorized") {
 		const source = originHost ? ` from ${originHost}` : "";
@@ -311,10 +470,6 @@ function shouldSkipBlockedTrackingIssueRow(
 		websiteDomain: string | null;
 	}
 ): boolean {
-	if (isIgnoredTrackingBlockOrigin(row.origin)) {
-		return true;
-	}
-
 	if (matchesTrackingBlockIgnoredOrigin(row.origin, options.ignoredOrigins)) {
 		return true;
 	}
@@ -329,14 +484,14 @@ function shouldSkipBlockedTrackingIssueRow(
 	);
 }
 
-async function getRecentBlockedTrackingIssue(
+async function getRecentBlockedTrackingRows(
 	websiteId: string,
 	options: {
 		allowedOrigins: string[];
 		ignoredOrigins: string[];
 		websiteDomain: string | null;
 	}
-): Promise<BlockedTrackingIssueRow | null> {
+): Promise<BlockedTrackingIssueRow[]> {
 	try {
 		const rows = await Promise.race([
 			chQuery<BlockedTrackingIssueRow>(
@@ -367,9 +522,8 @@ async function getRecentBlockedTrackingIssue(
 			),
 		]);
 
-		return (
-			rows.find((row) => !shouldSkipBlockedTrackingIssueRow(row, options)) ??
-			null
+		return rows.filter(
+			(row) => !shouldSkipBlockedTrackingIssueRow(row, options)
 		);
 	} catch (error) {
 		const message =
@@ -378,8 +532,19 @@ async function getRecentBlockedTrackingIssue(
 				: "Unknown error checking blocked traffic";
 		const level = getTrackingHealthErrorLogLevel(error);
 		logger[level]({ websiteId }, `Error checking blocked traffic: ${message}`);
-		return null;
+		return [];
 	}
+}
+
+function pickTrackingIssueRow(
+	rows: BlockedTrackingIssueRow[],
+	hasEvents: boolean
+): BlockedTrackingIssueRow | null {
+	const liveRow = rows.find((row) => !isIgnoredTrackingBlockOrigin(row.origin));
+	if (liveRow || hasEvents) {
+		return liveRow ?? null;
+	}
+	return rows[0] ?? null;
 }
 
 const buildStatusMessage = (
@@ -399,10 +564,10 @@ const buildStatusMessage = (
 	}
 
 	if (status.error) {
-		return "Unable to check events. Try again shortly.";
+		return "Events could not be checked. Try again in a moment.";
 	}
 
-	return "Tracking not set up. Please install the script tag.";
+	return "Tracking not set up. Install the script tag.";
 };
 
 const websiteStatusOutputSchema = z.enum([
@@ -480,6 +645,19 @@ const trackingIssueOutputSchema = z.object({
 	originHost: z.string().nullable(),
 	severity: z.enum(["critical", "warning"]),
 	type: z.enum(TRACKING_ISSUE_TYPES),
+});
+
+const agentInstallProgressOutputSchema = z.object({
+	agent: z.string(),
+	status: z.enum(["success", "partial", "failed"]),
+	framework: z.string().nullable(),
+	installMethod: z.string().nullable(),
+	steps: z.array(z.string()),
+	issues: z.array(
+		z.object({ code: z.string(), message: z.string(), resolved: z.boolean() })
+	),
+	errorMessage: z.string().nullable(),
+	reportedAt: z.string(),
 });
 
 const trackingSetupOutputSchema = z.object({
@@ -611,7 +789,7 @@ export const websitesRouter = {
 			});
 
 			if (!workspace.organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			return websiteService.list(workspace.organizationId);
@@ -635,7 +813,7 @@ export const websitesRouter = {
 			});
 
 			if (!workspace.organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			const websitesList = await websiteService.list(workspace.organizationId);
@@ -964,7 +1142,7 @@ export const websitesRouter = {
 			}
 
 			try {
-				await purgeWebsiteAnalyticsData(input.id);
+				await purgeAnalyticsData([input.id]);
 			} catch (error) {
 				logger.error(
 					{
@@ -972,7 +1150,7 @@ export const websitesRouter = {
 						error: String(error),
 						event: "Website Analytics Purge Failed",
 					},
-					`Analytics purge failed for deleted website ${input.id}; data must be purged manually`
+					`Analytics purge failed for deleted website ${input.id}; the API's deleted-data purge retries it`
 				);
 			}
 
@@ -1003,7 +1181,7 @@ export const websitesRouter = {
 		.handler(async ({ context, input }) => {
 			if (!input.organizationId) {
 				throw rpcError.badRequest(
-					"Website must be transferred to an organization"
+					"Choose an organization to move this website to."
 				);
 			}
 			const targetOrganizationId = input.organizationId;
@@ -1173,16 +1351,20 @@ export const websitesRouter = {
 			const trackingIssueWarningsDisabled =
 				websiteSettings?.trackingIssueWarningsDisabled === true;
 
-			const [eventsStatus, blockedIssueRow] = await Promise.all([
+			const [eventsStatus, blockedRows] = await Promise.all([
 				getTrackingEventsStatus(input.websiteId),
 				trackingIssueWarningsDisabled
-					? Promise.resolve(null)
-					: getRecentBlockedTrackingIssue(input.websiteId, {
+					? Promise.resolve([])
+					: getRecentBlockedTrackingRows(input.websiteId, {
 							allowedOrigins: websiteSettings?.allowedOrigins ?? [],
 							ignoredOrigins: websiteSettings?.ignoredTrackingOrigins ?? [],
 							websiteDomain: website?.domain ?? null,
 						}),
 			]);
+			const blockedIssueRow = pickTrackingIssueRow(
+				blockedRows,
+				eventsStatus.hasEvents
+			);
 			const trackingIssue = blockedIssueRow
 				? buildTrackingIssue(
 						blockedIssueRow,
@@ -1201,17 +1383,93 @@ export const websitesRouter = {
 			};
 		}),
 
+	agentInstallProgress: protectedProcedure
+		.route({
+			description:
+				"Reads the latest install report a coding agent posted for a setup session. Requires website read permission.",
+			method: "POST",
+			path: "/websites/agentInstallProgress",
+			summary: "Read coding agent install progress",
+			tags: ["Websites"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				setupSession: z
+					.string()
+					.min(8)
+					.max(32)
+					.regex(/^[A-Za-z0-9]+$/),
+			})
+		)
+		.output(agentInstallProgressOutputSchema.nullable())
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+			const [row] = await db
+				.select({
+					agent: agentInstallTelemetry.agent,
+					status: agentInstallTelemetry.status,
+					framework: agentInstallTelemetry.framework,
+					installMethod: agentInstallTelemetry.installMethod,
+					stepsCompleted: agentInstallTelemetry.stepsCompleted,
+					issues: agentInstallTelemetry.issues,
+					errorMessage: agentInstallTelemetry.errorMessage,
+					createdAt: agentInstallTelemetry.createdAt,
+				})
+				.from(agentInstallTelemetry)
+				.where(
+					and(
+						eq(agentInstallTelemetry.websiteId, input.websiteId),
+						sql`${agentInstallTelemetry.metadata} ->> 'setupSession' = ${input.setupSession}`
+					)
+				)
+				.orderBy(desc(agentInstallTelemetry.createdAt))
+				.limit(1);
+			if (!row) {
+				return null;
+			}
+			return {
+				agent: row.agent,
+				status: row.status,
+				framework: row.framework,
+				installMethod: row.installMethod,
+				steps: (row.stepsCompleted ?? [])
+					.filter((step) => step.status === "completed")
+					.map((step) => step.name),
+				issues: (row.issues ?? []).map((issue) => ({
+					code: issue.code,
+					message: issue.message,
+					resolved: issue.severity === "info",
+				})),
+				errorMessage: row.errorMessage,
+				reportedAt: row.createdAt.toISOString(),
+			};
+		}),
+
 	checkAgentSetup: protectedProcedure
 		.route({
 			description:
-				"Requests the website's homepage and llms.txt as GPTBot and reports whether @databuddy/sdk/agents recorded each request. Requires website read permission.",
+				"Requests the website's homepage and llms.txt as GPTBot and reports whether each request was recorded through @databuddy/sdk/agents or a Vercel log drain, the HTTP status each request got, and which bot protection blocked it. Also reports the homepage status for a regular browser, so a bot rule can be told apart from a site that is down. Requires website read permission.",
 			method: "POST",
 			path: "/websites/checkAgentSetup",
 			summary: "Check AI agent tracking setup",
 			tags: ["Websites"],
 		})
 		.input(z.object({ websiteId: z.string() }))
-		.output(z.object({ homepage: z.boolean(), llmsTxt: z.boolean() }))
+		.output(
+			z.object({
+				homepage: z.boolean(),
+				llmsTxt: z.boolean(),
+				probes: z.object({
+					homepage: agentProbeSchema,
+					llmsTxt: agentProbeSchema,
+				}),
+				controlStatus: z.number().nullable(),
+			})
+		)
 		.handler(async ({ context, input }) => {
 			const { website } = await withWorkspace(context, {
 				websiteId: input.websiteId,
@@ -1220,20 +1478,23 @@ export const websitesRouter = {
 			if (!website) {
 				throw rpcError.notFound("website");
 			}
-			const [homepage, llmsTxt] = await Promise.all([
-				isAgentRequestRecorded(website.id, `https://${website.domain}/`),
-				isAgentRequestRecorded(
-					website.id,
-					`https://${website.domain}/llms.txt`
-				),
+			const [homepage, llmsTxt, control] = await Promise.all([
+				probeAgentRequest(website, "/"),
+				probeAgentRequest(website, "/llms.txt"),
+				fetchWithoutBody(`https://${website.domain}/`, BROWSER_HEADERS, 5000),
 			]);
-			return { homepage, llmsTxt };
+			return {
+				homepage: homepage.recorded,
+				llmsTxt: llmsTxt.recorded,
+				probes: { homepage: homepage.probe, llmsTxt: llmsTxt.probe },
+				controlStatus: control?.status ?? null,
+			};
 		}),
 
 	checkAiRobots: protectedProcedure
 		.route({
 			description:
-				"Reads the website's robots.txt and reports, for each AI crawler user agent, whether it is allowed, partly blocked, or blocked. Requires website read permission.",
+				"Reads the website's robots.txt and reports, for each AI crawler user agent, whether it is allowed, partly blocked, or blocked, and since when a blocked crawler has been blocked. Requires website read permission.",
 			method: "POST",
 			path: "/websites/checkAiRobots",
 			summary: "Check robots.txt rules for AI crawlers",
@@ -1242,13 +1503,16 @@ export const websitesRouter = {
 		.input(
 			z.object({
 				websiteId: z.string(),
-				userAgents: z.array(z.string().max(512)).max(100),
+				userAgents: z
+					.array(z.string().transform((userAgent) => userAgent.slice(0, 2048)))
+					.max(1000),
 			})
 		)
 		.output(
 			z.object({
 				hasRobotsTxt: z.boolean(),
 				access: z.array(z.enum(ROBOTS_ACCESS)),
+				blockedSince: z.array(z.string().nullable()),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -1260,11 +1524,17 @@ export const websitesRouter = {
 				throw rpcError.notFound("website");
 			}
 			const robotsTxt = await fetchRobotsTxt(website.domain);
-			const groups = robotsTxt ? parseRobotsTxt(robotsTxt) : [];
+			const accessByAgent = robotsAccessByAgent(robotsTxt ?? "");
+			const access = input.userAgents.map((userAgent) =>
+				robotsAccessFor(accessByAgent, userAgent)
+			);
 			return {
 				hasRobotsTxt: robotsTxt !== null,
-				access: input.userAgents.map((userAgent) =>
-					robotsAccessFor(groups, userAgent)
+				access,
+				blockedSince: await robotsBlockedSince(
+					website.id,
+					input.userAgents,
+					access
 				),
 			};
 		}),

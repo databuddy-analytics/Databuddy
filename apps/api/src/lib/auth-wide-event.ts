@@ -1,4 +1,5 @@
 import {
+	type ApiKeyRow,
 	type ResolveApiKeyResult,
 	isApiKeyPresent,
 	resolveApiKey,
@@ -16,6 +17,24 @@ const authCache = new WeakMap<Headers, ResolvedAuth>();
 
 export function getResolvedAuth(headers: Headers): ResolvedAuth | undefined {
 	return authCache.get(headers);
+}
+
+export async function resolveRequestAuth(headers: Headers): Promise<{
+	apiKey: ApiKeyRow | null;
+	session: ResolvedAuth["session"];
+}> {
+	const cached = getResolvedAuth(headers);
+	if (cached) {
+		return {
+			apiKey: cached.apiKeyResult?.key ?? null,
+			session: cached.session,
+		};
+	}
+	const [apiKeyResult, session] = await Promise.all([
+		isApiKeyPresent(headers) ? resolveApiKey(headers) : null,
+		auth.api.getSession({ headers }),
+	]);
+	return { apiKey: apiKeyResult?.key ?? null, session };
 }
 
 export async function applyAuthWideEvent(headers: Headers): Promise<void> {

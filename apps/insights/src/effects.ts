@@ -369,6 +369,10 @@ export async function drainInsightRunEffects(
 						.orderBy(insightRunEffects.createdAt, insightRunEffects.id)
 						.limit(1)
 				: [];
+			if (payload.replyOnly && !root?.externalId) {
+				await checkpointEffectSuccess(effect.id, identity.itemId, null);
+				continue;
+			}
 			externalId = await (handlers.slack ?? deliverInsightSlackEffect)(
 				payload,
 				{

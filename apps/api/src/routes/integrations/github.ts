@@ -257,7 +257,7 @@ async function handleInstallCallback(
 		if (!account) {
 			throw new GitHubInstallError(
 				"GitHub installation could not be verified",
-				"Could not verify GitHub installation"
+				"Failed to verify GitHub installation"
 			);
 		}
 
@@ -282,7 +282,7 @@ async function handleInstallCallback(
 		);
 		return integrationsRedirect(
 			"error",
-			publicInstallErrorMessage(error, "Could not finish GitHub install")
+			publicInstallErrorMessage(error, "Failed to finish GitHub install")
 		);
 	}
 }
@@ -318,7 +318,7 @@ export const githubIntegrationRoutes = new Elysia({
 				);
 				return integrationsRedirect(
 					"error",
-					publicInstallErrorMessage(error, "Could not start GitHub install")
+					publicInstallErrorMessage(error, "Failed to start GitHub install")
 				);
 			}
 		},

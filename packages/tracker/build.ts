@@ -1,4 +1,4 @@
-import { build } from "bun";
+import { build, file, gzipSync } from "bun";
 
 const common = {
 	target: "browser",
@@ -36,4 +36,7 @@ for (const { src, name } of entrypoints) {
 	});
 }
 
-console.log("Build completed!");
+const gzipBytes = gzipSync(await file("./dist/databuddy.js").bytes(), {
+	level: 9,
+}).length;
+console.log(`Build completed! databuddy.js is ${gzipBytes} bytes gzipped.`);

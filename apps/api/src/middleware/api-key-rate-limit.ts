@@ -192,7 +192,7 @@ export function enforceApiKeyInFlightLimit(
 			reset: Date.now() + API_KEY_IN_FLIGHT_RETRY_AFTER_SECONDS * 1000,
 			success: false,
 		},
-		"Too many concurrent API key requests"
+		"Too many concurrent requests for this API key. Try again shortly."
 	);
 }
 export async function enforceApiKeyRateLimit(
@@ -250,7 +250,7 @@ export async function enforceApiKeyRateLimit(
 		request,
 		setHeader,
 		result,
-		"API key rate limit exceeded"
+		"Too many requests for this API key. Try again shortly."
 	);
 }
 

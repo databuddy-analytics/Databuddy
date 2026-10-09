@@ -1,55 +1,32 @@
 import {
+	asksToRemember,
 	formatMemoryForPrompt,
 	getMemoryContext,
 	isMemoryEnabled,
 	storeConversation,
 } from "../../lib/supermemory";
-import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
 import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
+import type { AgentPrincipal, DatabuddyAgentOptions } from "../../agent";
 import { createConversationAgent } from "../agents/conversation";
-import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
-import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { loadOrganizationBusinessContext } from "../../lib/organization-business-context";
-import { matchesWebsiteDomain } from "../../lib/website-domain";
-import { mergeWideEvent } from "../../lib/tracing";
-import {
-	getAgentBillingAccess,
-	resolveAgentBillingCustomerId,
-	trackAgentUsageAndBill,
-} from "../agents/execution";
+import { captureError } from "../../lib/tracing";
+import { trackAgentUsageAndBill } from "../agents/execution";
 import { createMcpAgentConfig } from "../agents/mcp";
-import { getDefaultAgentModelId } from "../config/models";
-import type { AppMutationMode } from "../config/context";
-import type { DatabuddyAgentSlackContext } from "./slack-context";
+import { type AgentSource, getDefaultAgentModelId } from "../config/models";
+import { prependBackgroundContext } from "../prompts/context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
-type AgentBillingMode = "bill" | "skip";
+const EMPTY_ANSWER =
+	"No answer was generated from the gathered evidence. Try a narrower question: one metric, one segment, or one time range.";
 
-export interface RunMcpAgentOptions {
-	abortSignal?: AbortSignal;
-	apiKey: ApiKeyRow | null;
-	billingMode?: AgentBillingMode;
-	conversationId?: string;
-	memoryUserId?: string | null;
-	modelOverride?: string | null;
-	mutationMode?: AppMutationMode;
-	onToolEvent?: (toolNames: string[]) => void;
-	/** Called once after a stream completes and its usage has been settled. */
-	onToolTrace?: (trace: McpAgentToolTrace[]) => void;
-	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
-	question: string;
-	requestHeaders: Headers;
-	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: "dashboard" | "mcp" | "slack";
-	storeMemory?: boolean;
-	timeoutMs?: number;
-	timezone?: string;
-	userId: string | null;
-	websiteDomain?: string | null;
-	websiteId?: string | null;
-}
+export type RunMcpAgentOptions = DatabuddyAgentOptions & {
+	conversationId: string;
+	conversationUserId: string | null;
+	memoryUserId: string | null;
+	principal: AgentPrincipal;
+	source: AgentSource;
+};
 
 export interface McpAgentToolTrace {
 	index: number;
@@ -58,7 +35,7 @@ export interface McpAgentToolTrace {
 	output: unknown;
 }
 
-export interface RunMcpAgentTraceResult {
+interface RunMcpAgentTraceResult {
 	answer: string;
 	steps: number;
 	toolCalls: McpAgentToolTrace[];
@@ -80,14 +57,13 @@ export async function runMcpAgent(
 
 		await trackPreparedUsage(prepared, result.totalUsage);
 
-		const answer = result.text ?? "No response generated.";
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, options.question, answer);
-		}
+		const answer = result.text.trim() || EMPTY_ANSWER;
+		storePreparedConversation(prepared, answer);
 
 		return answer;
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -104,14 +80,8 @@ export async function runMcpAgentWithTrace(
 		});
 
 		await trackPreparedUsage(prepared, result.totalUsage);
-		const stepCount = result.steps.length;
-		const rawAnswer = (result.text ?? "").trim();
-		const answer =
-			rawAnswer ||
-			`I ran ${stepCount} step${stepCount === 1 ? "" : "s"} but couldn't fit a summary into this turn. The question is wide enough that I exhausted the step budget gathering data. Ask me a narrower slice (one metric, one segment, one time range) and I'll give you a focused answer.`;
-		if (options.storeMemory !== false) {
-			storePreparedConversation(prepared, options.question, answer);
-		}
+		const answer = result.text.trim() || EMPTY_ANSWER;
+		storePreparedConversation(prepared, answer);
 
 		return {
 			answer,
@@ -126,6 +96,7 @@ export async function runMcpAgentWithTrace(
 		throw err;
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -148,7 +119,7 @@ async function buildTruncatedTrace(
 	await trackPreparedUsage(prepared, usage);
 	const stepCount = steps.length;
 	return {
-		answer: `The investigation reached its time budget after ${stepCount} step${stepCount === 1 ? "" : "s"} and was stopped before composing a final summary. The partial tool trace is the only evidence gathered.`,
+		answer: `The run reached its time budget after ${stepCount} step${stepCount === 1 ? "" : "s"} and was stopped before composing a final summary. The partial tool trace is the only evidence gathered.`,
 		steps: stepCount,
 		toolCalls: collectToolTrace(steps),
 		truncated: true,
@@ -159,30 +130,25 @@ async function buildTruncatedTrace(
 function aggregateStepUsage(
 	steps: ReadonlyArray<{ usage: LanguageModelUsage }>
 ): LanguageModelUsage {
-	let inputTokens = 0;
-	let outputTokens = 0;
-	let totalTokens = 0;
-	let noCacheTokens = 0;
-	let cacheReadTokens = 0;
-	let cacheWriteTokens = 0;
-	let textTokens = 0;
-	let reasoningTokens = 0;
-	for (const { usage } of steps) {
-		inputTokens += usage.inputTokens ?? 0;
-		outputTokens += usage.outputTokens ?? 0;
-		totalTokens += usage.totalTokens ?? 0;
-		noCacheTokens += usage.inputTokenDetails?.noCacheTokens ?? 0;
-		cacheReadTokens += usage.inputTokenDetails?.cacheReadTokens ?? 0;
-		cacheWriteTokens += usage.inputTokenDetails?.cacheWriteTokens ?? 0;
-		textTokens += usage.outputTokenDetails?.textTokens ?? 0;
-		reasoningTokens += usage.outputTokenDetails?.reasoningTokens ?? 0;
-	}
+	const sum = (pick: (usage: LanguageModelUsage) => number | undefined) =>
+		steps.reduce((total, { usage }) => total + (pick(usage) ?? 0), 0);
 	return {
-		inputTokens,
-		outputTokens,
-		totalTokens,
-		inputTokenDetails: { noCacheTokens, cacheReadTokens, cacheWriteTokens },
-		outputTokenDetails: { textTokens, reasoningTokens },
+		inputTokens: sum((usage) => usage.inputTokens),
+		outputTokens: sum((usage) => usage.outputTokens),
+		totalTokens: sum((usage) => usage.totalTokens),
+		inputTokenDetails: {
+			noCacheTokens: sum((usage) => usage.inputTokenDetails?.noCacheTokens),
+			cacheReadTokens: sum((usage) => usage.inputTokenDetails?.cacheReadTokens),
+			cacheWriteTokens: sum(
+				(usage) => usage.inputTokenDetails?.cacheWriteTokens
+			),
+		},
+		outputTokenDetails: {
+			textTokens: sum((usage) => usage.outputTokenDetails?.textTokens),
+			reasoningTokens: sum(
+				(usage) => usage.outputTokenDetails?.reasoningTokens
+			),
+		},
 	};
 }
 
@@ -198,25 +164,45 @@ export async function* streamMcpAgentText(
 			abortSignal: abort.signal,
 		});
 		let answer = "";
+		let streamFailure: { error: unknown } | undefined;
 
-		for await (const chunk of result.textStream) {
-			answer += chunk;
-			yield chunk;
+		for await (const part of result.fullStream) {
+			if (part.type === "text-delta" && !streamFailure) {
+				answer += part.text;
+				yield part.text;
+			} else if (part.type === "error") {
+				streamFailure ??= { error: part.error };
+			} else if (part.type === "abort") {
+				streamFailure ??= {
+					error:
+						abort.signal.reason ??
+						new DOMException(
+							part.reason ?? "Agent stream aborted",
+							"AbortError"
+						),
+				};
+			} else if (part.type === "finish" && part.finishReason === "error") {
+				streamFailure ??= { error: new Error("Agent stream failed") };
+			}
 		}
-
+		if (streamFailure) {
+			throw streamFailure.error;
+		}
+		abort.signal.throwIfAborted();
 		const usage = await result.totalUsage;
 		await trackPreparedUsage(prepared, usage);
-		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
-		if (options.storeMemory !== false) {
-			storePreparedConversation(
-				prepared,
-				options.question,
-				answer.trim() ||
-					"I exhausted the step budget gathering data without composing a summary. Try a narrower question."
-			);
+		abort.signal.throwIfAborted();
+
+		if (!answer.trim()) {
+			answer = EMPTY_ANSWER;
+			yield answer;
 		}
+
+		options.onToolTrace?.(collectToolTrace(prepared.capturedSteps));
+		storePreparedConversation(prepared, answer);
 	} finally {
 		abort.cleanup();
+		await settleRemainingUsage(prepared);
 	}
 }
 
@@ -244,6 +230,7 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 
 	return {
 		cleanup: () => {
+			controller.abort();
 			clearTimeout(timeout);
 			externalSignal?.removeEventListener("abort", abortFromExternalSignal);
 		},
@@ -252,76 +239,20 @@ function createRunAbortController(options: RunMcpAgentOptions): {
 }
 
 async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
-	const sessionId = options.conversationId ?? crypto.randomUUID();
-	const mcpUserId = options.userId ?? options.apiKey?.userId ?? null;
-	const memoryUserId = options.memoryUserId ?? mcpUserId;
-	const session =
-		!options.apiKey && mcpUserId
-			? await auth.api.getSession({ headers: options.requestHeaders })
-			: null;
-	const organizationId = options.apiKey
-		? options.apiKey.organizationId
-		: session?.user.id === mcpUserId
-			? (session?.session.activeOrganizationId ?? null)
-			: null;
-	const [accessibleWebsites, billingCustomerId] = await Promise.all([
-		getAccessibleWebsites({
-			apiKey: options.apiKey,
-			organizationId,
-			user: session?.user.id === mcpUserId ? session.user : null,
-		}),
-		options.billingMode === "skip"
-			? Promise.resolve(null)
-			: resolveAgentBillingCustomerId({
-					userId: mcpUserId,
-					apiKey: options.apiKey,
-					organizationId,
-				}),
-	]);
-	const websiteDomain = options.websiteDomain;
-	// A caller-supplied site must not bind another organization's brief or tools.
-	if (
-		(options.websiteId &&
-			!accessibleWebsites.some((site) => site.id === options.websiteId)) ||
-		(websiteDomain &&
-			!accessibleWebsites.some(
-				(site) =>
-					matchesWebsiteDomain(site.domain, websiteDomain) &&
-					(!options.websiteId || site.id === options.websiteId)
-			))
-	) {
-		throw new Error("Website is not accessible in this organization");
-	}
-	const source = options.source ?? "mcp";
-	const selectedModelId =
-		options.modelOverride ?? getDefaultAgentModelId(source);
-
-	const apiKeyId = options.apiKey?.id ?? null;
-
-	mergeWideEvent({
-		agent_billing_mode: options.billingMode === "skip" ? "skip" : "bill",
-	});
-
-	const billingAccess =
-		options.billingMode === "skip"
-			? undefined
-			: await getAgentBillingAccess(billingCustomerId);
-	if (billingAccess && !billingAccess.allowed) {
-		throw new DatabuddyAgentUserError({
-			code: "agent_credits_exhausted",
-			message:
-				"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
-		});
-	}
+	const { conversationId, memoryUserId, principal, source } = options;
+	const { accessibleWebsites, apiKey, organizationId, userId, website } =
+		principal;
+	const historyInput = options.historyInput ?? options.input;
 
 	const [config, memoryCtx, businessContext] = await Promise.all([
 		createMcpAgentConfig({
-			billingCustomerId,
-			requestHeaders: options.requestHeaders,
-			apiKey: options.apiKey,
-			userId: mcpUserId,
+			billingCustomerId: principal.billingCustomerId,
+			requestHeaders: principal.requestHeaders,
+			apiKey,
+			userId,
 			timezone: options.timezone,
-			chatId: sessionId,
+			chatId: conversationId,
+			latestUserMessage: historyInput,
 			modelOverride: options.modelOverride,
 			memoryUserId,
 			mutationMode: options.mutationMode,
@@ -329,37 +260,19 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			accessibleWebsites,
 			slackContext: options.slackContext,
 			source,
-			websiteDomain: options.websiteDomain,
-			websiteId: options.websiteId,
+			websiteDomain: website?.domain,
+			websiteId: website?.id,
 		}),
 		isMemoryEnabled()
-			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
-					websiteId: options.websiteId ?? undefined,
-				})
+			? getMemoryContext(historyInput, memoryUserId, apiKey?.id ?? null)
 			: Promise.resolve(null),
 		loadOrganizationBusinessContext({
 			organizationId,
 			accessibleWebsites,
-			websiteIds: options.websiteId ? [options.websiteId] : [],
+			websiteIds: website ? [website.id] : [],
 			abortSignal: options.abortSignal,
 		}),
 	]);
-
-	const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
-
-	const mcpTelemetryMetadata: Record<string, string> = {
-		source,
-		authType: options.apiKey ? "api_key" : "session",
-		timezone: options.timezone ?? "UTC",
-		"tcc.conversational": "true",
-	};
-	if (mcpUserId) {
-		mcpTelemetryMetadata.userId = mcpUserId;
-	}
-	if (options.apiKey?.organizationId) {
-		mcpTelemetryMetadata.organizationId = options.apiKey.organizationId;
-	}
-	mcpTelemetryMetadata["tcc.sessionId"] = sessionId;
 
 	const ai = getAILogger();
 	const capturedSteps: StepResult<ToolSet>[] = [];
@@ -376,38 +289,32 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			experimental_telemetry: {
 				isEnabled: true,
 				functionId: `databuddy.${source}.ask`,
-				metadata: mcpTelemetryMetadata,
+				metadata: {
+					source,
+					authType: apiKey ? "api_key" : "session",
+					timezone: options.timezone ?? "UTC",
+					"tcc.conversational": "true",
+					...(userId && { userId }),
+					organizationId,
+					"tcc.sessionId": conversationId,
+				},
 			},
 		}
 	);
 
-	const contextBlock = [businessContext, memoryBlock]
-		.filter(Boolean)
-		.join("\n\n");
-	const questionContent = contextBlock
-		? `<context>\n${contextBlock}\n</context>\n\n${options.question}`
-		: options.question;
-
-	const messages = [
-		...(options.priorMessages ?? []),
-		{ role: "user" as const, content: questionContent },
-	];
+	const messages = prependBackgroundContext(
+		[...(options.history ?? []), { role: "user", content: options.input }],
+		[businessContext, memoryCtx ? formatMemoryForPrompt(memoryCtx) : ""]
+	);
 
 	return {
 		agent,
-		apiKeyId,
-		billingCustomerId,
-		billingAccess,
 		capturedSteps,
-		memoryUserId,
-		mcpUserId,
+		historyInput,
 		messages,
-		modelId: selectedModelId,
-		organizationId,
-		sessionId,
-		source,
-		websiteDomain: options.websiteDomain ?? undefined,
-		websiteId: options.websiteId ?? undefined,
+		modelId: options.modelOverride ?? getDefaultAgentModelId(source),
+		options,
+		usageSettlementAttempted: false,
 	};
 }
 
@@ -415,16 +322,51 @@ async function trackPreparedUsage(
 	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	usage: LanguageModelUsage
 ): Promise<void> {
+	if (prepared.usageSettlementAttempted) {
+		return;
+	}
+	// An uncertain charge must not be replayed by cleanup.
+	prepared.usageSettlementAttempted = true;
+	const { conversationId, principal, source } = prepared.options;
 	await trackAgentUsageAndBill({
-		usage,
+		usage: {
+			...usage,
+			...(prepared.capturedSteps.length > 0
+				? { stepUsages: prepared.capturedSteps.map((step) => step.usage) }
+				: {}),
+		},
 		modelId: prepared.modelId,
-		source: prepared.source,
-		organizationId: prepared.organizationId,
-		userId: prepared.mcpUserId,
-		chatId: prepared.sessionId,
-		billingCustomerId: prepared.billingCustomerId,
-		billingAccess: prepared.billingAccess,
+		source,
+		organizationId: principal.organizationId,
+		userId: principal.userId,
+		chatId: conversationId,
+		billingCustomerId: principal.billingCustomerId,
+		billingAccess: principal.billingAccess,
 	});
+}
+
+async function settleRemainingUsage(
+	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>
+): Promise<void> {
+	if (
+		prepared.usageSettlementAttempted ||
+		prepared.capturedSteps.length === 0
+	) {
+		return;
+	}
+	try {
+		await trackPreparedUsage(
+			prepared,
+			aggregateStepUsage(prepared.capturedSteps)
+		);
+	} catch (error) {
+		// Preserve the model error or consumer cancellation that entered cleanup.
+		captureError(error, {
+			agent_usage_billing_error: true,
+			agent_source: prepared.options.source,
+			agent_chat_id: prepared.options.conversationId,
+		});
+	}
 }
 
 function collectToolTrace(
@@ -448,22 +390,29 @@ function collectToolTrace(
 }
 
 function storePreparedConversation(
-	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
-	question: string,
+	{ historyInput, options }: Awaited<ReturnType<typeof prepareMcpAgentRun>>,
 	answer: string
 ): void {
+	if (
+		options.persistConversation === false ||
+		options.mutationMode === "dry-run" ||
+		!asksToRemember(historyInput)
+	) {
+		return;
+	}
+	const { website } = options.principal;
 	storeConversation(
 		[
-			{ role: "user", content: question },
+			{ role: "user", content: historyInput },
 			{ role: "assistant", content: answer },
 		],
-		prepared.memoryUserId,
-		prepared.apiKeyId,
+		options.memoryUserId,
+		options.principal.apiKey?.id ?? null,
 		{
-			...(prepared.websiteDomain ? { domain: prepared.websiteDomain } : {}),
-			metadata: { source: prepared.source },
-			conversationId: prepared.sessionId,
-			websiteId: prepared.websiteId,
+			...(website?.domain ? { domain: website.domain } : {}),
+			metadata: { source: options.source },
+			conversationId: options.conversationId,
+			websiteId: website?.id,
 		}
 	);
 }

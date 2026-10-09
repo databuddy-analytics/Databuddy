@@ -43,21 +43,21 @@ interface ModeConfig {
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
 	create: {
-		title: "Create Annotation",
+		title: "Create annotation",
 		confirmLabel: "Create",
 		confirmMessage: "Yes, create it",
 		accent: "",
 		ButtonIcon: CheckIcon,
 	},
 	update: {
-		title: "Update Annotation",
+		title: "Update annotation",
 		confirmLabel: "Update",
 		confirmMessage: "Yes, update it",
 		accent: "border-amber-500/30",
 		ButtonIcon: CheckIcon,
 	},
 	delete: {
-		title: "Delete Annotation",
+		title: "Delete annotation",
 		confirmLabel: "Delete",
 		confirmMessage: "Yes, delete it",
 		accent: "border-destructive/30",

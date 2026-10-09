@@ -385,9 +385,6 @@ describe("public pricing copy", () => {
 		expect(header("intelligence")).toContain("bg-primary/10");
 		expect(header("pro")).not.toContain("bg-primary/10");
 		expect(header("intelligence")).toContain("Recommended");
-		expect(header("intelligence")).toContain(
-			"An always-on product investigator"
-		);
 		for (const plan of normalizePlans(RAW_PLANS)) {
 			expect(plan.description).toBeTruthy();
 			expect(header(plan.id)).toContain(plan.description ?? "");

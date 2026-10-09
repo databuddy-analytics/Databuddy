@@ -2,6 +2,7 @@ import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
@@ -47,7 +48,7 @@ const QUERY_KEYS = {
 const createMutation = <TData, TVariables>(
 	mutationFn: (variables: TVariables) => Promise<TData>,
 	successMessage: string,
-	_errorMessage: string,
+	errorMessage: string,
 	onSuccessCallback?: () => void,
 	options: { showToast?: boolean } = { showToast: true }
 ) => ({
@@ -58,6 +59,8 @@ const createMutation = <TData, TVariables>(
 			toast.success(successMessage);
 		}
 	},
+	onError: (error: unknown) => showErrorToast(error, errorMessage),
+	meta: { suppressGlobalErrorToast: true },
 });
 
 export function useOrganizations() {
@@ -103,7 +106,7 @@ export function useOrganizations() {
 				}
 				return result;
 			},
-			"Organization created successfully",
+			"Organization created",
 			"Failed to create organization",
 			invalidateOrganizationQueries
 		)
@@ -135,7 +138,7 @@ export function useOrganizations() {
 				}
 				return result;
 			},
-			"Organization updated successfully",
+			"Organization updated",
 			"Failed to update organization",
 			invalidateOrganizationQueries
 		)
@@ -145,8 +148,9 @@ export function useOrganizations() {
 		...orpc.organizations.updateAvatarSeed.mutationOptions(),
 		onSuccess: () => {
 			invalidateOrganizationQueries();
-			toast.success("Avatar updated successfully");
+			toast.success("Avatar updated");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const deleteOrganizationMutation = useMutation(
@@ -161,7 +165,7 @@ export function useOrganizations() {
 				}
 				return result;
 			},
-			"Organization deleted successfully",
+			"Organization deleted",
 			"Failed to delete organization",
 			invalidateOrganizationQueries
 		)
@@ -204,9 +208,11 @@ export function useOrganizations() {
 			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
 			toast.success("Organization updated");
 		},
-		onError: () => {
+		onError: (error) => {
 			setPendingActiveOrganizationId(null);
+			showErrorToast(error, "Failed to switch organization");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const leaveOrganizationMutation = useMutation(
@@ -221,7 +227,7 @@ export function useOrganizations() {
 				}
 				return result;
 			},
-			"Left organization successfully",
+			"Left organization",
 			"Failed to leave organization",
 			invalidateOrganizationQueries
 		)
@@ -313,7 +319,7 @@ export function useOrganizationMembers(organizationId: string) {
 				}
 				return result;
 			},
-			"Member role updated successfully",
+			"Member role updated",
 			"Failed to update member role",
 			invalidateMembers
 		)
@@ -332,7 +338,7 @@ export function useOrganizationMembers(organizationId: string) {
 				}
 				return result;
 			},
-			"Member removed successfully",
+			"Member removed",
 			"Failed to remove member",
 			invalidateMembers
 		)

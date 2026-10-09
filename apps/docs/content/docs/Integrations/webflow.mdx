@@ -1,6 +1,6 @@
 ---
 title: Webflow
-description: Add privacy-first analytics to your Webflow site
+description: Add cookieless product analytics to your Webflow site
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,12 +8,12 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your Webflow site to track page views, capture custom events, and gather insights about your visitors.
+Add Databuddy's cookieless product analytics to your Webflow site to track pageviews, capture custom events, and gather insights about your visitors.
 
-## How to Add Databuddy to Webflow
+## How to add Databuddy to Webflow
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Navigate to your [Databuddy dashboard](https://app.databuddy.cc) to get your tracking code snippet.
 
     <CodeBlock
@@ -27,7 +27,7 @@ Add Databuddy's privacy-first analytics to your Webflow site to track page views
     />
   </Step>
 
-  <Step title="Add to Your Webflow Project">
+  <Step title="Add to your Webflow project">
     In your Webflow project:
     1. Go to **Site settings > Custom code**
     2. Paste your Databuddy snippet into the **Head code** section
@@ -36,25 +36,25 @@ Add Databuddy's privacy-first analytics to your Webflow site to track page views
 </Steps>
 
 <Callout type="info">
-  **Page View Tracking in Webflow**:
+  **Pageview tracking in Webflow**:
 
   - **Standard Navigation**: Databuddy automatically tracks each page load when users navigate between pages in Webflow
-  - **Interactions & Animations**: Webflow interactions that change content without changing the URL (like tabs or multi-step forms on a single page) won't trigger automatic page views. Use custom event tracking to track these interactions
-  - **Single-Page Sites**: If your Webflow site uses a single-page design with sections, only one page view will be tracked unless you implement custom event tracking for section views
+  - **Interactions & Animations**: Webflow interactions that change content without changing the URL (like tabs or multi-step forms on a single page) won't trigger automatic pageviews. Use custom event tracking to track these interactions
+  - **Single-Page Sites**: If your Webflow site uses a single-page design with sections, only one pageview will be tracked unless you implement custom event tracking for section views
 </Callout>
 
-## Custom Event Tracking in Webflow
+## Custom event tracking in Webflow
 
 Track custom events in Webflow by adding JavaScript code. You can add this in **Site Settings > Custom Code** (for global scripts) or within an **Embed** element on specific pages.
 
-### Tracking Button Clicks
+### Tracking button clicks
 
 Track when users click specific buttons:
 
 1. **Give your button an ID:**
    - Select the button element in the Webflow Designer
    - Go to the **Settings** panel (cog icon)
-   - Under **General**, set a unique **ID** for the button (e.g., `cta-button`)
+   - Under **General**, set a unique **ID** for the button (e.g. `cta-button`)
 
 2. **Add Custom JavaScript:**
    Add this script in **Site Settings > Custom Code > Footer Code** for global availability, or in an Embed element on the page:
@@ -78,14 +78,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-### Tracking Form Submissions
+### Tracking form submissions
 
 Track form submissions from Webflow forms:
 
 1. **Give your form an ID:**
    - Select the Form Block element
    - Go to the **Settings** panel
-   - Set a unique **ID** (e.g., `contact-form`)
+   - Set a unique **ID** (e.g. `contact-form`)
 
 2. **Add Custom JavaScript:**
 
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
    **Note**: For Webflow's native form handling, you may want to track the submit button click instead, or hook into Webflow's form success state if available.
 
-### Tracking Section Views
+### Tracking section views
 
 Track when users view specific sections on a single-page site:
 
@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 Then add `data-track-section` attribute to sections you want to track in the Webflow Designer.
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes by adding this to your script tag:
 
@@ -185,7 +185,7 @@ Then add `data-track` attributes directly to elements in Webflow:
   - Use `DOMContentLoaded` event listener to ensure elements are available before attaching event listeners
 </Callout>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -204,9 +204,9 @@ Enable additional tracking features by adding data attributes to your script tag
 ></script>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### E-commerce Tracking
+### E-commerce tracking
 
 Track product views and add-to-cart events:
 
@@ -226,7 +226,7 @@ window.databuddy.track('add_to_cart', {
 });`}
 />
 
-### Newsletter Signups
+### Newsletter signups
 
 Track newsletter subscriptions:
 
@@ -243,7 +243,7 @@ if (newsletterForm && window.databuddy) {
 }`}
 />
 
-### Video Engagement
+### Video engagement
 
 Track video plays and completions:
 
@@ -268,27 +268,27 @@ if (video && window.databuddy) {
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the **Head code** section of Site Settings
 - Check browser console for errors
 - Ensure your Client ID is correct
 - Clear Webflow cache and republish
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Check that elements exist before attaching event listeners
 - Use `DOMContentLoaded` to ensure DOM is ready
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 
-### Webflow Interactions
+### Webflow interactions
 
 - Custom scripts may need to wait for Webflow interactions to initialize
 - Consider using `setTimeout` for timing-sensitive tracking
 - Test in different browsers and devices
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Framer" href="/docs/Integrations/framer">

@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Databuddy",
-    "description": "Investigate analytics changes and continue fixes in Slack."
+    "description": "Get investigation alerts and analytics answers in Slack."
   },
   "features": {
     "app_home": {
@@ -10,19 +10,19 @@
       "messages_tab_read_only_enabled": false
     },
     "assistant_view": {
-      "assistant_description": "Run, review, and continue Databuddy investigations without leaving Slack.",
+      "assistant_description": "Review Databuddy investigations and ask about your analytics without leaving Slack.",
       "suggested_prompts": [
         {
           "title": "Open investigations",
           "message": "Show me our open investigations and what needs attention first."
         },
         {
-          "title": "Run an investigation",
-          "message": "Run a new investigation now."
+          "title": "What changed",
+          "message": "What changed on our sites this week, and why?"
         },
         {
-          "title": "Weekly delivery",
-          "message": "Send new investigations to this channel every week."
+          "title": "Traffic sources",
+          "message": "Where did our visitors come from in the last 7 days?"
         }
       ]
     },

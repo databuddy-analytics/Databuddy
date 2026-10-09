@@ -123,7 +123,7 @@ export const alarmsRouter = {
 		.handler(async ({ context, input }) => {
 			const orgId = input.organizationId ?? context.organizationId;
 			if (!orgId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -157,14 +157,14 @@ export const alarmsRouter = {
 			z.object({
 				organizationId: z.string(),
 				websiteId: z.string().optional(),
-				name: z.string().min(1, "Name is required"),
+				name: z.string().min(1, "Enter a name for this alert."),
 				description: z.string().optional(),
 				enabled: z.boolean().default(true),
 				triggerType: z.enum(alarmTriggerTypeValues),
 				triggerConditions: z.record(z.string(), z.unknown()).default({}),
 				destinations: z
 					.array(destinationSchema)
-					.min(1, "At least one destination is required")
+					.min(1, "Add at least one place to send this alert.")
 					.max(MAX_ALARM_DESTINATIONS),
 			})
 		)
@@ -354,7 +354,9 @@ export const alarmsRouter = {
 			}
 
 			if (!alarm.destinations || alarm.destinations.length === 0) {
-				throw rpcError.badRequest("Alarm has no destinations configured");
+				throw rpcError.badRequest(
+					"This alert has nowhere to send notifications. Add a destination and try again."
+				);
 			}
 
 			const targets = toNotificationTargets(alarm.destinations);

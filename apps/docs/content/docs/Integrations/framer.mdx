@@ -1,6 +1,6 @@
 ---
 title: Framer
-description: Add privacy-first analytics to your Framer site
+description: Add cookieless product analytics to your Framer site
 ---
 
 import { Step, Steps } from "@/components/docs";
@@ -14,16 +14,16 @@ Track visits, custom events, errors, and performance on your Framer site. Databu
 **Easy Setup**: Install our [official Framer plugin](https://www.framer.com/marketplace/plugins/databuddy-analytics/) from the Framer Marketplace for the fastest setup, or manually add the script using the instructions below.
 </Callout>
 
-## Installation Methods
+## Installation methods
 
-### Option 1: Framer Plugin (Recommended)
+### Option 1: Framer plugin (recommended)
 
 The easiest way to add Databuddy to your Framer site is through our official plugin:
 
 <Steps>
 <Step>
 
-## Install the Plugin
+## Install the plugin
 
 1. Open your Framer project
 2. Go to **Plugins** in the left sidebar
@@ -33,7 +33,7 @@ The easiest way to add Databuddy to your Framer site is through our official plu
 </Step>
 <Step>
 
-## Configure Settings
+## Configure settings
 
 1. Enter your Client ID from your [Databuddy dashboard](https://app.databuddy.cc)
 2. Configure optional settings:
@@ -43,14 +43,14 @@ The easiest way to add Databuddy to your Framer site is through our official plu
 </Step>
 <Step>
 
-## Publish Your Site
+## Publish your site
 
 Click **Publish** to make your changes live.
 
 **Plugin Benefits**:
 - Zero configuration needed
 - Automatic updates
-- Self-hosted option available
+- Open-source code on GitHub
 - No manual code editing required
 
 <Callout type="success">
@@ -60,14 +60,14 @@ Plugin created by [Dominik Koch](https://dominikkoch.dev/)
 </Step>
 </Steps>
 
-### Option 2: Manual Installation
+### Option 2: Manual installation
 
 If you prefer manual control or need custom configuration:
 
 <Steps>
 <Step>
 
-## Get Your Tracking Script
+## Get your tracking script
 
 Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your tracking code snippet:
 
@@ -90,7 +90,7 @@ Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your t
 </Step>
 <Step>
 
-## Add the Script to Your Framer Project
+## Add the script to your Framer project
 
 1. Open your Framer project
 2. Go to **Site Settings** > **General**
@@ -101,7 +101,7 @@ Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your t
 </Step>
 <Step>
 
-## Verify Installation
+## Verify installation
 
 Once published, you can verify that Databuddy is working by:
 
@@ -117,9 +117,9 @@ If you see real-time data in your dashboard, congratulations! Databuddy is now t
 </Step>
 </Steps>
 
-## Advanced Features
+## Advanced features
 
-### Custom Event Tracking
+### Custom event tracking
 
 With `data-track-attributes="true"` enabled, track clicks using data attributes:
 
@@ -129,7 +129,7 @@ With `data-track-attributes="true"` enabled, track clicks using data attributes:
 <button data-track="cta_clicked" data-button-type="primary">Get Started</button>`}
 />
 
-### Performance Monitoring
+### Performance monitoring
 
 Replace your existing manual script with this configuration to enable performance tracking. Install the tracker once:
 
@@ -149,16 +149,16 @@ Replace your existing manual script with this configuration to enable performanc
 </script>`}
 />
 
-## Benefits for Framer Sites
+## Benefits for Framer sites
 
 - **Cookieless collection**: Browser storage, with opt-out and optional identification controls
 - **Performance visibility**: Collect Core Web Vitals when enabled
 - **Real-time data**: See recent visitor activity
-- **Open source**: Inspect and self-host the code
+- **Open source**: Inspect the code on GitHub (a packaged self-host release is pending)
 
 ## Troubleshooting
 
-### Plugin Issues
+### Plugin issues
 
 <Callout type="warning">
 If the plugin isn't working:
@@ -169,7 +169,7 @@ If the plugin isn't working:
 4. For self-hosted setups, verify your CDN and Dashboard URLs are correct
 </Callout>
 
-### Script Not Loading
+### Script not loading
 
 <Callout type="warning">
 If Databuddy isn't working:
@@ -180,7 +180,7 @@ If Databuddy isn't working:
 4. Check browser console for any error messages
 </Callout>
 
-### Data Not Appearing
+### Data not appearing
 
 <Callout type="info">
 If analytics data isn't showing:
@@ -191,7 +191,7 @@ If analytics data isn't showing:
 4. Try visiting your site in an incognito window
 </Callout>
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Webflow" href="/docs/Integrations/webflow">

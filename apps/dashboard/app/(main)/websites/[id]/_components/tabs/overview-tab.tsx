@@ -3,6 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { formatNumber } from "@/lib/formatters";
 import {
@@ -22,7 +23,10 @@ import {
 } from "@/components/table/rows";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import {
+	useBatchDynamicQuery,
+	useDynamicQuery,
+} from "@/hooks/use-dynamic-query";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
@@ -32,7 +36,10 @@ import {
 	formatDateByGranularity,
 } from "../utils/analytics-helpers";
 import type { FullTabProps, MetricPoint } from "../utils/types";
-import { AITrafficSection } from "./overview/_components/ai-traffic-section";
+import {
+	type AIProductRow,
+	AITrafficSection,
+} from "./overview/_components/ai-traffic-section";
 import { TrafficTrendsChart } from "./overview/_components/traffic-trends-chart";
 import {
 	ChartLineIcon,
@@ -136,6 +143,23 @@ export function WebsiteOverviewTab({
 	filters,
 	addFilter,
 }: WebsiteOverviewTabProps) {
+	const pathname = usePathname();
+	const isPublicView =
+		pathname.startsWith("/demo/") || pathname.startsWith("/public/");
+	const showAgentAnalytics = !isPublicView && filters.length === 0;
+	const { data: aiAnalytics, isLoading: isAILoading } = useDynamicQuery<{
+		ai_products: AIProductRow[];
+		ai_visitor_outcomes: { product: string; visitors: number }[];
+	}>(
+		websiteId,
+		dateRange,
+		{ parameters: ["ai_products", "ai_visitor_outcomes"], limit: 1000 },
+		{ enabled: showAgentAnalytics, retry: false }
+	);
+	const hasAgentAnalytics =
+		showAgentAnalytics &&
+		aiAnalytics.ai_products !== undefined &&
+		aiAnalytics.ai_visitor_outcomes !== undefined;
 	const { chartType, chartStepType } = useChartPreferences("overview-stats");
 	const isMobile = useMediaQuery("(max-width: 640px)");
 	const { setDateRangeAction } = useDateFilters();
@@ -287,7 +311,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_sources",
-				label: "UTM Sources",
+				label: "UTM sources",
 				data: analytics.utm_sources || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -302,7 +326,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_mediums",
-				label: "UTM Mediums",
+				label: "UTM mediums",
 				data: analytics.utm_mediums || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -317,7 +341,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "utm_campaigns",
-				label: "UTM Campaigns",
+				label: "UTM campaigns",
 				data: analytics.utm_campaigns || [],
 				columns: createMetricColumns({
 					includeName: true,
@@ -383,9 +407,12 @@ export function WebsiteOverviewTab({
 		while (current.isBefore(endDate) || current.isSame(endDate, "day")) {
 			if (isHourly) {
 				for (let hour = 0; hour < 24; hour++) {
-					const hourDate = current.hour(hour);
+					const hourDate = current.hour(hour).startOf("hour");
 					if (hourDate.isAfter(now)) {
 						break;
+					}
+					if (hourDate.isBefore(startDate.startOf("hour"))) {
+						continue;
 					}
 
 					const key = hourDate.format("YYYY-MM-DD HH:00:00");
@@ -520,7 +547,7 @@ export function WebsiteOverviewTab({
 		() => [
 			{
 				id: "top_pages",
-				label: "Top Pages",
+				label: "Top pages",
 				data: analytics.top_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -530,7 +557,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "entry_pages",
-				label: "Entry Pages",
+				label: "Entry pages",
 				data: analytics.entry_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -540,7 +567,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "exit_pages",
-				label: "Exit Pages",
+				label: "Exit pages",
 				data: analytics.exit_pages || [],
 				columns: createPageColumns() as ColumnDef<PageRowData, unknown>[],
 				getFilter: (row: PageRowData) => ({
@@ -550,7 +577,7 @@ export function WebsiteOverviewTab({
 			},
 			{
 				id: "page_time_analysis",
-				label: "Time Analysis",
+				label: "Time analysis",
 				data: analytics.page_time_analysis || [],
 				columns: createPageTimeColumns(),
 				getFilter: (row: any) => ({
@@ -572,7 +599,7 @@ export function WebsiteOverviewTab({
 			{
 				id: "device_type",
 				accessorKey: "device_type",
-				header: "Device Type",
+				header: "Device type",
 				cell: (info: CellInfo) => {
 					const row = info.row.original as { name: string };
 					return <DeviceTypeCell device_type={row.name} />;
@@ -643,7 +670,7 @@ export function WebsiteOverviewTab({
 			{
 				id: "name",
 				accessorKey: "name",
-				header: "Operating System",
+				header: "Operating system",
 				cell: createTechnologyCell("os"),
 				size: 200,
 				minSize: 140,
@@ -862,7 +889,7 @@ export function WebsiteOverviewTab({
 					},
 					{
 						id: "bounce-rate-chart",
-						title: "Bounce Rate",
+						title: "Bounce rate",
 						value:
 							analytics.summary?.bounce_rate != null &&
 							!Number.isNaN(analytics.summary.bounce_rate)
@@ -880,7 +907,7 @@ export function WebsiteOverviewTab({
 					},
 					{
 						id: "session-duration-chart",
-						title: "Session Duration",
+						title: "Session duration",
 						value: (() => {
 							const duration = analytics.summary?.median_session_duration;
 							if (!duration) {
@@ -950,8 +977,19 @@ export function WebsiteOverviewTab({
 			/>
 
 			<AITrafficSection
-				isLoading={isLoading}
+				agentsHref={
+					showAgentAnalytics ? `/websites/${websiteId}/agents` : undefined
+				}
+				isLoading={isLoading || (showAgentAnalytics && isAILoading)}
+				products={hasAgentAnalytics ? aiAnalytics.ai_products : undefined}
 				referrers={analytics.top_referrers || []}
+				totalVisitors={
+					hasAgentAnalytics
+						? (aiAnalytics.ai_visitor_outcomes.find(
+								(row) => row.product === "All AI visitors"
+							)?.visitors ?? 0)
+						: undefined
+				}
 			/>
 
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
@@ -962,7 +1000,7 @@ export function WebsiteOverviewTab({
 					onAddFilter={onAddFilter}
 					showBrandInHeader
 					tabs={referrerTabs}
-					title="Traffic Sources"
+					title="Traffic sources"
 				/>
 
 				<DataTable
@@ -983,35 +1021,7 @@ export function WebsiteOverviewTab({
 			/>
 
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
-				<DataTable
-					columns={deviceColumns}
-					data={analytics.device_types || []}
-					description="Device breakdown"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={[
-						{
-							id: "devices",
-							label: "Devices",
-							data: analytics.device_types || [],
-							columns: deviceColumns,
-							getFilter: (row: TechnologyData) => {
-								const deviceDisplayToFilterMap: Record<string, string> = {
-									laptop: "mobile",
-									tablet: "tablet",
-									desktop: "desktop",
-								};
-								return {
-									field: "device_type",
-									value: deviceDisplayToFilterMap[row.name] || row.name,
-								};
-							},
-						},
-					]}
-					title="Devices"
-				/>
+				<GeoMapSection countries={geoData.countries} isLoading={isLoading} />
 
 				<DataTable
 					columns={browserColumns}
@@ -1047,7 +1057,7 @@ export function WebsiteOverviewTab({
 					tabs={[
 						{
 							id: "operating_systems",
-							label: "Operating Systems",
+							label: "Operating systems",
 							data: analytics.operating_systems || [],
 							columns: osColumns,
 							getFilter: (row: TechnologyData) => ({
@@ -1056,10 +1066,38 @@ export function WebsiteOverviewTab({
 							}),
 						},
 					]}
-					title="Operating Systems"
+					title="Operating systems"
 				/>
 
-				<GeoMapSection countries={geoData.countries} isLoading={isLoading} />
+				<DataTable
+					columns={deviceColumns}
+					data={analytics.device_types || []}
+					description="Device breakdown"
+					initialPageSize={8}
+					isLoading={isLoading}
+					minHeight={350}
+					onAddFilter={onAddFilter}
+					tabs={[
+						{
+							id: "devices",
+							label: "Devices",
+							data: analytics.device_types || [],
+							columns: deviceColumns,
+							getFilter: (row: TechnologyData) => {
+								const deviceDisplayToFilterMap: Record<string, string> = {
+									laptop: "mobile",
+									tablet: "tablet",
+									desktop: "desktop",
+								};
+								return {
+									field: "device_type",
+									value: deviceDisplayToFilterMap[row.name] || row.name,
+								};
+							},
+						},
+					]}
+					title="Devices"
+				/>
 			</div>
 		</div>
 	);

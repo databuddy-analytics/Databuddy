@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import {
 	deriveAdminDatabaseUrl,
 	deriveDatabaseUrl,
-	isLocalDbHostname,
 	parseLifecycleArgs,
 	resolveE2EDatabaseName,
 	resolveLifecycleConfig,
@@ -69,7 +68,6 @@ describe("e2e db lifecycle helpers", () => {
 	});
 
 	it("refuses non-local database hosts by default", () => {
-		expect(isLocalDbHostname("localhost")).toBe(true);
 		expect(() =>
 			resolveLifecycleConfig({
 				allowNonLocal: false,

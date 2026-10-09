@@ -17,7 +17,8 @@ const invoke = mock<typeof callRPCProcedure>(async () => ({
 	status: "active",
 	rules: currentRules,
 }));
-mock.module("./utils/rpc", () => ({ callRPCProcedure: invoke }));
+const realRpc = await import("./utils/rpc");
+mock.module("./utils/rpc", () => ({ ...realRpc, callRPCProcedure: invoke }));
 mock.module("../../lib/website-utils", () => ({
 	getCachedWebsite: async () => ({
 		id: "site-1",

@@ -91,6 +91,7 @@ mock.module("../lib/logger", () => ({
 	logger: { error: mock(), warn: mock() },
 }));
 mock.module("../procedures/with-workspace", () => ({
+	hasAccess: mock(),
 	withWorkspace: authorize,
 }));
 mock.module("../utils/billing", () => ({ getBillingCustomerId: mock() }));
@@ -173,7 +174,7 @@ for (const [name, reply] of [
 		await expect(reply()).rejects.toMatchObject({
 			code: "BAD_REQUEST",
 			message:
-				"Ask your administrator to configure AI before continuing an investigation.",
+				"AI is not set up on this Databuddy instance. Ask your administrator to configure it before continuing an investigation.",
 		});
 		expect(authorize).toHaveBeenCalledWith(context, {
 			allowCrossOrg: true,

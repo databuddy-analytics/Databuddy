@@ -163,7 +163,7 @@ export function RevenueAttributionTables({
 			createRevenueColumns({
 				currency,
 				type: "default",
-				nameLabel: "Entry Page",
+				nameLabel: "Entry page",
 			}),
 		[currency]
 	);
@@ -206,7 +206,7 @@ export function RevenueAttributionTables({
 			},
 			{
 				id: "utm_sources",
-				label: "UTM Sources",
+				label: "UTM sources",
 				data: trafficData.utm_sources,
 				columns: utmColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
@@ -216,7 +216,7 @@ export function RevenueAttributionTables({
 			},
 			{
 				id: "utm_mediums",
-				label: "UTM Mediums",
+				label: "UTM mediums",
 				data: trafficData.utm_mediums,
 				columns: utmColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
@@ -226,7 +226,7 @@ export function RevenueAttributionTables({
 			},
 			{
 				id: "utm_campaigns",
-				label: "UTM Campaigns",
+				label: "UTM campaigns",
 				data: trafficData.utm_campaigns,
 				columns: utmColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
@@ -236,7 +236,7 @@ export function RevenueAttributionTables({
 			},
 			{
 				id: "entry_pages",
-				label: "Entry Pages",
+				label: "Entry pages",
 				data: trafficData.entry_pages,
 				columns: pageColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
@@ -257,7 +257,7 @@ export function RevenueAttributionTables({
 				columns: countryColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
 					field: "country",
-					value: row.country_name || row.name,
+					value: row.country_code || row.name,
 				}),
 			},
 			{
@@ -308,7 +308,7 @@ export function RevenueAttributionTables({
 			},
 			{
 				id: "os",
-				label: "Operating Systems",
+				label: "Operating systems",
 				data: techData.os,
 				columns: osColumns as ColumnDef<RevenueEntry, unknown>[],
 				getFilter: (row: RevenueEntry) => ({
@@ -324,7 +324,7 @@ export function RevenueAttributionTables({
 		return (
 			<Card className="lg:col-span-2">
 				<Card.Header className="py-3">
-					<Card.Title>Revenue Attribution</Card.Title>
+					<Card.Title>Revenue attribution</Card.Title>
 					<Card.Description>
 						Breakdowns by traffic, product, location, and technology
 					</Card.Description>
@@ -332,14 +332,14 @@ export function RevenueAttributionTables({
 				<div className="flex min-h-[350px] items-center justify-center p-4">
 					<EmptyState
 						action={{
-							label: "Retry",
+							label: "Try again",
 							onClick: async () => {
 								await refetch();
 							},
 						}}
 						description="We couldn't load attribution data. Try again in a moment."
 						icon={<WarningCircleIcon />}
-						title="Couldn't load attribution"
+						title="Failed to load attribution"
 						variant="error"
 					/>
 				</div>
@@ -356,7 +356,7 @@ export function RevenueAttributionTables({
 				onAddFilter={onAddFilter}
 				showBrandInHeader
 				tabs={trafficTabs}
-				title="Traffic Sources"
+				title="Traffic sources"
 			/>
 
 			<DataTable

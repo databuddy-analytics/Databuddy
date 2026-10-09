@@ -5,10 +5,12 @@ import Link from "next/link";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 
 export const metadata: Metadata = {
-	title: "Live Demo",
+	title: {
+		absolute: "Live demo: real product analytics dashboard | Databuddy",
+	},
 	alternates: { canonical: "/demo" },
 	description:
-		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
+		"Click through a live Databuddy dashboard with real traffic: visitors, custom events, funnels, errors, and Web Vitals. No signup needed to look around.",
 };
 
 export default async function DemoPage() {
@@ -31,7 +33,7 @@ export default async function DemoPage() {
 					<div className="flex items-center gap-2 rounded border border-border bg-card/90 px-3 py-2 shadow-lg backdrop-blur-sm">
 						<div className="size-2 animate-pulse rounded-full bg-green-500" />
 						<span className="font-medium text-foreground text-xs">
-							Live Demo
+							Live demo
 						</span>
 					</div>
 
@@ -41,7 +43,7 @@ export default async function DemoPage() {
 						rel="noopener"
 						target="_blank"
 					>
-						<span>Get Started Free</span>
+						<span>Start free</span>
 						<ArrowLeftIcon className="size-4 rotate-180 transition-transform group-hover:translate-x-0.5" />
 					</Link>
 				</div>
@@ -69,7 +71,7 @@ export default async function DemoPage() {
 							rel="noopener"
 							target="_blank"
 						>
-							Create free account
+							Start free
 							<ArrowLeftIcon className="size-4 rotate-180 transition-transform" />
 						</Link>
 					</div>
@@ -85,7 +87,7 @@ export default async function DemoPage() {
 				style={{
 					colorScheme: "light dark",
 				}}
-				title="Databuddy Analytics Demo Dashboard"
+				title="Databuddy demo dashboard"
 			/>
 		</div>
 	);

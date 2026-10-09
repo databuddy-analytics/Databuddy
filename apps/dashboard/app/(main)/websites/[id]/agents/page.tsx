@@ -1,38 +1,42 @@
 "use client";
 
 import {
+	Badge,
 	Button,
+	CopyButton,
 	dayjs,
 	EmptyState,
+	formatLocalTime,
 	fromNow,
 	SegmentedControl,
 	Skeleton,
 	StatusDot,
+	Text,
 	Tooltip,
 } from "@databuddy/ui";
-import { Sheet, Tabs } from "@databuddy/ui/client";
+import { Sheet } from "@databuddy/ui/client";
 import {
 	BrainIcon,
 	MinusIcon,
+	OpenExternalIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	type AgentPurpose,
+	aiProductIcon,
 	type ContentFormat,
 	FEATURED_AI_PRODUCTS,
 	type RobotsAccess,
 	UNIDENTIFIED_AGENTS_PRODUCT,
 } from "@databuddy/shared/bot-detection/types";
+import { publicConfig } from "@databuddy/env/public";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { parseAsBoolean, useQueryState } from "nuqs";
+import { useMemo, useRef, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
-import {
-	CodeBlock,
-	CodeBlockCopyButton,
-} from "@/components/ai-elements/code-block";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -42,149 +46,33 @@ import { AiProductIcon, aiProductColor } from "@/components/icon";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { formatNumber } from "@/lib/formatters";
+import { formatCount, formatNumber } from "@/lib/formatters";
 import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
+import type { DynamicQueryFilter } from "@/types/api";
 import {
 	calculatePercentChange,
 	calculatePreviousPeriod,
+	formatDateByGranularity,
 } from "../_components/utils/analytics-helpers";
+import { aiCrawlerSetupPrompt } from "../_components/utils/code-generators";
 
-const FORMAT_LABELS: Record<ContentFormat, string> = {
-	html: "HTML",
-	llms: "llms.txt",
-	markdown: "Markdown",
-};
+type ReadFocus = ContentFormat | "all";
 
 interface ProductRow {
+	answer_fetches: number;
 	has_proxy: number;
-	last_seen: string;
+	last_seen: string | null;
 	on_demand: number;
 	pages: number;
 	product: string;
 	requests: number;
 	search_index: number;
+	server_tracking_since: string | null;
 	training: number;
 	visitors: number;
-}
-
-const NEVER_SEEN = "1970";
-const ALL_VISITORS = "All visitors";
-const ALL_AI_VISITORS = "All AI visitors";
-
-interface PageReader {
-	agent_id: string;
-	name: string;
-	product: string;
-	requests: number;
-}
-
-interface PageRead {
-	agents: PageReader[];
-	format: ContentFormat;
-	page: string;
-	requests: number;
-}
-
-interface CrawlerResult {
-	agent_id: string;
-	last_seen: string;
-	llms: number;
-	markdown: number;
-	name: string;
-	operator: string;
-	pages: number;
-	product: string;
-	purpose: AgentPurpose;
-	requests: number;
-	user_agent: string;
-}
-
-interface ReadingAgent extends CrawlerResult {
-	html: number;
-	robots: RobotsAccess | undefined;
-}
-
-type ReadFocus = ContentFormat | "all";
-
-interface LandingPageRow {
-	name: string;
-	pageviews: number;
-	products: string[];
-	visitors: number;
-}
-
-const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
-const READ_ROWS = 8;
-const TIP_DELAY_MS = 200;
-
-function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
-	return (
-		<div className="max-w-72 space-y-0.5 py-0.5">
-			<p className="break-words font-medium">{title}</p>
-			{lines.map((line) => (
-				<p className="break-words text-background/70" key={line}>
-					{line}
-				</p>
-			))}
-		</div>
-	);
-}
-
-interface OutcomeRow {
-	engaged_rate: number;
-	name: string;
-	pages_per_visit: number;
-	revenue: string;
-	visitors: number;
-}
-
-const OUTCOME_GRID =
-	"grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1.2fr)_5.5rem] items-center gap-3";
-
-interface RevenueRow {
-	currency: string;
-	name: string;
-	revenue: number;
-}
-
-const PURPOSE_LABELS: Record<AgentPurpose, string> = {
-	agent: "Agent",
-	search_index: "Search",
-	training: "Training",
-	user_fetch: "Answers",
-};
-
-const ROBOTS_LABELS: Record<RobotsAccess, string> = {
-	allowed: "Allowed",
-	blocked: "Blocked",
-	partial: "Partly blocked",
-};
-
-function robotsStatus(agent: ReadingAgent): {
-	color: "destructive" | "success" | "warning";
-	label: string;
-} | null {
-	if (!agent.robots) {
-		return null;
-	}
-	if (
-		agent.robots === "blocked" &&
-		dayjs().diff(agent.last_seen, "hour") < 24
-	) {
-		return { color: "destructive", label: "Blocked, still crawling" };
-	}
-	return {
-		color: agent.robots === "allowed" ? "success" : "warning",
-		label: ROBOTS_LABELS[agent.robots],
-	};
-}
-
-interface FormatRow {
-	format: ContentFormat;
-	pages: number;
-	requests: number;
 }
 
 interface VisitorSeriesRow {
@@ -193,12 +81,104 @@ interface VisitorSeriesRow {
 	visitors: number;
 }
 
+interface FormatRow {
+	format: ContentFormat;
+	pages: number;
+	requests: number;
+}
+
+interface PageReadRow {
+	agents: {
+		agent_id: string;
+		name: string;
+		product: string;
+		requests: number | string;
+	}[];
+	format: ContentFormat;
+	last_seen: string;
+	page: string;
+	requests: number;
+}
+
+interface FailedRequestRow {
+	agents: PageReadRow["agents"];
+	last_seen: string;
+	page: string;
+	requests: number;
+	status_code: number;
+}
+
+interface RecentRequestRow {
+	agent_id: string;
+	format: ContentFormat;
+	name: string;
+	page: string;
+	product: string;
+	status_code: number;
+	time: string;
+}
+
+interface LandingPageRow {
+	page: string;
+	pageviews: number;
+	senders: {
+		product: string;
+		reads: number | string;
+		visitors: number | string;
+	}[];
+	visitors: number;
+}
+
+interface OutcomeRow {
+	engaged_rate: number;
+	pages_per_visit: number;
+	product: string;
+	revenue?: string;
+	visitors: number;
+}
+
+interface RevenueRow {
+	currency: string;
+	name: string;
+	revenue: number;
+}
+
+interface CrawlerRow {
+	agent_id: string;
+	html_pages: number;
+	last_seen: string;
+	llms: number;
+	llms_pages: number;
+	markdown: number;
+	markdown_pages: number;
+	name: string;
+	operator: string;
+	pages: number;
+	product: string;
+	purpose: AgentPurpose;
+	purpose_inferred: number;
+	requests: number;
+	user_agent: string;
+}
+
 interface ActivityRow {
 	date: string;
 	html: number;
 	llms: number;
 	markdown: number;
 	requests: number;
+}
+
+interface ReadingAgent extends CrawlerRow {
+	blockedSince: string | null;
+	html: number;
+	previousRequests: number | null;
+	robots: RobotsAccess | undefined;
+}
+
+interface RobotsCheck {
+	hasRobotsTxt: boolean | undefined;
+	isPending: boolean;
 }
 
 interface ActivityTimeline {
@@ -211,18 +191,6 @@ interface TrendPoint {
 	date: string;
 	value: number;
 }
-
-type LandingPageResult = Omit<LandingPageRow, "name"> & { page: string };
-type OutcomeResult = Omit<OutcomeRow, "name" | "revenue"> & {
-	product: string;
-};
-
-const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
-
-const CHART_PRODUCTS = 4;
-const SHARE_BARS = 6;
-
-const RANKED_ROWS = 6;
 
 interface ShareRow {
 	change: number | "new" | null;
@@ -237,345 +205,399 @@ interface VisitorShare {
 	total: number;
 }
 
+const FOCUS: Record<
+	ReadFocus,
+	{
+		column: "requests" | ContentFormat;
+		label: string;
+		noun: string;
+		scope: string;
+		tab: string;
+		title: string;
+	}
+> = {
+	all: {
+		column: "requests",
+		label: "AI",
+		noun: "pages",
+		scope: "the site",
+		tab: "All",
+		title: "Pages",
+	},
+	html: {
+		column: "html",
+		label: "HTML",
+		noun: "pages",
+		scope: "HTML content",
+		tab: "HTML",
+		title: "HTML pages",
+	},
+	llms: {
+		column: "llms",
+		label: "llms.txt",
+		noun: "files",
+		scope: "llms.txt content",
+		tab: "llms.txt",
+		title: "llms.txt files",
+	},
+	markdown: {
+		column: "markdown",
+		label: "Markdown",
+		noun: "pages",
+		scope: "Markdown content",
+		tab: "Markdown",
+		title: "Markdown pages",
+	},
+};
+
+const PURPOSE_LABELS: Record<AgentPurpose, string> = {
+	agent: "Agent",
+	search_index: "Search",
+	training: "Training",
+	user_fetch: "Answers",
+};
+
+const PURPOSE_GROUP_LABELS: Record<AgentPurpose, string> = {
+	agent: "Agents",
+	search_index: "Search",
+	training: "Training",
+	user_fetch: "Answers",
+};
+
+const ROBOTS_LABELS: Record<RobotsAccess, string> = {
+	allowed: "Allowed",
+	blocked: "Blocked",
+	partial: "Partly blocked",
+};
+
+const ALL_VISITORS = "All visitors";
+const ALL_AI_VISITORS = "All AI visitors";
+
+const READ_FORMATS: ContentFormat[] = ["llms", "markdown", "html"];
+const READ_ROWS = 8;
+const RANKED_ROWS = 6;
+const SHARE_BARS = 6;
+const CHART_PRODUCTS = 4;
+const TIP_DELAY_MS = 200;
+const NON_ID_CHARS = /[^a-zA-Z0-9_-]/g;
+const OUTCOME_GRID =
+	"grid grid-cols-[minmax(0,1fr)_3.5rem_minmax(0,1.2fr)_5.5rem] items-center gap-3";
+
 function formatShare(share: number): string {
 	return `${share.toFixed(1)}%`;
 }
 
-const SETUP_STACKS = [
-	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "proxy.ts",
-		id: "next",
-		label: "Next.js 16",
-		code: 'export { proxy } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
-		file: "middleware.ts",
-		id: "next15",
-		label: "Next.js 15",
-		code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "middleware.ts",
-		id: "vercel",
-		label: "Vercel",
-		code: 'export { proxy as default } from "@databuddy/sdk/agents";',
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "worker.ts",
-		id: "workers",
-		label: "Cloudflare",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
-
-export default {
-	async fetch(request, env, ctx) {
-		const websiteId = env.DATABUDDY_WEBSITE_ID;
-		ctx.waitUntil(trackAgents(request, { websiteId }));
-		return fetch(request);
-	},
-};`,
-	},
-	{
-		env: "DATABUDDY_WEBSITE_ID",
-		file: "server.ts",
-		id: "express",
-		label: "Express",
-		code: `import { trackAgents } from "@databuddy/sdk/agents";
-
-app.use((req, _res, next) => {
-	trackAgents(req);
-	next();
-});`,
-	},
-] as const;
-
-const SETUP_CHECKS = [
-	{
-		key: "homepage",
-		label: "Homepage",
-		hint: "deploy the file above and set the environment variable",
-	},
-	{
-		key: "llmsTxt",
-		label: "llms.txt",
-		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
-	},
-] as const;
-
-function SetupStep({
-	children,
-	step,
-	title,
-}: {
-	children: React.ReactNode;
-	step: number;
-	title: string;
-}) {
-	return (
-		<div className="space-y-2">
-			<p className="font-medium text-sm">
-				<span className="mr-2 text-muted-foreground tabular-nums">{step}</span>
-				{title}
-			</p>
-			{children}
-		</div>
-	);
-}
-
-function SetupCode({
-	code,
-	language,
-}: {
-	code: string;
-	language: "bash" | "tsx";
-}) {
-	return (
-		<CodeBlock code={code} language={language}>
-			<CodeBlockCopyButton aria-label="Copy" />
-		</CodeBlock>
-	);
-}
-
-function AgentSetupSheet({
-	label = "Set up",
-	websiteId,
-}: {
-	label?: string;
-	websiteId: string;
-}) {
-	const [isOpen, setIsOpen] = useState(false);
-	const check = useMutation(orpc.websites.checkAgentSetup.mutationOptions());
-	const isWorking = check.data?.homepage && check.data.llmsTxt;
-
-	return (
-		<>
-			<Button onClick={() => setIsOpen(true)} size="md" variant="secondary">
-				{label}
-			</Button>
-			<Sheet onOpenChange={setIsOpen} open={isOpen}>
-				<Sheet.Content side="right">
-					<Sheet.Header>
-						<Sheet.Title>Track AI crawlers</Sheet.Title>
-						<Sheet.Description>
-							Crawlers like GPTBot and ClaudeBot don't run JavaScript. Add one
-							line to your server to see which pages they read.
-						</Sheet.Description>
-					</Sheet.Header>
-					<Sheet.Body className="space-y-5">
-						<Tabs defaultValue={SETUP_STACKS[0].id}>
-							<Tabs.List className="max-w-full overflow-x-auto">
-								{SETUP_STACKS.map((stack) => (
-									<Tabs.Tab key={stack.id} value={stack.id}>
-										{stack.label}
-									</Tabs.Tab>
-								))}
-							</Tabs.List>
-							{SETUP_STACKS.map((stack) => (
-								<Tabs.Panel
-									className="mt-4 space-y-5"
-									key={stack.id}
-									value={stack.id}
-								>
-									<SetupStep step={1} title="Install the SDK">
-										<SetupCode
-											code="bun add @databuddy/sdk@latest"
-											language="bash"
-										/>
-									</SetupStep>
-									<SetupStep step={2} title={`Add ${stack.file}`}>
-										<SetupCode code={stack.code} language="tsx" />
-									</SetupStep>
-									<SetupStep step={3} title="Set your website ID">
-										<SetupCode
-											code={
-												stack.id === "workers"
-													? `# wrangler.toml\n[vars]\n${stack.env} = "${websiteId}"`
-													: `${stack.env}=${websiteId}`
-											}
-											language="bash"
-										/>
-									</SetupStep>
-								</Tabs.Panel>
-							))}
-						</Tabs>
-
-						<SetupStep step={4} title="Deploy, then test it">
-							<Button
-								loading={check.isPending}
-								onClick={() => check.mutate({ websiteId })}
-								size="md"
-								variant="secondary"
-							>
-								Test setup
-							</Button>
-							{check.data
-								? SETUP_CHECKS.map((item) => (
-										<p
-											className="flex items-center gap-1.5 text-xs"
-											key={item.key}
-										>
-											<StatusDot
-												color={check.data[item.key] ? "success" : "warning"}
-											/>
-											{check.data[item.key]
-												? `${item.label} recorded`
-												: `${item.label} not recorded: ${item.hint}`}
-										</p>
-									))
-								: null}
-							{isWorking ? (
-								<p className="text-pretty text-muted-foreground text-xs">
-									Setup works. Crawler data shows up here as soon as an AI agent
-									visits.
-								</p>
-							) : null}
-							{check.isError ? (
-								<p className="text-destructive text-xs">
-									Couldn't run the check. Try again in a moment.
-								</p>
-							) : null}
-						</SetupStep>
-
-						<a
-							className="block text-muted-foreground text-xs underline underline-offset-2 hover:text-foreground"
-							href="https://www.databuddy.cc/docs/sdk/ai-agents"
-							rel="noopener"
-							target="_blank"
-						>
-							Other setups and details in the docs
-						</a>
-					</Sheet.Body>
-				</Sheet.Content>
-			</Sheet>
-		</>
-	);
-}
-
-function mainPurpose(row: ProductRow): string | null {
-	const purposes = [
-		{ label: PURPOSE_LABELS.training, value: row.training },
-		{ label: PURPOSE_LABELS.search_index, value: row.search_index },
-		{ label: PURPOSE_LABELS.user_fetch, value: row.on_demand },
-	].sort((a, b) => b.value - a.value);
-	return purposes[0].value > 0 ? purposes[0].label.toLowerCase() : null;
+function formatRequestsByFormat(agent: ReadingAgent): string {
+	return READ_FORMATS.filter((format) => agent[format] > 0)
+		.map((format) => `${FOCUS[format].label} ${formatNumber(agent[format])}`)
+		.join(" · ");
 }
 
 function emptyProduct(product: string): ProductRow {
 	return {
+		answer_fetches: 0,
 		has_proxy: 0,
-		last_seen: NEVER_SEEN,
+		last_seen: null,
 		on_demand: 0,
 		pages: 0,
 		product,
 		requests: 0,
 		search_index: 0,
+		server_tracking_since: null,
 		training: 0,
 		visitors: 0,
 	};
 }
 
-function ProductCard({
-	isHourly,
-	isLoading,
-	row,
-	trend,
-}: {
-	isHourly: boolean;
-	isLoading: boolean;
-	row: ProductRow;
-	trend: TrendPoint[];
-}) {
-	const purpose = mainPurpose(row);
-	const isActive = row.requests > 0 || row.visitors > 0;
+function productReadsLine(
+	row: ProductRow,
+	hasProxy: boolean,
+	isLoading: boolean
+): string | null {
+	if (row.requests > 0) {
+		const [mainPurpose] = [
+			{ label: PURPOSE_LABELS.training, value: row.training },
+			{ label: PURPOSE_LABELS.search_index, value: row.search_index },
+			{ label: PURPOSE_LABELS.user_fetch, value: row.on_demand },
+		].sort((a, b) => b.value - a.value);
+		const purpose =
+			mainPurpose.value > 0 ? ` for ${mainPurpose.label.toLowerCase()}` : "";
+		return `Read ${formatCount(row.pages, "page")}${purpose}, ${fromNow(row.last_seen)}`;
+	}
+	if (isLoading) {
+		return "Checking…";
+	}
+	if (row.visitors > 0) {
+		return hasProxy ? "Hasn't read your pages" : null;
+	}
+	return "Not seen yet";
+}
+
+function rankProductsByVisitorShare(
+	products: ProductRow[],
+	previousProducts: ProductRow[]
+): VisitorShare {
+	const previousVisitors = new Map(
+		previousProducts.map((row) => [row.product, row.visitors])
+	);
+	const previousTotal = previousProducts.reduce(
+		(sum, row) => sum + row.visitors,
+		0
+	);
+	const ranked = products
+		.map(({ product, visitors }) => ({ product, visitors }))
+		.filter((row) => row.visitors > 0)
+		.sort((a, b) => b.visitors - a.visitors);
+	const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
+	return {
+		previousTotal,
+		total,
+		rows: ranked.map((row) => {
+			const share = (row.visitors / total) * 100;
+			const previous = previousVisitors.get(row.product) ?? 0;
+			if (previousTotal === 0) {
+				return { ...row, share, change: null };
+			}
+			if (previous === 0) {
+				return { ...row, share, change: "new" };
+			}
+			return {
+				...row,
+				share,
+				change: share - (previous / previousTotal) * 100,
+			};
+		}),
+	};
+}
+
+function robotsStatus(agent: ReadingAgent): {
+	color: "success" | "warning";
+	label: string;
+} | null {
+	if (!agent.robots) {
+		return null;
+	}
+	const isStillCrawling =
+		agent.robots === "blocked" &&
+		agent.blockedSince !== null &&
+		dayjs.utc(agent.last_seen).diff(dayjs(agent.blockedSince), "hour") >= 24;
+	return {
+		color: agent.robots === "allowed" ? "success" : "warning",
+		label: isStillCrawling
+			? "Blocked, still crawling"
+			: ROBOTS_LABELS[agent.robots],
+	};
+}
+
+function readTime(timestamp: string | null): string {
+	return timestamp
+		? `${fromNow(timestamp)} (${formatLocalTime(timestamp, "MMM D, HH:mm")})`
+		: "";
+}
+
+function robotsLine(agent: ReadingAgent): string {
+	const status = robotsStatus(agent);
+	if (!status) {
+		return "";
+	}
+	return agent.purpose === "user_fetch" && agent.robots !== "allowed"
+		? `robots.txt: ${status.label}. Fetches made for a user may not follow it`
+		: `robots.txt: ${status.label}`;
+}
+
+const BLOCKED_IMPACT: Partial<
+	Record<AgentPurpose, { effect: string; role: string }>
+> = {
+	search_index: {
+		effect: "can't show your pages in its search results",
+		role: "finds pages for its search results",
+	},
+	user_fetch: {
+		effect: "may skip your pages when someone asks about them",
+		role: "opens pages when someone asks it about them",
+	},
+};
+
+function robotsFix(
+	agent: ReadingAgent
+): { effect: string; prompt: string } | null {
+	const impact = BLOCKED_IMPACT[agent.purpose];
+	if (
+		!(
+			impact &&
+			agent.robots === "blocked" &&
+			agent.operator &&
+			!agent.purpose_inferred
+		)
+	) {
+		return null;
+	}
+	return {
+		effect: impact.effect,
+		prompt: `Let ${agent.name} read this site by fixing robots.txt.
+
+${agent.name} is how ${agent.product} ${impact.role}. Databuddy recorded ${formatCount(agent.requests, "request")} from it across ${formatCount(agent.pages, "page")} in the selected period, and robots.txt now blocks it.
+
+1. Find where robots.txt is served from: a static robots.txt, a generated route such as app/robots.ts, or a CMS or hosting setting.
+2. Find the rule that blocks ${agent.name}. It is either a group that names the crawler or the User-agent: * group.
+3. Allow ${agent.name} on public pages. A group that names the crawler replaces the * group for it, so when * is the blocker, add a group for ${agent.name} and copy over only the Disallow lines for private paths such as admin, account and API routes.
+4. Leave the rules for every other crawler unchanged.
+5. After deploying, open /robots.txt and confirm the change.`,
+	};
+}
+
+function requestChangeLine(agent: ReadingAgent): string {
+	if (
+		agent.previousRequests === null ||
+		Math.max(agent.requests, agent.previousRequests) < 50
+	) {
+		return "";
+	}
+	if (agent.previousRequests === 0) {
+		return "New this period";
+	}
+	const change = calculatePercentChange(agent.requests, agent.previousRequests);
+	return `${change > 0 ? "+" : ""}${change.toFixed(0)}% requests vs the previous period`;
+}
+
+function purposeDescription(agent: ReadingAgent): string {
+	if (agent.product === UNIDENTIFIED_AGENTS_PRODUCT) {
+		return "Not a known agent. It asked for markdown before HTML, which AI tools do.";
+	}
+	if (!agent.operator) {
+		return `Signed its requests as ${agent.product}`;
+	}
+	if (agent.purpose_inferred) {
+		return "General-purpose crawler. Its data can end up in AI training, but the operator doesn't say so.";
+	}
+	switch (agent.purpose) {
+		case "training":
+			return `Collects pages to train ${agent.operator}'s AI models`;
+		case "search_index":
+			return `Indexes pages for ${agent.product} search results`;
+		case "user_fetch":
+			return `Opens a page when someone asks ${agent.product} about it`;
+		default:
+			return "Reads pages while doing a task for someone";
+	}
+}
+
+function activityTrend(
+	rows: ActivityRow[],
+	timeline: ActivityTimeline,
+	focus: ReadFocus
+): TrendPoint[] {
+	const { column } = FOCUS[focus];
+	const valueByBucket = new Map(
+		rows.map((row) => [
+			dayjs(row.date).format(timeline.bucketFormat),
+			row[column],
+		])
+	);
+	return timeline.buckets.map((date) => ({
+		date,
+		value: valueByBucket.get(date) ?? 0,
+	}));
+}
+
+function useShowAll<T>(items: T[], rows = READ_ROWS) {
+	const [isExpanded, setIsExpanded] = useState(false);
+	return {
+		canExpand: items.length > rows,
+		collapse: () => setIsExpanded(false),
+		isExpanded,
+		toggle: () => setIsExpanded((expanded) => !expanded),
+		visible: isExpanded ? items : items.slice(0, rows),
+	};
+}
+
+function Tip({ lines = [], title }: { lines?: string[]; title: string }) {
 	return (
-		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
-			<div className="flex items-center gap-2.5">
-				<AiProductIcon
-					className={cn(!isActive && "opacity-40 grayscale")}
-					name={row.product}
-					size={28}
-				/>
-				<p className="truncate font-semibold text-sm">{row.product}</p>
-				{row.requests > 0 && row.visitors > 0 ? (
-					<Tooltip
-						content={
-							<Tip
-								lines={[
-									`${row.product} made ${formatNumber(row.requests)} requests to your pages and sent ${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
-								]}
-								title="Reads per visitor"
-							/>
-						}
-						delay={TIP_DELAY_MS}
-					>
-						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
-							{formatNumber(Math.round(row.requests / row.visitors) || 1)} reads
-							per visitor
-						</span>
-					</Tooltip>
-				) : null}
-			</div>
-			<div>
-				<p className="font-semibold text-xl tabular-nums">
-					{formatNumber(row.visitors)}
-					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-						visitors sent
-					</span>
+		<div className="max-w-72 space-y-0.5 py-0.5">
+			<p className="break-words font-medium">{title}</p>
+			{lines.map((line) => (
+				<p className="break-words text-background/70" key={line}>
+					{line}
 				</p>
-				<div className="my-1.5 h-9">
-					<Chart.SingleSeries
-						color={aiProductColor(row.product)}
-						data={trend}
-						height={36}
-						id={`ai-product-${row.product.replace(NON_ID_CHARS, "-")}`}
-						tooltip={{
-							formatLabelAction: (label) =>
-								dayjs(label).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
-							formatValue: formatNumber,
-							valueSuffixLabel: "visitors",
-						}}
-						yDomain={[0, "dataMax + 1"]}
-					/>
-				</div>
-				<p className="truncate text-muted-foreground text-xs">
-					{row.requests > 0
-						? `Read ${formatNumber(row.pages)} pages${purpose ? ` for ${purpose}` : ""}, ${fromNow(row.last_seen)}`
-						: isActive
-							? "Hasn't read your pages"
-							: isLoading
-								? "Checking…"
-								: "Not seen yet"}
-				</p>
-			</div>
+			))}
 		</div>
 	);
 }
 
-function ShareChange({ change }: { change: ShareRow["change"] }) {
-	if (change === "new") {
-		return <span className="text-muted-foreground text-xs">New</span>;
-	}
-	if (change === null || Math.abs(change) < 0.05) {
-		return <MinusIcon className="size-3.5 text-muted-foreground" />;
-	}
-	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+function ListSkeleton({ rows }: { rows: number }) {
 	return (
-		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
-			<Icon className="size-3.5" />
-			{Math.abs(change).toFixed(1)} pts
-		</span>
+		<div className="flex flex-col gap-1">
+			{Array.from({ length: rows }, (_, index) => (
+				<Skeleton className="h-9 w-full" key={index} />
+			))}
+		</div>
+	);
+}
+
+function ShowAllButton({
+	label,
+	list,
+}: {
+	label: string;
+	list: { canExpand: boolean; isExpanded: boolean; toggle: () => void };
+}) {
+	return list.canExpand ? (
+		<Button
+			className="self-center"
+			onClick={list.toggle}
+			size="sm"
+			variant="ghost"
+		>
+			{list.isExpanded ? "Show less" : label}
+		</Button>
+	) : (
+		<div aria-hidden className="h-8" />
+	);
+}
+
+function Sparkline({
+	color = "var(--color-foreground)",
+	id,
+	isHourly,
+	trend,
+	unit,
+}: {
+	color?: string;
+	id: string;
+	isHourly: boolean;
+	trend: TrendPoint[] | null;
+	unit: string;
+}) {
+	if (!trend) {
+		return <Skeleton className="h-9 w-full" />;
+	}
+	return (
+		<div className="h-9">
+			<Chart.SingleSeries
+				color={color}
+				data={trend}
+				height={36}
+				id={id.replace(NON_ID_CHARS, "-")}
+				tooltip={{
+					formatLabelAction: (value) =>
+						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
+					formatValue: formatNumber,
+					valueSuffixLabel: unit,
+				}}
+				yDomain={[0, "dataMax + 1"]}
+			/>
+		</div>
 	);
 }
 
 function TotalChange({
 	current,
 	previous,
+	suffix,
 }: {
 	current: number;
 	previous: number;
+	suffix?: string;
 }) {
 	const change = calculatePercentChange(current, previous);
 	if (Math.abs(change) < 0.5) {
@@ -583,180 +605,74 @@ function TotalChange({
 	}
 	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
 	return (
-		<span
-			className={cn(
-				"flex items-center gap-1 font-medium text-xs tabular-nums",
-				change > 0 ? "text-success" : "text-destructive"
-			)}
-		>
-			<Icon className="size-3.5" />
-			{Math.abs(change).toFixed(0)}%
+		<span className="flex items-center gap-1.5 text-xs">
+			<span
+				className={cn(
+					"flex items-center gap-1 font-medium tabular-nums",
+					change > 0 ? "text-success" : "text-destructive"
+				)}
+			>
+				<Icon className="size-3.5" />
+				{Math.abs(change).toFixed(0)}%
+			</span>
+			{suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
 		</span>
 	);
 }
 
-function ShareBars({ rows }: { rows: ShareRow[] }) {
-	const maxShare = Math.max(...rows.map((row) => row.share));
-	return (
-		<div>
-			<div className="flex h-48 items-end gap-3 border-b">
-				{rows.map((row) => (
-					<Tooltip
-						content={
-							<Tip
-								lines={[
-									`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
-									`${formatShare(row.share)} of AI visitors`,
-								]}
-								title={row.product}
-							/>
-						}
-						delay={TIP_DELAY_MS}
-						key={row.product}
-					>
-						<div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
-							<span className="text-muted-foreground text-xs tabular-nums group-hover:text-foreground">
-								{formatShare(row.share)}
-							</span>
-							<div
-								className="w-full max-w-10 rounded-t bg-foreground/80 group-hover:bg-foreground"
-								style={{
-									height: `${Math.max((row.share / maxShare) * 80, 1)}%`,
-								}}
-							/>
-						</div>
-					</Tooltip>
-				))}
-			</div>
-			<div className="mt-2.5 flex gap-3">
-				{rows.map((row) => (
-					<div className="flex flex-1 justify-center" key={row.product}>
-						<AiProductIcon name={row.product} size="md" />
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}
-
-function ShareRanking({ rows }: { rows: ShareRow[] }) {
-	const [isExpanded, setIsExpanded] = useState(false);
-	const visibleRows = isExpanded ? rows : rows.slice(0, RANKED_ROWS);
-	return (
-		<div className="flex flex-col">
-			<ol className="divide-y">
-				{visibleRows.map((row, index) => (
-					<li className="flex h-11 items-center gap-3" key={row.product}>
-						<span className="w-5 text-muted-foreground text-sm tabular-nums">
-							{index + 1}
-						</span>
-						<AiProductIcon name={row.product} size="sm" />
-						<span className="min-w-0 flex-1 truncate font-medium text-sm">
-							{row.product}
-						</span>
-						<span className="text-muted-foreground text-xs tabular-nums">
-							{formatNumber(row.visitors)}
-						</span>
-						<span className="w-14 text-right font-medium text-sm tabular-nums">
-							{formatShare(row.share)}
-						</span>
-						<span className="flex w-16 justify-end">
-							<ShareChange change={row.change} />
-						</span>
-					</li>
-				))}
-			</ol>
-			{rows.length > RANKED_ROWS ? (
-				<Button
-					className="mt-2 self-center"
-					onClick={() => setIsExpanded((expanded) => !expanded)}
-					size="sm"
-					variant="ghost"
-				>
-					{isExpanded ? "Show less" : `Show all ${rows.length}`}
-				</Button>
-			) : null}
-		</div>
-	);
-}
-
-function VisitorSharePanel({
-	children,
-	isLoading,
-	previousRange,
-	share,
+function Headline({
+	aside,
+	change,
+	detail,
+	isLoading = false,
+	title,
+	unit,
+	value,
 }: {
-	children?: React.ReactNode;
-	isLoading: boolean;
-	previousRange: { end_date: string; start_date: string };
-	share: VisitorShare;
+	aside?: React.ReactNode;
+	change?: React.ReactNode;
+	detail: string;
+	isLoading?: boolean;
+	title: string;
+	unit?: string;
+	value?: string;
 }) {
-	const hasComparison = share.previousTotal > 0;
+	const hasValue = isLoading || value !== undefined;
 	return (
-		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
-			<div className="flex flex-col gap-5 rounded-lg bg-background p-4">
-				<div>
-					<p className="font-semibold text-sm">Share of AI visitors</p>
+		<div className="flex flex-wrap items-start justify-between gap-3">
+			<div>
+				<p className="font-semibold text-sm">{title}</p>
+				{hasValue ? (
 					<div className="mt-2 flex h-8 items-center gap-2">
 						{isLoading ? (
 							<Skeleton className="h-7 w-28" />
 						) : (
 							<>
 								<p className="font-semibold text-2xl tabular-nums">
-									{formatNumber(share.total)}
+									{value}
 									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-										AI visitors
+										{unit}
 									</span>
 								</p>
-								{hasComparison ? (
-									<TotalChange
-										current={share.total}
-										previous={share.previousTotal}
-									/>
-								) : null}
+								{change}
 							</>
 						)}
 					</div>
-					{isLoading ? (
-						<Skeleton className="mt-1 h-4 w-48" />
-					) : (
-						<p className="mt-1 text-muted-foreground text-xs">
-							{share.rows.length} AI products · compared with{" "}
-							{dayjs(previousRange.start_date).format("MMM D")} to{" "}
-							{dayjs(previousRange.end_date).format("MMM D")}
-						</p>
-					)}
-				</div>
+				) : null}
 				{isLoading ? (
-					<Skeleton className="h-56 w-full" />
+					<Skeleton className="mt-1 h-4 w-48" />
 				) : (
-					<ShareBars rows={share.rows.slice(0, SHARE_BARS)} />
-				)}
-				{isLoading || hasComparison ? null : (
-					<p className="text-pretty text-muted-foreground text-xs">
-						No AI visitors in the previous period, so changes appear once there
-						is one to compare against.
+					<p
+						className={cn(
+							"text-pretty text-muted-foreground text-xs tabular-nums",
+							hasValue && "mt-1"
+						)}
+					>
+						{detail}
 					</p>
 				)}
 			</div>
-			<div className="flex flex-col gap-3 rounded-lg bg-background p-4">
-				<div>
-					<p className="font-semibold text-sm">Ranking</p>
-					<p className="text-muted-foreground text-xs">
-						Change in share since the previous period
-					</p>
-				</div>
-				{isLoading ? (
-					<div className="space-y-2">
-						{Array.from({ length: RANKED_ROWS }, (_, index) => (
-							<Skeleton className="h-9 w-full" key={index} />
-						))}
-					</div>
-				) : (
-					<ShareRanking rows={share.rows} />
-				)}
-			</div>
-			{children ? <div className="lg:col-span-2">{children}</div> : null}
+			{aside}
 		</div>
 	);
 }
@@ -827,118 +743,71 @@ function BarRow({
 	);
 }
 
-function purposeDescription(agent: ReadingAgent): string {
-	if (agent.product === UNIDENTIFIED_AGENTS_PRODUCT) {
-		return "Not a known agent. It asked for markdown before HTML, which AI tools do.";
-	}
-	if (!agent.operator) {
-		return `Signed its requests as ${agent.product}`;
-	}
-	switch (agent.purpose) {
-		case "training":
-			return `Collects pages to train ${agent.operator}'s AI models`;
-		case "search_index":
-			return `Indexes pages for ${agent.product} search results`;
-		case "user_fetch":
-			return `Opens a page when someone asks ${agent.product} about it`;
-		default:
-			return "Reads pages while doing a task for someone";
-	}
-}
-
-interface RobotsCheck {
-	hasRobotsTxt: boolean | undefined;
-	isPending: boolean;
-}
-
-function ShowAllButton({
-	count,
-	isExpanded,
-	label,
-	onToggle,
-}: {
-	count: number;
-	isExpanded: boolean;
-	label: string;
-	onToggle: () => void;
-}) {
-	return count > READ_ROWS ? (
-		<Button
-			className="self-center"
-			onClick={onToggle}
-			size="sm"
-			variant="ghost"
-		>
-			{isExpanded ? "Show less" : label}
-		</Button>
-	) : (
-		<div aria-hidden className="h-8" />
-	);
-}
-
-function ListSkeleton({ rows }: { rows: number }) {
-	return (
-		<div className="flex flex-col gap-1">
-			{Array.from({ length: rows }, (_, index) => (
-				<Skeleton className="h-9 w-full" key={index} />
-			))}
-		</div>
-	);
-}
-
-function formatSplit(agent: ReadingAgent): string {
-	return READ_FORMATS.filter((format) => agent[format] > 0)
-		.map((format) => `${FORMAT_LABELS[format]} ${formatNumber(agent[format])}`)
-		.join(" · ");
-}
-
-function activityTrend(
-	rows: ActivityRow[],
-	timeline: ActivityTimeline,
-	focus: ReadFocus
-): TrendPoint[] {
-	const key = focus === "all" ? "requests" : focus;
-	const valueByBucket = new Map(
-		rows.map((row) => [
-			dayjs(row.date).format(timeline.bucketFormat),
-			Number(row[key]) || 0,
-		])
-	);
-	return timeline.buckets.map((date) => ({
-		date,
-		value: valueByBucket.get(date) ?? 0,
-	}));
-}
-
-function ActivitySparkline({
-	id,
+function ProductCard({
+	hasProxy,
 	isHourly,
-	label,
+	isLoading,
+	row,
 	trend,
 }: {
-	id: string;
+	hasProxy: boolean;
 	isHourly: boolean;
-	label: string;
-	trend: TrendPoint[] | null;
+	isLoading: boolean;
+	row: ProductRow;
+	trend: TrendPoint[];
 }) {
-	if (!trend) {
-		return <Skeleton className="h-9 w-full" />;
-	}
+	const isActive = row.requests > 0 || row.visitors > 0;
+	const readRatio = row.requests / row.visitors;
+	const readsLine = productReadsLine(row, hasProxy, isLoading);
 	return (
-		<div className="h-9">
-			<Chart.SingleSeries
-				color="var(--color-foreground)"
-				data={trend}
-				height={36}
-				id={id}
-				tooltip={{
-					formatLabelAction: (value) =>
-						dayjs(value).format(isHourly ? "ddd HH:mm" : "ddd, MMM D"),
-					formatValue: formatNumber,
-					valueSuffixLabel: `${label} requests`,
-				}}
-				yDomain={[0, "dataMax + 1"]}
-			/>
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<AiProductIcon
+					className={cn(!isActive && "opacity-40 grayscale")}
+					name={row.product}
+					size={28}
+				/>
+				<p className="truncate font-semibold text-sm">{row.product}</p>
+				{row.requests > 0 && row.visitors > 0 ? (
+					<Tooltip
+						content={
+							<Tip
+								lines={[
+									`${row.product} made ${formatCount(row.requests, "request")} to your pages and sent ${formatCount(row.visitors, "visitor")}`,
+								]}
+								title="Reads and visitors"
+							/>
+						}
+						delay={TIP_DELAY_MS}
+					>
+						<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs tabular-nums">
+							{readRatio >= 1
+								? `${formatCount(Math.round(readRatio), "read")} per visitor`
+								: `${formatCount(Math.round(1 / readRatio), "visitor")} per read`}
+						</span>
+					</Tooltip>
+				) : null}
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row.visitors)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						visitors sent
+					</span>
+				</p>
+				<div className="my-1.5">
+					<Sparkline
+						color={aiProductColor(row.product)}
+						id={`ai-product-${row.product}`}
+						isHourly={isHourly}
+						trend={trend}
+						unit="visitors"
+					/>
+				</div>
+				{readsLine ? (
+					<p className="truncate text-muted-foreground text-xs">{readsLine}</p>
+				) : null}
+			</div>
 		</div>
 	);
 }
@@ -957,15 +826,13 @@ function AgentDetail({
 	trend: TrendPoint[] | null;
 }) {
 	const status = robotsStatus(agent);
+	const fix = robotsFix(agent);
 	const robotsLabel =
 		status?.label ??
-		(robots.isPending
-			? "Checking…"
-			: robots.hasRobotsTxt === false
-				? "No robots.txt"
-				: null);
+		(robots.isPending ? "Checking…" : null) ??
+		(robots.hasRobotsTxt === false ? "No robots.txt" : null);
 	const facts = [
-		{ label: "Formats", value: formatSplit(agent) },
+		{ label: "Formats", value: formatRequestsByFormat(agent) },
 		{ label: "Pages", value: formatNumber(agent.pages) },
 		{ label: "Last read", value: fromNow(agent.last_seen) },
 	];
@@ -986,11 +853,23 @@ function AgentDetail({
 					</span>
 				) : null}
 			</div>
-			<ActivitySparkline
-				id={`ai-agent-${agent.agent_id.replace(NON_ID_CHARS, "-")}`}
+			{fix ? (
+				<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+					<Text tone="muted" variant="caption">
+						While robots.txt blocks {agent.name}, {agent.product} {fix.effect}.
+					</Text>
+					<CopyButton
+						label="Copy fix prompt"
+						value={fix.prompt}
+						variant="secondary"
+					/>
+				</div>
+			) : null}
+			<Sparkline
+				id={`ai-agent-${agent.agent_id}`}
 				isHourly={isHourly}
-				label={label}
 				trend={trend}
+				unit={`${label} requests`}
 			/>
 			<Tooltip
 				content={<Tip lines={[agent.user_agent]} title="User agent" />}
@@ -1009,6 +888,7 @@ function AgentReadsPanel({
 	agents,
 	formats,
 	isLoading,
+	previousFormats,
 	reads,
 	robots,
 	timeline,
@@ -1018,193 +898,216 @@ function AgentReadsPanel({
 	agents: ReadingAgent[];
 	formats: FormatRow[];
 	isLoading: boolean;
-	reads: PageRead[];
+	previousFormats: FormatRow[] | null;
+	reads: PageReadRow[];
 	robots: RobotsCheck;
 	timeline: ActivityTimeline;
 	websiteId: string;
 }) {
 	const { dateRange } = useDateFilters();
-	const available = READ_FORMATS.filter((format) =>
-		formats.some((row) => row.format === format && Number(row.requests) > 0)
+	const availableFormats = READ_FORMATS.filter((format) =>
+		formats.some((row) => row.format === format && row.requests > 0)
 	);
-	const options: ReadFocus[] =
-		available.length > 1 ? [...available, "all"] : available;
+	const focusOptions: ReadFocus[] =
+		availableFormats.length > 1
+			? [...availableFormats, "all"]
+			: availableFormats;
 	const [chosenFocus, setChosenFocus] = useState<ReadFocus | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
-	const [areAgentsExpanded, setAreAgentsExpanded] = useState(false);
-	const [arePagesExpanded, setArePagesExpanded] = useState(false);
 	const focus: ReadFocus =
-		chosenFocus && options.includes(chosenFocus)
+		chosenFocus && focusOptions.includes(chosenFocus)
 			? chosenFocus
-			: (options[0] ?? "all");
-	const label = focus === "all" ? "AI" : FORMAT_LABELS[focus];
+			: (focusOptions[0] ?? "all");
+	const { column, label, noun, scope, title } = FOCUS[focus];
 
 	const rankedAgents = agents
-		.map((agent) => ({
-			...agent,
-			value: focus === "all" ? agent.requests : agent[focus],
-		}))
+		.map((agent) => ({ ...agent, value: agent[column] }))
 		.filter((agent) => agent.value > 0)
 		.sort((a, b) => b.value - a.value);
 	const selected = rankedAgents.find((agent) => agent.agent_id === selectedId);
-	const restricted = rankedAgents.filter(
+	const robotsLimitedCount = rankedAgents.filter(
 		(agent) => agent.robots === "blocked" || agent.robots === "partial"
 	).length;
+	const requestsByPurpose = new Map<string, number>();
+	for (const agent of rankedAgents) {
+		const purpose = agent.purpose_inferred
+			? "General crawlers"
+			: PURPOSE_GROUP_LABELS[agent.purpose];
+		requestsByPurpose.set(
+			purpose,
+			(requestsByPurpose.get(purpose) ?? 0) + agent.value
+		);
+	}
+	const purposeSplit = [...requestsByPurpose]
+		.sort((a, b) => b[1] - a[1])
+		.map(([purpose, requests]) => `${purpose} ${formatNumber(requests)}`)
+		.join(" · ");
 
-	const pagesByFocus = useMemo(() => {
-		const byPage = new Map<string, { page: string; readers: PageReader[] }>();
-		for (const read of reads) {
-			if (focus !== "all" && read.format !== focus) {
-				continue;
-			}
-			const row = byPage.get(read.page) ?? { page: read.page, readers: [] };
-			row.readers.push(...(read.agents ?? []));
-			byPage.set(read.page, row);
-		}
-		return [...byPage.values()];
-	}, [reads, focus]);
-	const pages = pagesByFocus
-		.map((row) => {
-			const readers = selected
-				? row.readers.filter((reader) => reader.agent_id === selected.agent_id)
-				: row.readers;
-			const requestsByReader = new Map<string, number>();
-			for (const reader of readers) {
-				requestsByReader.set(
-					reader.name,
-					(requestsByReader.get(reader.name) ?? 0) +
-						(Number(reader.requests) || 0)
-				);
-			}
-			return {
-				page: row.page,
-				readers: [...requestsByReader]
-					.map(([name, requests]) => ({ name, requests }))
-					.sort((a, b) => b.requests - a.requests),
-				value: [...requestsByReader.values()].reduce(
-					(sum, requests) => sum + requests,
-					0
-				),
-			};
-		})
-		.filter((row) => row.value > 0)
-		.sort((a, b) => b.value - a.value);
-
-	const distinctPages = useMemo(
-		() => new Set(reads.map((read) => read.page)).size,
-		[reads]
-	);
-	const rowSlots = Math.max(
-		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
-		1
-	);
-
-	const total =
-		focus === "all"
-			? formats.reduce((sum, row) => sum + (Number(row.requests) || 0), 0)
-			: Number(formats.find((row) => row.format === focus)?.requests) || 0;
-	const focusPageTotal =
-		focus === "all"
-			? distinctPages
-			: Number(formats.find((row) => row.format === focus)?.pages) ||
-				pages.length;
-	const selectedPageTotal =
-		focus === "all" && selected
-			? Math.max(pages.length, selected.pages)
-			: pages.length;
-	const pageTotal = selected ? selectedPageTotal : focusPageTotal;
-	const maxAgentValue = rankedAgents[0]?.value || 1;
-	const maxPageValue = pages[0]?.value || 1;
-	const visibleAgents = areAgentsExpanded
-		? rankedAgents
-		: rankedAgents.slice(0, READ_ROWS);
-	const visiblePages = arePagesExpanded ? pages : pages.slice(0, READ_ROWS);
-	const pageNoun = focus === "llms" ? "files" : "pages";
-	const agentActivity = useBatchDynamicQuery(
+	const agentFilters: DynamicQueryFilter[] = selectedId
+		? [{ field: "agent_id", operator: "eq", value: selectedId }]
+		: [];
+	const agentQuery = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
 		[
 			{
 				id: "agent-activity",
 				parameters: ["ai_crawler_activity"],
-				filters: selectedId
-					? [{ field: "agent_id", operator: "eq", value: selectedId }]
-					: [],
+				filters: agentFilters,
+			},
+			{
+				id: "agent-pages",
+				parameters: ["ai_agent_pages"],
+				filters: agentFilters,
+				limit: 1000,
 			},
 		],
 		{ enabled: Boolean(selectedId) }
 	);
-	const agentActivityRows = agentActivity.getDataForQuery(
+	const agentActivity: ActivityRow[] = agentQuery.getDataForQuery(
 		"agent-activity",
 		"ai_crawler_activity"
-	) as ActivityRow[] | undefined;
-	const readScope = focus === "all" ? "the site" : `${label} content`;
+	);
+	const agentPages: PageReadRow[] = agentQuery.getDataForQuery(
+		"agent-pages",
+		"ai_agent_pages"
+	);
+	const isAgentPagesLoaded = agentQuery.results.some(
+		(result) =>
+			result.queryId === "agent-pages" && "ai_agent_pages" in result.data
+	);
+
+	const readersByPage = new Map<
+		string,
+		Map<string, { product: string; requests: number }>
+	>();
+	const lastReadByPage = new Map<string, string>();
+	for (const read of selected ? agentPages : reads) {
+		if (focus !== "all" && read.format !== focus) {
+			continue;
+		}
+		const lastRead = lastReadByPage.get(read.page);
+		if (!lastRead || read.last_seen > lastRead) {
+			lastReadByPage.set(read.page, read.last_seen);
+		}
+		const readers =
+			readersByPage.get(read.page) ??
+			new Map<string, { product: string; requests: number }>();
+		for (const reader of read.agents) {
+			if (!selected || reader.agent_id === selected.agent_id) {
+				readers.set(reader.name, {
+					product: reader.product,
+					requests:
+						(readers.get(reader.name)?.requests ?? 0) + Number(reader.requests),
+				});
+			}
+		}
+		readersByPage.set(read.page, readers);
+	}
+	const pages = [...readersByPage]
+		.map(([page, readers]) => {
+			const ranked = [...readers]
+				.map(([name, reader]) => ({ name, ...reader }))
+				.sort((a, b) => b.requests - a.requests);
+			return {
+				page,
+				products: [
+					...new Map(
+						ranked.map((reader) => [
+							aiProductIcon(reader.product) ?? reader.product,
+							reader.product,
+						])
+					).values(),
+				],
+				readers: ranked,
+				value: ranked.reduce((sum, reader) => sum + reader.requests, 0),
+			};
+		})
+		.filter((row) => row.value > 0)
+		.sort((a, b) => b.value - a.value);
+
+	const distinctPages = new Set(reads.map((read) => read.page)).size;
+	const skeletonRows = Math.max(
+		Math.min(READ_ROWS, Math.max(agents.length, distinctPages)),
+		1
+	);
+	const focusFormat = formats.find((row) => row.format === focus);
+	const requestsFor = (rows: FormatRow[]) =>
+		rows
+			.filter((row) => focus === "all" || row.format === focus)
+			.reduce((sum, row) => sum + row.requests, 0);
+	const requestTotal = requestsFor(formats);
+	const pageTotal =
+		focus === "all"
+			? (selected?.pages ?? distinctPages)
+			: (selected?.[`${focus}_pages`] ?? (focusFormat?.pages || pages.length));
+	const maxAgentValue = rankedAgents[0]?.value || 1;
+	const maxPageValue = pages[0]?.value || 1;
+	const agentList = useShowAll(rankedAgents);
+	const pageList = useShowAll(pages);
 	const askSubject = selected
-		? `${selected.name} (${selected.product}) reading ${readScope}`
-		: `AI crawlers and agents reading ${readScope}`;
+		? `${selected.name} (${selected.product}) reading ${scope}`
+		: `AI crawlers and agents reading ${scope}`;
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">Who reads your content</p>
-						<div className="mt-2 flex h-8 items-center">
+				<Headline
+					aside={
+						<div className="flex items-center gap-1">
 							{isLoading ? (
-								<Skeleton className="h-7 w-28" />
-							) : (
-								<p className="font-semibold text-2xl tabular-nums">
-									{formatNumber(total)}
-									<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-										{label} requests
-									</span>
-								</p>
-							)}
+								<Skeleton className="h-8 w-56" />
+							) : focusOptions.length > 1 ? (
+								<SegmentedControl
+									onChange={(value) => {
+										setChosenFocus(value);
+										setSelectedId(null);
+										agentList.collapse();
+										pageList.collapse();
+									}}
+									options={focusOptions.map((value) => ({
+										label: FOCUS[value].tab,
+										value,
+									}))}
+									size="sm"
+									value={focus}
+								/>
+							) : null}
+							<AskAgentButton subject={askSubject} />
 						</div>
-						{isLoading ? (
-							<Skeleton className="mt-1 h-4 w-40" />
-						) : (
-							<p className="mt-1 text-muted-foreground text-xs">
-								from {rankedAgents.length}{" "}
-								{rankedAgents.length === 1 ? "agent" : "agents"}
-								{restricted > 0 ? ` · ${restricted} limited by robots.txt` : ""}
-							</p>
-						)}
-					</div>
-					<div className="flex items-center gap-1">
-						{isLoading ? (
-							<Skeleton className="h-8 w-56" />
-						) : options.length > 1 ? (
-							<SegmentedControl
-								onChange={(value) => {
-									setChosenFocus(value);
-									setSelectedId(null);
-									setAreAgentsExpanded(false);
-									setArePagesExpanded(false);
-								}}
-								options={options.map((value) => ({
-									label: value === "all" ? "All" : FORMAT_LABELS[value],
-									value,
-								}))}
-								size="sm"
-								value={focus}
+					}
+					change={
+						previousFormats ? (
+							<TotalChange
+								current={requestTotal}
+								previous={requestsFor(previousFormats)}
+								suffix="vs previous period"
 							/>
-						) : null}
-						<AskAgentButton subject={askSubject} />
-					</div>
-				</div>
-				<ActivitySparkline
+						) : null
+					}
+					detail={`from ${formatCount(rankedAgents.length, "agent")}${robotsLimitedCount > 0 ? ` · ${robotsLimitedCount} limited by robots.txt` : ""}`}
+					isLoading={isLoading}
+					title="Who reads your content"
+					unit={`${label} requests`}
+					value={formatNumber(requestTotal)}
+				/>
+				{isLoading || requestsByPurpose.size < 2 ? null : (
+					<p className="-mt-2 text-pretty text-muted-foreground text-xs tabular-nums">
+						{purposeSplit}
+					</p>
+				)}
+				<Sparkline
 					id="ai-reads-trend"
 					isHourly={timeline.isHourly}
-					label={label}
 					trend={isLoading ? null : activityTrend(activity, timeline, focus)}
+					unit={`${label} requests`}
 				/>
 				<div>
 					{isLoading ? (
-						<ListSkeleton rows={rowSlots} />
+						<ListSkeleton rows={skeletonRows} />
 					) : (
 						<div className="flex flex-col gap-1">
-							{visibleAgents.map((agent, index) => {
+							{agentList.visible.map((agent, index) => {
 								const status = robotsStatus(agent);
 								const isSelected = selected?.agent_id === agent.agent_id;
 								return (
@@ -1221,8 +1124,9 @@ function AgentReadsPanel({
 											<Tip
 												lines={[
 													purposeDescription(agent),
-													`${formatNumber(agent.requests)} requests · ${formatNumber(agent.pages)} pages · last read ${fromNow(agent.last_seen)}`,
-													status ? `robots.txt: ${status.label}` : "",
+													`${formatCount(agent.requests, "request")} · ${formatCount(agent.pages, "page")} · last read ${readTime(agent.last_seen)}`,
+													requestChangeLine(agent),
+													robotsLine(agent),
 													isSelected
 														? "Click to show every agent"
 														: "Click to see what it read",
@@ -1249,7 +1153,7 @@ function AgentReadsPanel({
 										)}
 										<span className="relative ml-auto hidden shrink-0 text-muted-foreground text-xs sm:inline">
 											{focus === "all" && agent.markdown + agent.llms > 0
-												? formatSplit(agent)
+												? formatRequestsByFormat(agent)
 												: PURPOSE_LABELS[agent.purpose]}
 										</span>
 										<span className="relative flex w-2 shrink-0 justify-center">
@@ -1264,10 +1168,8 @@ function AgentReadsPanel({
 					)}
 				</div>
 				<ShowAllButton
-					count={rankedAgents.length}
-					isExpanded={areAgentsExpanded}
 					label={`Show all ${rankedAgents.length} agents`}
-					onToggle={() => setAreAgentsExpanded((expanded) => !expanded)}
+					list={agentList}
 				/>
 			</div>
 
@@ -1287,18 +1189,12 @@ function AgentReadsPanel({
 								</span>
 							</div>
 						) : (
-							<p className="font-semibold text-sm">
-								{focus === "llms"
-									? "llms.txt files"
-									: focus === "all"
-										? "Pages"
-										: `${label} pages`}
-							</p>
+							<p className="font-semibold text-sm">{title}</p>
 						)}
 						<p className="text-muted-foreground text-xs">
 							{selected
-								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${pageNoun}`
-								: `${formatNumber(pageTotal)} ${pageNoun} · pick an agent to see what it read`}
+								? `${formatNumber(selected.value)} ${label} requests across ${formatNumber(pageTotal)} ${noun}`
+								: `${formatNumber(pageTotal)} ${noun} · pick an agent to see what it read`}
 						</p>
 					</div>
 					{selected ? (
@@ -1318,18 +1214,27 @@ function AgentReadsPanel({
 						label={label}
 						robots={robots}
 						trend={
-							agentActivity.isLoading || !agentActivityRows
+							agentQuery.isLoading
 								? null
-								: activityTrend(agentActivityRows, timeline, focus)
+								: activityTrend(agentActivity, timeline, focus)
 						}
 					/>
 				) : null}
 				<div>
-					{isLoading ? (
-						<ListSkeleton rows={rowSlots} />
+					{isLoading || (selected && agentQuery.isPending) ? (
+						<ListSkeleton rows={skeletonRows} />
+					) : selected && !isAgentPagesLoaded ? (
+						<p className="text-muted-foreground text-sm">
+							Couldn't load the pages {selected.name} read.
+						</p>
+					) : selected && pages.length === 0 ? (
+						<p className="text-muted-foreground text-sm">
+							{selected.name} read no {focus === "all" ? noun : title} in this
+							period.
+						</p>
 					) : (
 						<div className="flex flex-col gap-1">
-							{visiblePages.map((page, index) => (
+							{pageList.visible.map((page, index) => (
 								<BarRow
 									fraction={page.value / maxPageValue}
 									key={page.page}
@@ -1340,6 +1245,7 @@ function AgentReadsPanel({
 												selected
 													? [
 															`${formatNumber(page.value)} ${label} requests from ${selected.name}`,
+															`last read ${readTime(lastReadByPage.get(page.page) ?? null)}`,
 														]
 													: [
 															...page.readers
@@ -1362,8 +1268,15 @@ function AgentReadsPanel({
 										{page.page}
 									</span>
 									{selected ? null : (
-										<span className="relative hidden max-w-[45%] shrink-0 truncate text-muted-foreground text-xs sm:inline">
-											{page.readers.map((reader) => reader.name).join(", ")}
+										<span className="relative flex shrink-0 items-center gap-1">
+											{page.products.slice(0, 3).map((product) => (
+												<AiProductIcon key={product} name={product} size="sm" />
+											))}
+											{page.products.length > 3 ? (
+												<span className="text-muted-foreground text-xs tabular-nums">
+													+{page.products.length - 3}
+												</span>
+											) : null}
 										</span>
 									)}
 								</BarRow>
@@ -1372,16 +1285,331 @@ function AgentReadsPanel({
 					)}
 				</div>
 				<ShowAllButton
-					count={pages.length}
-					isExpanded={arePagesExpanded}
 					label={
 						pages.length < pageTotal
 							? `Show top ${formatNumber(pages.length)} of ${formatNumber(pageTotal)}`
-							: `Show all ${formatNumber(pages.length)} ${pageNoun}`
+							: `Show all ${formatNumber(pages.length)} ${noun}`
 					}
-					onToggle={() => setArePagesExpanded((expanded) => !expanded)}
+					list={pageList}
 				/>
 			</div>
+		</div>
+	);
+}
+
+function StatTile({
+	isLoading,
+	label,
+	onSetUp,
+	previous,
+	tip,
+	value,
+}: {
+	isLoading: boolean;
+	label: string;
+	onSetUp?: () => void;
+	previous: number | null;
+	tip: string;
+	value: number;
+}) {
+	return (
+		<div className="flex flex-col gap-1 rounded-lg bg-background p-3">
+			<Tooltip
+				content={<Tip lines={[tip]} title={label} />}
+				delay={TIP_DELAY_MS}
+			>
+				<p className="w-fit cursor-default text-muted-foreground text-xs">
+					{label}
+				</p>
+			</Tooltip>
+			{isLoading ? (
+				<Skeleton className="h-7 w-24" />
+			) : onSetUp && value === 0 ? (
+				<Button
+					className="w-fit"
+					onClick={onSetUp}
+					size="sm"
+					variant="secondary"
+				>
+					Track AI reads
+				</Button>
+			) : (
+				<div className="flex h-7 items-center gap-2">
+					<p className="font-semibold text-xl tabular-nums">
+						{formatNumber(value)}
+					</p>
+					{previous === 0 && value > 0 ? (
+						<span className="text-muted-foreground text-xs">
+							New this period
+						</span>
+					) : previous ? (
+						<TotalChange
+							current={value}
+							previous={previous}
+							suffix="vs previous period"
+						/>
+					) : null}
+				</div>
+			)}
+		</div>
+	);
+}
+
+const STATUS_ERROR = 400;
+
+function RecentRequestsPanel({ rows }: { rows: RecentRequestRow[] }) {
+	const list = useShowAll(rows);
+	return (
+		<div className="rounded-xl bg-secondary p-1.5">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					detail="The most recent requests from AI crawlers and agents, newest first."
+					title="Latest AI requests"
+				/>
+				<div className="flex flex-col">
+					{list.visible.map((row, index) => (
+						<div
+							className="grid grid-cols-[5.5rem_minmax(0,13rem)_minmax(0,1fr)_auto] items-center gap-3 border-border/60 border-t py-2 text-sm first:border-t-0"
+							key={`${row.time}-${row.agent_id}-${index}`}
+						>
+							<Tooltip
+								content={
+									<Tip title={formatLocalTime(row.time, "MMM D, HH:mm:ss")} />
+								}
+								delay={TIP_DELAY_MS}
+							>
+								<span className="cursor-default truncate text-muted-foreground text-xs tabular-nums">
+									{fromNow(row.time)}
+								</span>
+							</Tooltip>
+							<span className="flex min-w-0 items-center gap-2">
+								<AiProductIcon name={row.product} size="sm" />
+								<span className="truncate">{row.name}</span>
+							</span>
+							<span className="flex min-w-0 items-center gap-2">
+								<span className="truncate">{row.page}</span>
+								{row.format === "html" ? null : (
+									<Badge size="sm" variant="muted">
+										{FOCUS[row.format].label}
+									</Badge>
+								)}
+							</span>
+							<span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+								{row.status_code >= STATUS_ERROR ? (
+									<StatusDot color="warning" />
+								) : null}
+								{row.status_code > 0 ? row.status_code : null}
+							</span>
+						</div>
+					))}
+				</div>
+				<ShowAllButton
+					label={`Show all ${formatNumber(rows.length)} requests`}
+					list={list}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function FailedRequestsPanel({ rows }: { rows: FailedRequestRow[] }) {
+	const list = useShowAll(rows);
+	const total = rows.reduce((sum, row) => sum + row.requests, 0);
+	const maxRequests = Math.max(...rows.map((row) => row.requests), 1);
+	return (
+		<div className="rounded-xl bg-secondary p-1.5">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					detail="Pages that sent AI crawlers an error instead of content. Fix them or redirect them to a page that works."
+					title="Requests AI couldn't read"
+					unit="failed requests"
+					value={formatNumber(total)}
+				/>
+				<div className="flex flex-col gap-1">
+					{list.visible.map((row, index) => (
+						<BarRow
+							fraction={row.requests / maxRequests}
+							key={`${row.page}-${row.status_code}`}
+							rank={index + 1}
+							tooltip={
+								<Tip
+									lines={[
+										...row.agents
+											.slice(0, 5)
+											.map(
+												(agent) =>
+													`${agent.name} · ${formatNumber(Number(agent.requests))}`
+											),
+										`last request ${readTime(row.last_seen)}`,
+									]}
+									title={`${row.page} returned ${row.status_code}`}
+								/>
+							}
+							value={row.requests}
+						>
+							<span className="relative min-w-0 flex-1 truncate text-sm">
+								{row.page}
+							</span>
+							<span className="relative shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
+								{row.status_code}
+							</span>
+						</BarRow>
+					))}
+				</div>
+				<ShowAllButton
+					label={`Show all ${formatNumber(rows.length)} pages`}
+					list={list}
+				/>
+			</div>
+		</div>
+	);
+}
+
+function ShareChange({ change }: { change: ShareRow["change"] }) {
+	if (change === "new") {
+		return <span className="text-muted-foreground text-xs">New</span>;
+	}
+	if (change === null || Math.abs(change) < 0.05) {
+		return <MinusIcon className="size-3.5 text-muted-foreground" />;
+	}
+	const Icon = change > 0 ? TrendUpIcon : TrendDownIcon;
+	return (
+		<span className="flex items-center gap-1 text-muted-foreground text-xs tabular-nums">
+			<Icon className="size-3.5" />
+			{Math.abs(change).toFixed(1)} pts
+		</span>
+	);
+}
+
+function ShareBars({ rows }: { rows: ShareRow[] }) {
+	const maxShare = Math.max(...rows.map((row) => row.share));
+	return (
+		<div>
+			<div className="flex h-48 items-end gap-3 border-b">
+				{rows.map((row) => (
+					<Tooltip
+						content={
+							<Tip
+								lines={[
+									formatCount(row.visitors, "visitor"),
+									`${formatShare(row.share)} of AI visitors`,
+								]}
+								title={row.product}
+							/>
+						}
+						delay={TIP_DELAY_MS}
+						key={row.product}
+					>
+						<div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+							<span className="text-muted-foreground text-xs tabular-nums group-hover:text-foreground">
+								{formatShare(row.share)}
+							</span>
+							<div
+								className="w-full max-w-10 rounded-t bg-foreground/80 group-hover:bg-foreground"
+								style={{
+									height: `${Math.max((row.share / maxShare) * 80, 1)}%`,
+								}}
+							/>
+						</div>
+					</Tooltip>
+				))}
+			</div>
+			<div className="mt-2.5 flex gap-3">
+				{rows.map((row) => (
+					<div className="flex flex-1 justify-center" key={row.product}>
+						<AiProductIcon name={row.product} size="md" />
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function ShareRanking({ rows }: { rows: ShareRow[] }) {
+	const list = useShowAll(rows, RANKED_ROWS);
+	return (
+		<div className="flex flex-col gap-2">
+			<ol className="divide-y">
+				{list.visible.map((row, index) => (
+					<li className="flex h-11 items-center gap-3" key={row.product}>
+						<span className="w-5 text-muted-foreground text-sm tabular-nums">
+							{index + 1}
+						</span>
+						<AiProductIcon name={row.product} size="sm" />
+						<span className="min-w-0 flex-1 truncate font-medium text-sm">
+							{row.product}
+						</span>
+						<span className="text-muted-foreground text-xs tabular-nums">
+							{formatNumber(row.visitors)}
+						</span>
+						<span className="w-14 text-right font-medium text-sm tabular-nums">
+							{formatShare(row.share)}
+						</span>
+						<span className="flex w-16 justify-end">
+							<ShareChange change={row.change} />
+						</span>
+					</li>
+				))}
+			</ol>
+			<ShowAllButton label={`Show all ${rows.length}`} list={list} />
+		</div>
+	);
+}
+
+function VisitorSharePanel({
+	children,
+	isLoading,
+	previousRange,
+	share,
+}: {
+	children: React.ReactNode;
+	isLoading: boolean;
+	previousRange: { end_date: string; start_date: string };
+	share: VisitorShare;
+}) {
+	const hasComparison = share.previousTotal > 0;
+	return (
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
+			<div className="flex flex-col gap-5 rounded-lg bg-background p-4">
+				<Headline
+					change={
+						hasComparison ? (
+							<TotalChange
+								current={share.total}
+								previous={share.previousTotal}
+							/>
+						) : null
+					}
+					detail={`${share.rows.length} AI products · compared with ${dayjs(previousRange.start_date).format("MMM D")} to ${dayjs(previousRange.end_date).format("MMM D")}`}
+					isLoading={isLoading}
+					title="Share of AI visitors"
+					unit="AI visitors"
+					value={formatNumber(share.total)}
+				/>
+				{isLoading ? (
+					<Skeleton className="h-56 w-full" />
+				) : (
+					<ShareBars rows={share.rows.slice(0, SHARE_BARS)} />
+				)}
+				{isLoading || hasComparison ? null : (
+					<p className="text-pretty text-muted-foreground text-xs">
+						No AI visitors in the previous period, so changes appear once there
+						is one to compare against.
+					</p>
+				)}
+			</div>
+			<div className="flex flex-col gap-3 rounded-lg bg-background p-4">
+				<Headline
+					detail="Change in share since the previous period"
+					title="Ranking"
+				/>
+				{isLoading ? (
+					<ListSkeleton rows={RANKED_ROWS} />
+				) : (
+					<ShareRanking rows={share.rows} />
+				)}
+			</div>
+			<div className="lg:col-span-2">{children}</div>
 		</div>
 	);
 }
@@ -1408,27 +1636,27 @@ function OutcomeLine({
 	baseline: OutcomeRow | undefined;
 	row: OutcomeRow;
 }) {
-	const isBaseline = row.name === ALL_VISITORS;
-	const isSummary = isBaseline || row.name === ALL_AI_VISITORS;
-	const comparison = (value: string, base: string | undefined) =>
+	const isBaseline = row.product === ALL_VISITORS;
+	const isSummary = isBaseline || row.product === ALL_AI_VISITORS;
+	const withBaseline = (value: string, base: string | undefined) =>
 		base && !isBaseline ? `${value} (all visitors ${base})` : value;
 	return (
 		<Tooltip
 			content={
 				<Tip
 					lines={[
-						`${formatNumber(row.visitors)} ${row.visitors === 1 ? "visitor" : "visitors"}`,
-						comparison(
+						formatCount(row.visitors, "visitor"),
+						withBaseline(
 							`${row.pages_per_visit.toFixed(1)} pages per visit`,
 							baseline?.pages_per_visit.toFixed(1)
 						),
-						comparison(
+						withBaseline(
 							`${row.engaged_rate}% viewed 2+ pages`,
 							baseline ? `${baseline.engaged_rate}%` : undefined
 						),
 						row.revenue ? `Revenue ${row.revenue}` : "",
 					].filter(Boolean)}
-					title={isSummary ? row.name : `Visitors from ${row.name}`}
+					title={isSummary ? row.product : `Visitors from ${row.product}`}
 				/>
 			}
 			delay={TIP_DELAY_MS}
@@ -1441,9 +1669,9 @@ function OutcomeLine({
 				)}
 			>
 				<span className="flex min-w-0 items-center gap-2">
-					{isSummary ? null : <AiProductIcon name={row.name} size="sm" />}
+					{isSummary ? null : <AiProductIcon name={row.product} size="sm" />}
 					<span className={cn("truncate text-sm", !isSummary && "font-medium")}>
-						{row.name}
+						{row.product}
 					</span>
 				</span>
 				<span className="text-right text-sm tabular-nums">
@@ -1475,55 +1703,42 @@ function AiVisitorsPanel({
 	landing: LandingPageRow[];
 	outcomes: OutcomeRow[];
 }) {
-	const [areLandingExpanded, setAreLandingExpanded] = useState(false);
-	const baseline = outcomes.find((row) => row.name === ALL_VISITORS);
-	const allAi = outcomes.find((row) => row.name === ALL_AI_VISITORS);
+	const landingList = useShowAll(landing);
+	const baseline = outcomes.find((row) => row.product === ALL_VISITORS);
+	const allAi = outcomes.find((row) => row.product === ALL_AI_VISITORS);
 	const aiOutcomes = outcomes.filter(
-		(row) => row.name !== ALL_VISITORS && row.name !== ALL_AI_VISITORS
+		(row) => row.product !== ALL_VISITORS && row.product !== ALL_AI_VISITORS
 	);
-	const maxLanding = Number(landing[0]?.visitors) || 1;
-	const visibleLanding = areLandingExpanded
-		? landing
-		: landing.slice(0, READ_ROWS);
+	const maxLanding = landing[0]?.visitors || 1;
 
 	return (
 		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-2">
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">What AI visitors do</p>
-						{isLoading ? (
-							<>
-								<Skeleton className="mt-2 h-7 w-28" />
-								<Skeleton className="mt-1 h-4 w-56" />
-							</>
-						) : allAi && baseline ? (
-							<>
-								<div className="mt-2 flex h-8 items-center gap-2">
-									<p className="font-semibold text-2xl tabular-nums">
-										{allAi.pages_per_visit.toFixed(1)}
-										<span className="ml-1.5 font-normal text-muted-foreground text-xs">
-											pages per visit from AI
-										</span>
-									</p>
-									<TotalChange
-										current={allAi.pages_per_visit}
-										previous={baseline.pages_per_visit}
-									/>
-								</div>
-								<p className="mt-1 text-pretty text-muted-foreground text-xs tabular-nums">
-									{allAi.engaged_rate}% viewed 2+ pages, against{" "}
-									{baseline.engaged_rate}% of all visitors
-								</p>
-							</>
-						) : (
-							<p className="text-pretty text-muted-foreground text-xs">
-								Visitors from AI products, next to everyone else
-							</p>
-						)}
-					</div>
-					<AskAgentButton subject="what visitors from AI products do on the site" />
-				</div>
+				<Headline
+					aside={
+						<AskAgentButton subject="what visitors from AI products do on the site" />
+					}
+					change={
+						allAi && baseline ? (
+							<TotalChange
+								current={allAi.pages_per_visit}
+								previous={baseline.pages_per_visit}
+								suffix="vs all visitors"
+							/>
+						) : null
+					}
+					detail={
+						allAi && baseline
+							? `${allAi.engaged_rate}% viewed 2+ pages, against ${baseline.engaged_rate}% of all visitors`
+							: "Visitors from AI products, next to everyone else"
+					}
+					isLoading={isLoading}
+					title="What AI visitors do"
+					unit="pages per visit from AI"
+					value={
+						allAi && baseline ? allAi.pages_per_visit.toFixed(1) : undefined
+					}
+				/>
 				{isLoading ? (
 					<ListSkeleton rows={3} />
 				) : aiOutcomes.length === 0 ? (
@@ -1547,22 +1762,20 @@ function AiVisitorsPanel({
 							...(allAi && aiOutcomes.length > 1 ? [allAi] : []),
 							...(baseline ? [baseline] : []),
 						].map((row) => (
-							<OutcomeLine baseline={baseline} key={row.name} row={row} />
+							<OutcomeLine baseline={baseline} key={row.product} row={row} />
 						))}
 					</div>
 				)}
 			</div>
 
 			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<div className="flex items-start justify-between gap-3">
-					<div>
-						<p className="font-semibold text-sm">Where AI sends visitors</p>
-						<p className="text-muted-foreground text-xs">
-							Pages people from AI products view
-						</p>
-					</div>
-					<AskAgentButton subject="the pages AI products send visitors to" />
-				</div>
+				<Headline
+					aside={
+						<AskAgentButton subject="the pages AI products send visitors to" />
+					}
+					detail="The page each AI-referred visit started on, and how often AI products read it"
+					title="Where AI sends visitors"
+				/>
 				{isLoading ? (
 					<ListSkeleton rows={3} />
 				) : landing.length === 0 ? (
@@ -1571,100 +1784,589 @@ function AiVisitorsPanel({
 					</p>
 				) : (
 					<div className="flex flex-col gap-1">
-						{visibleLanding.map((row, index) => (
-							<BarRow
-								fraction={Number(row.visitors) / maxLanding}
-								key={row.name}
-								rank={index + 1}
-								tooltip={
-									<Tip
-										lines={[
-											`${formatNumber(Number(row.visitors))} AI ${Number(row.visitors) === 1 ? "visitor" : "visitors"} · ${formatNumber(Number(row.pageviews))} pageviews from everyone`,
-											`Sent by ${row.products.join(", ")}`,
-										]}
-										title={row.name}
-									/>
-								}
-								value={Number(row.visitors)}
-							>
-								<span className="relative min-w-0 flex-1 truncate text-sm">
-									{row.name}
-								</span>
-								<span className="relative flex shrink-0 items-center gap-1">
-									{row.products.map((product) => (
-										<AiProductIcon key={product} name={product} size="sm" />
-									))}
-								</span>
-							</BarRow>
-						))}
+						{landingList.visible.map((row, index) => {
+							const senders = row.senders.map((sender) => ({
+								product: sender.product,
+								reads: Number(sender.reads),
+								visitors: Number(sender.visitors),
+							}));
+							const reads = senders.reduce(
+								(sum, sender) => sum + sender.reads,
+								0
+							);
+							return (
+								<BarRow
+									fraction={row.visitors / maxLanding}
+									key={row.page}
+									rank={index + 1}
+									tooltip={
+										<Tip
+											lines={[
+												...senders.map(
+													(sender) =>
+														`${sender.product} · ${formatCount(sender.visitors, "visitor")} · ${sender.reads > 0 ? `read ${formatCount(sender.reads, "time")}` : "no reads recorded"}`
+												),
+												`${formatCount(row.pageviews, "pageview")} from everyone`,
+											]}
+											title={row.page}
+										/>
+									}
+									value={row.visitors}
+								>
+									<span className="relative min-w-0 flex-1 truncate text-sm">
+										{row.page}
+									</span>
+									{reads > 0 ? (
+										<span className="relative hidden shrink-0 text-muted-foreground text-xs tabular-nums sm:inline">
+											read {formatNumber(reads)}×
+										</span>
+									) : null}
+									<span className="relative flex shrink-0 items-center gap-1">
+										{senders.slice(0, 3).map((sender) => (
+											<AiProductIcon
+												key={sender.product}
+												name={sender.product}
+												size="sm"
+											/>
+										))}
+									</span>
+								</BarRow>
+							);
+						})}
 					</div>
 				)}
 				<ShowAllButton
-					count={landing.length}
-					isExpanded={areLandingExpanded}
 					label={`Show all ${formatNumber(landing.length)} pages`}
-					onToggle={() => setAreLandingExpanded((expanded) => !expanded)}
+					list={landingList}
 				/>
 			</div>
 		</div>
 	);
 }
 
+const SETUP_STACKS = [
+	{
+		choiceLabel: "Version",
+		id: "next",
+		label: "Next.js",
+		methods: [
+			{
+				code: 'export { proxy } from "@databuddy/sdk/agents";',
+				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a proxy.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
+				caption: "Adds proxy.ts, the Next.js 16 replacement for middleware.",
+				file: "proxy.ts",
+				id: "next16",
+				label: "Next.js 16",
+			},
+			{
+				code: 'export { proxy as middleware } from "@databuddy/sdk/agents";',
+				env: "NEXT_PUBLIC_DATABUDDY_CLIENT_ID",
+				envHint: "Already set if this app uses the Databuddy SDK.",
+				fileHint:
+					"Already have a middleware.ts? Call trackAgents(request) inside it, and keep .md and .txt paths in its matcher.",
+				caption: "Adds a one-line middleware.ts.",
+				file: "middleware.ts",
+				id: "next15",
+				label: "Next.js 15 and earlier",
+			},
+		],
+	},
+	{
+		choiceLabel: "Method",
+		id: "vercel",
+		label: "Vercel",
+		methods: [
+			{
+				caption:
+					"No code, and you also see the HTTP status each crawler got. Needs a Vercel Pro or Enterprise plan; Vercel bills drains by volume.",
+				id: "drain",
+				label: "Log drain (no code)",
+			},
+			{
+				code: 'export { proxy as default } from "@databuddy/sdk/agents";',
+				env: "DATABUDDY_WEBSITE_ID",
+				caption: "For Vite, Astro, or any other framework deployed on Vercel.",
+				file: "middleware.ts",
+				id: "middleware",
+				label: "Middleware",
+			},
+		],
+	},
+	{
+		id: "workers",
+		label: "Cloudflare",
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+export default {
+	async fetch(request, env, ctx) {
+		const websiteId = env.DATABUDDY_WEBSITE_ID;
+		ctx.waitUntil(trackAgents(request, { websiteId }));
+		return fetch(request);
+	},
+};`,
+				env: "DATABUDDY_WEBSITE_ID",
+				caption: "Runs in front of your site on Cloudflare Workers.",
+				file: "worker.ts",
+				id: "workers",
+				label: "Workers",
+			},
+		],
+	},
+	{
+		id: "netlify",
+		label: "Netlify",
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+export default (request, context) => {
+	const websiteId = Netlify.env.get("DATABUDDY_WEBSITE_ID");
+	context.waitUntil(trackAgents(request, { websiteId }));
+};
+
+export const config = { path: "/*" };`,
+				env: "DATABUDDY_WEBSITE_ID",
+				envHint: "Add it under Site configuration, then Environment variables.",
+				caption:
+					"Runs at Netlify's edge in front of every request, including static llms.txt and markdown files.",
+				file: "netlify/edge-functions/databuddy.ts",
+				id: "netlify",
+				label: "Edge Function",
+			},
+		],
+	},
+	{
+		id: "express",
+		label: "Express",
+		methods: [
+			{
+				code: `import { trackAgents } from "@databuddy/sdk/agents";
+
+app.use((req, _res, next) => {
+	trackAgents(req);
+	next();
+});`,
+				env: "DATABUDDY_WEBSITE_ID",
+				caption:
+					"Works with Express and any Node server that takes middleware.",
+				file: "server.ts",
+				id: "express",
+				label: "Express",
+			},
+		],
+	},
+] as const;
+
+const SETUP_CHECKS = [
+	{
+		key: "homepage",
+		label: "Homepage",
+		hint: "deploy the file above and set the environment variable",
+		drainHint:
+			"check the drain sends Production logs from Functions and Static Files with sampling off, then retry in a minute",
+	},
+	{
+		key: "llmsTxt",
+		label: "llms.txt",
+		hint: "make sure your proxy or middleware matcher doesn't skip .txt files",
+		drainHint: "add the Static Files source",
+	},
+] as const;
+
+const BOT_BLOCK_STATUSES = new Set([401, 403, 429, 503]);
+
+function setupCheckLine(
+	result: {
+		controlStatus: number | null;
+		homepage: boolean;
+		llmsTxt: boolean;
+		probes: Record<
+			(typeof SETUP_CHECKS)[number]["key"],
+			{ blockedBy: string | null; status: number | null }
+		>;
+	},
+	item: (typeof SETUP_CHECKS)[number],
+	isDrain: boolean
+): string {
+	if (result[item.key]) {
+		return `${item.label} recorded`;
+	}
+	const { blockedBy, status } = result.probes[item.key];
+	const isBotBlocked =
+		status !== null &&
+		BOT_BLOCK_STATUSES.has(status) &&
+		result.controlStatus !== null &&
+		result.controlStatus < 400;
+	if (isBotBlocked) {
+		return `${item.label} not recorded: your site returned ${status} to our GPTBot test${blockedBy ? ` (${blockedBy})` : ""}. A bot rule may be blocking AI crawlers.`;
+	}
+	return `${item.label} not recorded: ${isDrain ? item.drainHint : item.hint}`;
+}
+
+function SetupStep({
+	children,
+	step,
+	title,
+}: {
+	children: React.ReactNode;
+	step: number;
+	title: string;
+}) {
+	return (
+		<div className="flex gap-3">
+			<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary font-medium text-[11px] text-muted-foreground tabular-nums">
+				{step}
+			</span>
+			<div className="min-w-0 flex-1 space-y-2 pt-0.5">
+				<Text variant="label">{title}</Text>
+				{children}
+			</div>
+		</div>
+	);
+}
+
+function SetupCode({ code }: { code: string }) {
+	return (
+		<div className="flex items-start gap-2 rounded border border-border/60 bg-card py-1 pr-1 pl-3">
+			<pre className="min-w-0 flex-1 overflow-x-auto rounded-none bg-transparent px-0 py-1.5 font-mono text-[11px] text-foreground leading-relaxed">
+				{code}
+			</pre>
+			<CopyButton aria-label="Copy" value={code} />
+		</div>
+	);
+}
+
+function AgentSetupSheet({
+	hasServerTracking,
+	isOpen,
+	onOpenChange,
+	websiteId,
+}: {
+	hasServerTracking: boolean | undefined;
+	isOpen: boolean;
+	onOpenChange: (open: boolean) => void;
+	websiteId: string;
+}) {
+	const [methodId, setMethodId] = useState<string>(
+		SETUP_STACKS[0].methods[0].id
+	);
+	const checkResultsRef = useRef<HTMLDivElement>(null);
+	const check = useMutation({
+		...orpc.websites.checkAgentSetup.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+		onSettled: () =>
+			requestAnimationFrame(() =>
+				checkResultsRef.current?.scrollIntoView({ block: "nearest" })
+			),
+	});
+	const stack =
+		SETUP_STACKS.find((item) =>
+			item.methods.some((method) => method.id === methodId)
+		) ?? SETUP_STACKS[0];
+	const method =
+		stack.methods.find((item) => item.id === methodId) ?? stack.methods[0];
+	const isDrain = !("code" in method);
+	const isSetupWorking = check.data?.homepage && check.data.llmsTxt;
+
+	return (
+		<Sheet onOpenChange={onOpenChange} open={isOpen}>
+			<Sheet.Content className="sm:max-w-xl" side="right">
+				<Sheet.Header>
+					<div className="flex items-start gap-3">
+						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
+							<BrainIcon className="size-4 text-primary" />
+						</div>
+						<div className="min-w-0 flex-1">
+							<Sheet.Title>Track AI crawlers</Sheet.Title>
+							<Sheet.Description>
+								See GPTBot, ClaudeBot, and the other crawlers that don't run
+								JavaScript, and which pages they read.
+							</Sheet.Description>
+						</div>
+						{isSetupWorking ? (
+							<Badge size="sm" variant="success">
+								Setup works
+							</Badge>
+						) : hasServerTracking === undefined ? null : (
+							<Badge
+								size="sm"
+								variant={hasServerTracking ? "success" : "muted"}
+							>
+								{hasServerTracking ? "Requests recorded" : "No requests yet"}
+							</Badge>
+						)}
+					</div>
+				</Sheet.Header>
+				<Sheet.Body className="space-y-6">
+					<div className="flex items-center justify-between gap-3 rounded border border-border/60 px-3 py-2.5">
+						<Text tone="muted" variant="caption">
+							Using Claude Code, Cursor, or another coding agent? Let it do the
+							setup.
+						</Text>
+						<CopyButton
+							label="Copy setup prompt"
+							value={aiCrawlerSetupPrompt(websiteId)}
+							variant="secondary"
+						/>
+					</div>
+					<div className="space-y-3">
+						<div className="space-y-2">
+							<Text variant="label">Platform</Text>
+							<SegmentedControl
+								onChange={(stackId) =>
+									setMethodId(
+										SETUP_STACKS.find((item) => item.id === stackId)?.methods[0]
+											.id ?? methodId
+									)
+								}
+								options={SETUP_STACKS.map((item) => ({
+									label: item.label,
+									value: item.id,
+								}))}
+								size="sm"
+								value={stack.id}
+							/>
+						</div>
+						{"choiceLabel" in stack ? (
+							<div className="space-y-2">
+								<Text variant="label">{stack.choiceLabel}</Text>
+								<SegmentedControl
+									onChange={setMethodId}
+									options={stack.methods.map((item) => ({
+										label: item.label,
+										value: item.id,
+									}))}
+									size="sm"
+									value={method.id}
+								/>
+							</div>
+						) : null}
+						<Text tone="muted" variant="caption">
+							{method.caption}
+						</Text>
+					</div>
+
+					<div className="space-y-5">
+						{"code" in method ? (
+							<>
+								<SetupStep step={1} title="Install the SDK">
+									<SetupCode code="bun add @databuddy/sdk@latest" />
+								</SetupStep>
+								<SetupStep step={2} title={`Add ${method.file}`}>
+									<SetupCode code={method.code} />
+									{"fileHint" in method ? (
+										<Text tone="muted" variant="caption">
+											{method.fileHint}
+										</Text>
+									) : null}
+								</SetupStep>
+								<SetupStep step={3} title="Set your Client ID">
+									<SetupCode
+										code={
+											method.id === "workers"
+												? `# wrangler.toml\n[vars]\n${method.env} = "${websiteId}"`
+												: `${method.env}=${websiteId}`
+										}
+									/>
+									{"envHint" in method ? (
+										<Text tone="muted" variant="caption">
+											{method.envHint}
+										</Text>
+									) : null}
+								</SetupStep>
+							</>
+						) : (
+							<>
+								<SetupStep step={1} title="Add a drain in Vercel">
+									<Text tone="muted" variant="caption">
+										Team Settings → Drains → Add Drain, then choose Logs and
+										Custom Endpoint.
+									</Text>
+								</SetupStep>
+								<SetupStep step={2} title="Paste this endpoint">
+									<SetupCode
+										code={`${publicConfig.urls.basket}/vercel/${websiteId}`}
+									/>
+								</SetupStep>
+								<SetupStep step={3} title="Choose what to send">
+									<Text tone="muted" variant="caption">
+										Sources: Static Files, Functions, Edge Functions, and
+										Rewrites. Environment: Production. Format: JSON or NDJSON.
+										Leave sampling off so every AI request arrives.
+									</Text>
+								</SetupStep>
+							</>
+						)}
+						<div className="scroll-mb-5" ref={checkResultsRef}>
+							<SetupStep
+								step={4}
+								title={isDrain ? "Test it" : "Deploy, then test it"}
+							>
+								<Text tone="muted" variant="caption">
+									Test setup requests your homepage and llms.txt as GPTBot and
+									checks that both were recorded.
+								</Text>
+								{check.data
+									? SETUP_CHECKS.map((item) => (
+											<p
+												className="flex items-start gap-2 text-xs"
+												key={item.key}
+											>
+												<StatusDot
+													className="mt-1"
+													color={check.data[item.key] ? "success" : "warning"}
+												/>
+												{setupCheckLine(check.data, item, isDrain)}
+											</p>
+										))
+									: null}
+								{isSetupWorking ? (
+									<Text tone="muted" variant="caption">
+										Setup works. Crawler data shows up here as soon as an AI
+										agent visits.
+									</Text>
+								) : null}
+								{check.isError ? (
+									<p className="text-destructive text-xs">
+										{getUserFacingErrorMessage(
+											check.error,
+											"Couldn't run the check. Try again in a moment."
+										)}
+									</p>
+								) : null}
+							</SetupStep>
+						</div>
+					</div>
+				</Sheet.Body>
+				<Sheet.Footer>
+					<Button asChild variant="ghost">
+						<a
+							href="https://www.databuddy.cc/docs/sdk/ai-agents"
+							rel="noopener"
+							target="_blank"
+						>
+							Docs
+							<OpenExternalIcon className="size-3.5" />
+						</a>
+					</Button>
+					<Button
+						loading={check.isPending}
+						onClick={() => check.mutate({ websiteId })}
+					>
+						Test setup
+					</Button>
+				</Sheet.Footer>
+			</Sheet.Content>
+		</Sheet>
+	);
+}
+
 export default function AgentsPage() {
-	const { id } = useParams();
-	const websiteId = id as string;
+	const { id: websiteId } = useParams<{ id: string }>();
 	const { dateRange } = useDateFilters();
 	const { chartType, chartStepType } = useChartPreferences("overview-main");
-
-	const previousRange = useMemo(
-		() => calculatePreviousPeriod(dateRange),
-		[dateRange]
+	const previousRange = calculatePreviousPeriod(dateRange);
+	const [isSetupOpen, setIsSetupOpen] = useQueryState(
+		"setup",
+		parseAsBoolean.withDefault(false)
 	);
 
-	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
-		websiteId,
-		dateRange,
-		[
-			{
-				id: "products",
-				parameters: [
-					"ai_products",
-					{
-						name: "ai_products",
-						...previousRange,
-						id: "previous_ai_products",
-					},
-				],
-			},
-			{ id: "visitors", parameters: ["ai_product_visitors"] },
-			{ id: "formats", parameters: ["ai_content_formats"] },
-			{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
-			{ id: "landing", parameters: ["ai_landing_pages"] },
-			{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
-			{ id: "revenue", parameters: ["revenue_by_ai_product"] },
-			{ id: "crawlers", parameters: ["ai_crawlers"] },
-			{ id: "activity", parameters: ["ai_crawler_activity"] },
-		]
+	const {
+		getDataForQuery,
+		isFetching,
+		isLoading,
+		isPending,
+		refetch,
+		results,
+	} = useBatchDynamicQuery(websiteId, dateRange, [
+		{
+			id: "products",
+			parameters: [
+				"ai_products",
+				{
+					name: "ai_products",
+					...previousRange,
+					id: "previous_ai_products",
+				},
+			],
+		},
+		{ id: "visitors", parameters: ["ai_product_visitors"] },
+		{
+			id: "formats",
+			parameters: [
+				"ai_content_formats",
+				{
+					name: "ai_content_formats",
+					...previousRange,
+					id: "previous_ai_content_formats",
+				},
+			],
+		},
+		{ id: "reads", parameters: ["ai_agent_pages"], limit: 1000 },
+		{ id: "landing", parameters: ["ai_landing_pages"], limit: 1000 },
+		{ id: "outcomes", parameters: ["ai_visitor_outcomes"] },
+		{ id: "revenue", parameters: ["revenue_by_ai_product"] },
+		{
+			id: "crawlers",
+			parameters: [
+				"ai_crawlers",
+				{ name: "ai_crawlers", ...previousRange, id: "previous_ai_crawlers" },
+			],
+			limit: 1000,
+		},
+		{ id: "activity", parameters: ["ai_crawler_activity"] },
+		{ id: "failed", parameters: ["ai_failed_requests"], limit: 100 },
+		{ id: "recent", parameters: ["ai_recent_requests"], limit: 50 },
+	]);
+	const products: ProductRow[] = getDataForQuery("products", "ai_products");
+	const previousProducts: ProductRow[] = getDataForQuery(
+		"products",
+		"previous_ai_products"
 	);
-
-	const products =
-		(getDataForQuery("products", "ai_products") as ProductRow[]) ?? [];
-	const previousProducts =
-		(getDataForQuery("products", "previous_ai_products") as ProductRow[]) ?? [];
-	const formats =
-		(getDataForQuery("formats", "ai_content_formats") as FormatRow[]) ?? [];
-	const reads =
-		(getDataForQuery("reads", "ai_agent_pages") as PageRead[]) ?? [];
-	const landingPages =
-		(getDataForQuery("landing", "ai_landing_pages") as LandingPageResult[]) ??
-		[];
-	const outcomes =
-		(getDataForQuery("outcomes", "ai_visitor_outcomes") as OutcomeResult[]) ??
-		[];
-	const crawlers =
-		(getDataForQuery("crawlers", "ai_crawlers") as CrawlerResult[]) ?? [];
-	const activity =
-		(getDataForQuery("activity", "ai_crawler_activity") as ActivityRow[]) ?? [];
+	const visitorSeries: VisitorSeriesRow[] = getDataForQuery(
+		"visitors",
+		"ai_product_visitors"
+	);
+	const formats: FormatRow[] = getDataForQuery("formats", "ai_content_formats");
+	const previousFormats: FormatRow[] = getDataForQuery(
+		"formats",
+		"previous_ai_content_formats"
+	);
+	const reads: PageReadRow[] = getDataForQuery("reads", "ai_agent_pages");
+	const landingPages: LandingPageRow[] = getDataForQuery(
+		"landing",
+		"ai_landing_pages"
+	);
+	const outcomes: OutcomeRow[] = getDataForQuery(
+		"outcomes",
+		"ai_visitor_outcomes"
+	);
+	const revenue: RevenueRow[] = getDataForQuery(
+		"revenue",
+		"revenue_by_ai_product"
+	);
+	const crawlers: CrawlerRow[] = getDataForQuery("crawlers", "ai_crawlers");
+	const previousCrawlers: CrawlerRow[] = getDataForQuery(
+		"crawlers",
+		"previous_ai_crawlers"
+	);
+	const failedRequests: FailedRequestRow[] = getDataForQuery(
+		"failed",
+		"ai_failed_requests"
+	);
+	const recentRequests: RecentRequestRow[] = getDataForQuery(
+		"recent",
+		"ai_recent_requests"
+	);
+	const activity: ActivityRow[] = getDataForQuery(
+		"activity",
+		"ai_crawler_activity"
+	);
 	const robots = useQuery({
 		...orpc.websites.checkAiRobots.queryOptions({
 			input: {
@@ -1675,45 +2377,43 @@ export default function AgentsPage() {
 		enabled: crawlers.length > 0,
 		staleTime: 10 * 60 * 1000,
 	});
-	const revenue =
-		(getDataForQuery("revenue", "revenue_by_ai_product") as RevenueRow[]) ?? [];
-
-	const visitorSeries =
-		(getDataForQuery(
-			"visitors",
-			"ai_product_visitors"
-		) as VisitorSeriesRow[]) ?? [];
 
 	const isHourly = dateRange.granularity === "hourly";
 	const bucketFormat = isHourly ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD";
+	const latestBucket = dayjs()
+		.startOf(isHourly ? "hour" : "day")
+		.format(bucketFormat);
 	const buckets = useMemo(() => {
 		const unit = isHourly ? "hour" : "day";
 		const end = dayjs(dateRange.end_date).endOf("day");
 		const keys: string[] = [];
 		for (
 			let cursor = dayjs(dateRange.start_date).startOf(unit);
-			!cursor.isAfter(end);
+			!(cursor.isAfter(end) || cursor.isAfter(latestBucket));
 			cursor = cursor.add(1, unit)
 		) {
 			keys.push(cursor.format(bucketFormat));
 		}
 		return keys;
-	}, [dateRange.start_date, dateRange.end_date, isHourly, bucketFormat]);
+	}, [
+		dateRange.start_date,
+		dateRange.end_date,
+		isHourly,
+		bucketFormat,
+		latestBucket,
+	]);
 
 	const visitorsByProduct = useMemo(() => {
 		const counts = new Map<string, Map<string, number>>();
 		for (const row of visitorSeries) {
 			const byBucket = counts.get(row.product) ?? new Map<string, number>();
-			byBucket.set(
-				dayjs(row.date).format(bucketFormat),
-				Number(row.visitors) || 0
-			);
+			byBucket.set(dayjs(row.date).format(bucketFormat), row.visitors);
 			counts.set(row.product, byBucket);
 		}
 		return counts;
 	}, [visitorSeries, bucketFormat]);
 
-	const trendFor = (product: string): TrendPoint[] =>
+	const visitorTrend = (product: string): TrendPoint[] =>
 		buckets.map((date) => ({
 			date,
 			value: visitorsByProduct.get(product)?.get(date) ?? 0,
@@ -1728,7 +2428,7 @@ export default function AgentsPage() {
 		return {
 			data: buckets.map((bucket): ChartMultiSeriesDataPoint => {
 				const point: ChartMultiSeriesDataPoint = {
-					date: dayjs(bucket).format(isHourly ? "HH:mm" : "MMM D"),
+					date: formatDateByGranularity(bucket, dateRange.granularity),
 				};
 				for (const product of topProducts) {
 					point[product] = visitorsByProduct.get(product)?.get(bucket) ?? 0;
@@ -1737,182 +2437,215 @@ export default function AgentsPage() {
 			}),
 			metrics: topProducts.map((product) => ({ key: product, label: product })),
 		};
-	}, [products, buckets, visitorsByProduct, isHourly]);
+	}, [products, buckets, visitorsByProduct, dateRange.granularity]);
 
-	const visitorShare = useMemo((): VisitorShare => {
-		const previousVisitors = new Map(
-			previousProducts.map((row) => [row.product, Number(row.visitors) || 0])
-		);
-		const previousTotal = [...previousVisitors.values()].reduce(
-			(sum, visitors) => sum + visitors,
-			0
-		);
-		const ranked = products
-			.map((row) => ({
-				product: row.product,
-				visitors: Number(row.visitors) || 0,
-			}))
-			.filter((row) => row.visitors > 0)
-			.sort((a, b) => b.visitors - a.visitors);
-		const total = ranked.reduce((sum, row) => sum + row.visitors, 0);
-		return {
-			previousTotal,
-			total,
-			rows: ranked.map((row) => {
-				const share = (row.visitors / total) * 100;
-				const previous = previousVisitors.get(row.product) ?? 0;
-				return {
-					...row,
-					share,
-					change:
-						previousTotal === 0
-							? null
-							: previous === 0
-								? "new"
-								: share - (previous / previousTotal) * 100,
-				};
-			}),
-		};
-	}, [products, previousProducts]);
-
+	const visitorShare = rankProductsByVisitorShare(products, previousProducts);
 	const featured = FEATURED_AI_PRODUCTS.map(
 		(name) => products.find((row) => row.product === name) ?? emptyProduct(name)
 	);
-	const outcomeRows = outcomes.map(
-		({ product, ...row }): OutcomeRow => ({
-			...row,
-			name: product,
-			revenue: revenue
-				.filter((item) => item.name === product)
-				.map((item) => formatRevenueCurrency(item.revenue, item.currency))
-				.join(", "),
+	const outcomeRows = outcomes.map((row) => ({
+		...row,
+		revenue: revenue
+			.filter((item) => item.name === row.product)
+			.map((item) => formatRevenueCurrency(item.revenue, item.currency))
+			.join(", "),
+	}));
+	const serverTrackingSince =
+		products.find((row) => row.server_tracking_since)?.server_tracking_since ??
+		null;
+	const hasComparableReads =
+		serverTrackingSince === null ||
+		dayjs.utc(serverTrackingSince).isBefore(dayjs(previousRange.start_date));
+	const previousRequestsByAgent = new Map(
+		previousCrawlers.map((crawler) => [crawler.agent_id, crawler.requests])
+	);
+	const readingAgents = crawlers.map(
+		(crawler, index): ReadingAgent => ({
+			...crawler,
+			blockedSince: robots.data?.blockedSince[index] ?? null,
+			html: Math.max(crawler.requests - crawler.markdown - crawler.llms, 0),
+			previousRequests: hasComparableReads
+				? (previousRequestsByAgent.get(crawler.agent_id) ?? 0)
+				: null,
+			robots: robots.data?.access[index],
 		})
 	);
+	const totalOf = (
+		rows: ProductRow[],
+		key: "answer_fetches" | "requests" | "visitors"
+	) => rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
 
-	const readingAgents = crawlers.map((crawler, index): ReadingAgent => {
-		const markdown = Number(crawler.markdown) || 0;
-		const llms = Number(crawler.llms) || 0;
-		const requests = Number(crawler.requests) || 0;
-		return {
-			...crawler,
-			html: Math.max(requests - markdown - llms, 0),
-			llms,
-			markdown,
-			pages: Number(crawler.pages) || 0,
-			requests,
-			robots: robots.data?.access[index],
-		};
-	});
-	const landingRows = landingPages.map(
-		({ page, ...row }): LandingPageRow => ({ ...row, name: page })
+	const hasLoadError = !(
+		isPending ||
+		results.some(
+			(result) => result.queryId === "products" && "ai_products" in result.data
+		)
 	);
-
-	if (!isLoading && products.length === 0) {
-		return (
-			<div className="flex h-full flex-col p-4">
-				<EmptyState
-					action={<AgentSetupSheet websiteId={websiteId} />}
-					description="ChatGPT, Claude and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
-					icon={<BrainIcon />}
-					isMainContent
-					title="No AI activity yet"
-				/>
-			</div>
-		);
-	}
-
 	const topSender = products.reduce<ProductRow | null>(
 		(top, row) => (row.visitors > (top?.visitors ?? 0) ? row : top),
 		null
 	);
 	const hasProxy = products.some((row) => Boolean(row.has_proxy));
-	const needsProxy = !isLoading && topSender !== null && !hasProxy;
+	const needsProxy = !isPending && topSender !== null && !hasProxy;
+	const setupButton = (
+		<Button onClick={() => setIsSetupOpen(true)} size="md" variant="secondary">
+			Track AI reads
+		</Button>
+	);
 
 	return (
 		<div className="relative flex h-full flex-col">
-			<div className="space-y-4 p-4">
-				{needsProxy && topSender ? (
-					<NoticeBanner
-						description="Add one line to your site to also see which pages AI reads, and whether it gets markdown or HTML."
+			{hasLoadError ? (
+				<div className="flex flex-1 flex-col p-4">
+					<EmptyState
+						action={
+							<Button
+								loading={isFetching}
+								onClick={() => refetch()}
+								size="md"
+								variant="secondary"
+							>
+								Try again
+							</Button>
+						}
+						description="Databuddy couldn't load AI activity for this site."
 						icon={<BrainIcon />}
-						title={`${topSender.product} sent you ${formatNumber(topSender.visitors)} ${topSender.visitors === 1 ? "visitor" : "visitors"}`}
-					>
-						<AgentSetupSheet websiteId={websiteId} />
-					</NoticeBanner>
-				) : null}
-
-				<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
-					{featured.map((row) => (
-						<ProductCard
-							isHourly={isHourly}
-							isLoading={isLoading}
-							key={row.product}
-							row={row}
-							trend={trendFor(row.product)}
-						/>
-					))}
+						isMainContent
+						title="Failed to load AI activity"
+						variant="error"
+					/>
 				</div>
-
-				{isLoading || reads.length > 0 ? (
-					<AgentReadsPanel
-						activity={activity}
-						agents={readingAgents}
-						formats={formats}
-						isLoading={isLoading}
-						reads={reads}
-						robots={{
-							hasRobotsTxt: robots.data?.hasRobotsTxt,
-							isPending: robots.isFetching,
-						}}
-						timeline={{ bucketFormat, buckets, isHourly }}
-						websiteId={websiteId}
+			) : !isPending && products.length === 0 ? (
+				<div className="flex flex-1 flex-col p-4">
+					<EmptyState
+						action={setupButton}
+						description="ChatGPT, Claude, and Perplexity show up here when they read your pages or send you visitors. Crawlers don't run JavaScript, so they need one line on your server."
+						icon={<BrainIcon />}
+						isMainContent
+						title="No AI activity yet"
 					/>
-				) : null}
+				</div>
+			) : (
+				<div className="space-y-4 p-4">
+					{needsProxy ? (
+						<NoticeBanner
+							description="Add one line to your site to also see which pages AI reads, and whether it asks for markdown or HTML."
+							icon={<BrainIcon />}
+							title={`${topSender.product} sent you ${formatCount(topSender.visitors, "visitor")}`}
+						>
+							{setupButton}
+						</NoticeBanner>
+					) : null}
 
-				{isLoading || visitorShare.rows.length > 0 ? (
-					<VisitorSharePanel
-						isLoading={isLoading}
-						previousRange={previousRange}
-						share={visitorShare}
-					>
-						<SimpleMetricsChart
-							chartStepType={chartStepType}
-							className="rounded-lg border-0 bg-background"
-							data={chart.data}
-							description="Visitors each AI product sent to your site"
-							height={280}
-							isLoading={isLoading}
-							metrics={chart.metrics}
-							partialLastSegment
-							seriesKind={chartType}
-							showYAxis
-							title="AI visitors"
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-3">
+						<StatTile
+							isLoading={isPending}
+							label="Fetched to answer a question"
+							onSetUp={hasProxy ? undefined : () => setIsSetupOpen(true)}
+							previous={
+								hasComparableReads
+									? totalOf(previousProducts, "answer_fetches")
+									: null
+							}
+							tip="Pages an AI product opened while answering someone. A fetch is not proof it was cited."
+							value={totalOf(products, "answer_fetches")}
 						/>
-					</VisitorSharePanel>
-				) : null}
-
-				{isLoading || outcomeRows.length > 1 || landingRows.length > 0 ? (
-					<AiVisitorsPanel
-						isLoading={isLoading}
-						landing={landingRows}
-						outcomes={outcomeRows}
-					/>
-				) : null}
-
-				{needsProxy ? null : (
-					<div className="space-y-2">
-						<p className="text-pretty text-muted-foreground text-xs">
-							{hasProxy
-								? "Server-side tracking is on, so crawlers that don't run JavaScript, like GPTBot and ClaudeBot, show up here."
-								: "Crawlers that don't run JavaScript, like GPTBot and ClaudeBot, only appear once @databuddy/sdk/agents runs on your server."}
-						</p>
-						<AgentSetupSheet
-							label={hasProxy ? "Test setup" : "Set up"}
-							websiteId={websiteId}
+						<StatTile
+							isLoading={isPending}
+							label="AI reads"
+							onSetUp={hasProxy ? undefined : () => setIsSetupOpen(true)}
+							previous={
+								hasComparableReads
+									? totalOf(previousProducts, "requests")
+									: null
+							}
+							tip="Every time an AI crawler or agent read one of your pages."
+							value={totalOf(products, "requests")}
+						/>
+						<StatTile
+							isLoading={isPending}
+							label="AI visitors"
+							previous={totalOf(previousProducts, "visitors")}
+							tip="People who arrived from an AI product's answer or its app browser."
+							value={totalOf(products, "visitors")}
 						/>
 					</div>
-				)}
-			</div>
+
+					<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-3">
+						{featured.map((row) => (
+							<ProductCard
+								hasProxy={hasProxy}
+								isHourly={isHourly}
+								isLoading={isPending}
+								key={row.product}
+								row={row}
+								trend={visitorTrend(row.product)}
+							/>
+						))}
+					</div>
+
+					{isPending || reads.length > 0 ? (
+						<AgentReadsPanel
+							activity={activity}
+							agents={readingAgents}
+							formats={formats}
+							isLoading={isLoading}
+							previousFormats={hasComparableReads ? previousFormats : null}
+							reads={reads}
+							robots={{
+								hasRobotsTxt: robots.data?.hasRobotsTxt,
+								isPending: robots.isFetching,
+							}}
+							timeline={{ bucketFormat, buckets, isHourly }}
+							websiteId={websiteId}
+						/>
+					) : null}
+
+					{failedRequests.length > 0 ? (
+						<FailedRequestsPanel rows={failedRequests} />
+					) : null}
+
+					{recentRequests.length > 0 ? (
+						<RecentRequestsPanel rows={recentRequests} />
+					) : null}
+
+					{isPending || visitorShare.rows.length > 0 ? (
+						<VisitorSharePanel
+							isLoading={isLoading}
+							previousRange={previousRange}
+							share={visitorShare}
+						>
+							<SimpleMetricsChart
+								chartStepType={chartStepType}
+								className="rounded-lg border-0 bg-background"
+								data={chart.data}
+								description="Visitors each AI product sent to your site"
+								height={280}
+								isLoading={isLoading}
+								metrics={chart.metrics}
+								partialLastSegment
+								seriesKind={chartType}
+								showYAxis
+								title="AI visitors"
+							/>
+						</VisitorSharePanel>
+					) : null}
+
+					{isPending || outcomeRows.length > 1 || landingPages.length > 0 ? (
+						<AiVisitorsPanel
+							isLoading={isLoading}
+							landing={landingPages}
+							outcomes={outcomeRows}
+						/>
+					) : null}
+				</div>
+			)}
+			<AgentSetupSheet
+				hasServerTracking={isPending ? undefined : hasProxy}
+				isOpen={isSetupOpen}
+				onOpenChange={(open) => setIsSetupOpen(open)}
+				websiteId={websiteId}
+			/>
 		</div>
 	);
 }

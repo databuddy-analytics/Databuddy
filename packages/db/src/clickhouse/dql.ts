@@ -3,13 +3,16 @@ import {
 	ClickHouseError,
 	createClient,
 	type ClickHouseClient,
-	type ResponseJSON,
 	type ResultSet,
 } from "@clickhouse/client";
 import { password as bunPassword } from "bun";
 import { clickHouse, CLICKHOUSE_OPTIONS, FINAL_READ_SETTINGS } from "./client";
 import { finalizeDeliveryTables } from "./logical-reads";
-import { hasCommaJoinInFrom } from "./sql-validation";
+import {
+	AGENT_TABLE_COLUMNS,
+	agentTenantFilter,
+	hasCommaJoinInFrom,
+} from "./sql-validation";
 
 export const DQL_DEFAULT_USER = "dql_user";
 export const DQL_TENANT_SETTING = "SQL_databuddy_website_id";
@@ -23,48 +26,16 @@ export const DQL_INPUT_LIMITS = {
 } as const;
 
 export const DQL_RESOURCE_LIMITS = {
-	maxBytesToRead: 2_000_000_000,
+	maxBytesToRead: 5_000_000_000,
 	maxConcurrentQueries: 4,
 	maxExecutionTimeSeconds: 20,
 	maxMemoryUsage: 1_000_000_000,
 	maxMemoryUsageForUser: 2_000_000_000,
-	maxResultBytes: 20_000_000,
-	maxResultRows: 10_000,
-	maxRowsToRead: 50_000_000,
+	maxResultBytes: 50_000_000,
+	maxResultRows: 100_000,
+	maxRowsToRead: 100_000_000,
 	maxThreads: 4,
 } as const;
-
-const DQL_EVENTS_TABLE = "analytics.events";
-const DQL_EVENTS_TENANT_COLUMN = "client_id";
-const DQL_EVENTS_COLUMNS = [
-	{ name: "time", type: "DateTime64(3, 'UTC')" },
-	{ name: "path", type: "String" },
-	{ name: "event_name", type: "String" },
-	{ name: "anonymous_id", type: "String" },
-	{ name: "profile_id", type: "String" },
-	{ name: "session_id", type: "String" },
-	{ name: "referrer", type: "Nullable(String)" },
-	{ name: "browser_name", type: "Nullable(String)" },
-	{ name: "os_name", type: "Nullable(String)" },
-	{ name: "device_type", type: "Nullable(String)" },
-	{ name: "country", type: "Nullable(String)" },
-	{ name: "region", type: "Nullable(String)" },
-	{ name: "city", type: "Nullable(String)" },
-	{ name: "utm_source", type: "Nullable(String)" },
-	{ name: "utm_medium", type: "Nullable(String)" },
-	{ name: "utm_campaign", type: "Nullable(String)" },
-	{ name: "utm_term", type: "Nullable(String)" },
-	{ name: "utm_content", type: "Nullable(String)" },
-	{ name: "time_on_page", type: "Nullable(Float32)" },
-	{ name: "scroll_depth", type: "Nullable(Float32)" },
-] as const;
-
-export const DQL_SCHEMA = [
-	{
-		name: DQL_EVENTS_TABLE,
-		columns: DQL_EVENTS_COLUMNS,
-	},
-] as const;
 
 type DqlParameterScalar = boolean | null | number | string;
 export type DqlParameterValue =
@@ -98,6 +69,7 @@ export interface DqlQueryResult<T extends Record<string, unknown>> {
 
 export interface DqlQueryClient {
 	query: (options: {
+		abort_signal?: AbortSignal;
 		clickhouse_settings: Record<string, number | string>;
 		format: "JSON";
 		query: string;
@@ -194,6 +166,7 @@ export function dqlSettingsForWebsite(
 		...(query && finalizeDeliveryTables(query).usesFinal
 			? FINAL_READ_SETTINGS
 			: {}),
+		output_format_json_quote_64bit_integers: 0,
 		readonly: 1,
 	};
 }
@@ -216,9 +189,10 @@ function getDqlClient(): DqlQueryClient {
 	return defaultDqlClient;
 }
 
-export async function executeDqlQuery<T extends Record<string, unknown>>(
+export async function queryDql<T extends Record<string, unknown>>(
 	input: DqlQueryInput,
-	client = getDqlClient()
+	client = getDqlClient(),
+	abortSignal?: AbortSignal
 ): Promise<DqlQueryResult<T>> {
 	const sql = input.sql.trim();
 	if (
@@ -236,26 +210,14 @@ export async function executeDqlQuery<T extends Record<string, unknown>>(
 		throw new DqlQueryRejectedError("DQL query is too large.");
 	}
 
-	let result: ResultSet<"JSON">;
-	let response: ResponseJSON<T>;
-	try {
-		const logical = finalizeDeliveryTables(sql);
-		result = await client.query({
-			query: logical.query,
-			query_params: { ...(input.params ?? {}) },
-			format: "JSON",
-			clickhouse_settings: dqlSettingsForWebsite(input.websiteId, sql),
-		});
-		response = (await result.json<T>()) as ResponseJSON<T>;
-	} catch (error) {
-		if (error instanceof ClickHouseError && error.type) {
-			const message = SAFE_QUERY_ERRORS[error.type];
-			if (message) {
-				throw new DqlQueryRejectedError(message);
-			}
-		}
-		throw error;
-	}
+	const result = await client.query({
+		abort_signal: abortSignal,
+		query: sql,
+		query_params: { ...(input.params ?? {}) },
+		format: "JSON",
+		clickhouse_settings: dqlSettingsForWebsite(input.websiteId, sql),
+	});
+	const response = await result.json<T>();
 
 	return {
 		columns: response.meta ?? [],
@@ -268,6 +230,21 @@ export async function executeDqlQuery<T extends Record<string, unknown>>(
 			rowsRead: response.statistics?.rows_read ?? 0,
 		},
 	};
+}
+
+export async function executeDqlQuery<T extends Record<string, unknown>>(
+	input: DqlQueryInput,
+	client = getDqlClient()
+): Promise<DqlQueryResult<T>> {
+	try {
+		return await queryDql<T>(input, client);
+	} catch (error) {
+		const message =
+			error instanceof ClickHouseError && error.type
+				? SAFE_QUERY_ERRORS[error.type]
+				: undefined;
+		throw message ? new DqlQueryRejectedError(message) : error;
+	}
 }
 
 const DQL_DEFAULT_ROLE = "dql_role";
@@ -309,6 +286,10 @@ function hostClause(configuredHosts: readonly string[] | undefined): string {
 	return ` HOST ${literals.join(", ")}`;
 }
 
+export function dqlPolicyName(policyPrefix: string, table: string): string {
+	return `${policyPrefix}_${table.split(".").at(-1)}_website`;
+}
+
 export function buildDqlAccessStatements(
 	options: DqlAccessOptions
 ): readonly string[] {
@@ -328,11 +309,22 @@ export function buildDqlAccessStatements(
 		algorithm: "bcrypt",
 		cost: 12,
 	});
-	const columns = DQL_EVENTS_COLUMNS.map((column) =>
-		accessIdentifier(column.name, "column")
-	).join(", ");
-	const policy = accessIdentifier(`${policyPrefix}_events_website`, "policy");
 	const settings = DQL_RESOURCE_LIMITS;
+	const tableAccess = Object.entries(AGENT_TABLE_COLUMNS).flatMap(
+		([table, columns]) => {
+			const policy = accessIdentifier(
+				dqlPolicyName(policyPrefix, table),
+				"policy"
+			);
+			const grantedColumns = [...columns]
+				.map((column) => accessIdentifier(column, "column"))
+				.join(", ");
+			return [
+				`CREATE ROW POLICY OR REPLACE ${policy}${onCluster} ON ${table} FOR SELECT USING ${agentTenantFilter(table, `getSetting('${DQL_TENANT_SETTING}')`)} AS RESTRICTIVE TO ${role}`,
+				`GRANT${onCluster} SELECT(${grantedColumns}) ON ${table} TO ${role}`,
+			];
+		}
+	);
 
 	return [
 		`CREATE ROLE IF NOT EXISTS ${role}${onCluster}`,
@@ -346,8 +338,7 @@ export function buildDqlAccessStatements(
 		`GRANT${onCluster} ${role} TO ${user} WITH REPLACE OPTION`,
 		`ALTER USER ${user}${onCluster} DEFAULT ROLE ${role}`,
 		`ALTER USER ${user}${onCluster} SETTINGS readonly = 0 MAX 1, allow_ddl = 0 READONLY, allow_get_client_http_header = 0 READONLY, max_execution_time = ${settings.maxExecutionTimeSeconds} MIN 1 MAX ${settings.maxExecutionTimeSeconds}, max_memory_usage = ${settings.maxMemoryUsage} MIN 1 MAX ${settings.maxMemoryUsage}, max_memory_usage_for_user = ${settings.maxMemoryUsageForUser} MIN 1 MAX ${settings.maxMemoryUsageForUser}, max_rows_to_read = ${settings.maxRowsToRead} MIN 1 MAX ${settings.maxRowsToRead}, max_bytes_to_read = ${settings.maxBytesToRead} MIN 1 MAX ${settings.maxBytesToRead}, max_result_rows = ${settings.maxResultRows} MIN 1 MAX ${settings.maxResultRows}, max_result_bytes = ${settings.maxResultBytes} MIN 1 MAX ${settings.maxResultBytes}, max_threads = ${settings.maxThreads} MIN 1 MAX ${settings.maxThreads}, max_concurrent_queries_for_user = ${settings.maxConcurrentQueries} MIN 1 MAX ${settings.maxConcurrentQueries}, read_overflow_mode = 'throw' READONLY, result_overflow_mode = 'throw' READONLY, use_query_cache = 0 READONLY`,
-		`CREATE ROW POLICY OR REPLACE ${policy}${onCluster} ON ${DQL_EVENTS_TABLE} FOR SELECT USING ${DQL_EVENTS_TENANT_COLUMN} = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE TO ${role}`,
-		`GRANT${onCluster} SELECT(${columns}) ON ${DQL_EVENTS_TABLE} TO ${role}`,
+		...tableAccess,
 	];
 }
 
@@ -393,7 +384,9 @@ async function provisionDql(): Promise<void> {
 		hosts: [...new Set([...DQL_DEFAULT_HOSTS, address])],
 	});
 
-	console.info("Provisioned the DQL ClickHouse user, grant, and row policy.");
+	console.info(
+		"Provisioned the DQL ClickHouse user, grants, and row policies."
+	);
 }
 
 if (import.meta.main) {

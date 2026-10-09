@@ -38,9 +38,14 @@ const EVENT_TYPE_COLORS = {
 	web_vitals: METRIC_COLORS.visitors.primary,
 	custom_event: METRIC_COLORS.sessions.primary,
 	outgoing_link: METRIC_COLORS.bounce_rate.primary,
+	mcp: METRIC_COLORS.avg_lcp.primary,
 } as const;
 
 const EVENT_TYPES = Object.keys(EVENT_TYPE_COLORS);
+
+function eventTypeLabel(eventType: string): string {
+	return eventType === "mcp" ? "MCP tool call" : eventType.replace("_", " ");
+}
 
 function formatYAxis(value: number): string {
 	if (value >= 1_000_000) {
@@ -87,6 +92,7 @@ export function ConsumptionChart({
 				web_vitals: 0,
 				custom_event: 0,
 				outgoing_link: 0,
+				mcp: 0,
 			});
 		}
 
@@ -153,11 +159,11 @@ export function ConsumptionChart({
 		return (
 			<Card>
 				<Card.Header>
-					<Card.Title>Consumption Breakdown</Card.Title>
+					<Card.Title>Consumption breakdown</Card.Title>
 					<Card.Description>Daily event volume by type</Card.Description>
 				</Card.Header>
 				<Card.Content className="py-8">
-					<EmptyState icon={<CalendarIcon />} title="No data available" />
+					<EmptyState icon={<CalendarIcon />} title="No usage yet" />
 				</Card.Content>
 			</Card>
 		);
@@ -176,7 +182,7 @@ export function ConsumptionChart({
 		<Card>
 			<Card.Header className="flex-row flex-wrap items-start justify-between gap-4">
 				<div>
-					<Card.Title>Consumption Breakdown</Card.Title>
+					<Card.Title>Consumption breakdown</Card.Title>
 					<Card.Description>Daily event volume by type</Card.Description>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
@@ -291,7 +297,7 @@ export function ConsumptionChart({
 																		style={{ backgroundColor: color }}
 																	/>
 																	<span className="text-muted-foreground text-xs capitalize">
-																		{eventType.replace("_", " ")}
+																		{eventTypeLabel(eventType)}
 																	</span>
 																</div>
 																<div className="text-right">
@@ -324,7 +330,7 @@ export function ConsumptionChart({
 													!!hiddenTypes[key]
 												)}
 											>
-												{key.replace("_", " ")}
+												{eventTypeLabel(key)}
 											</span>
 										);
 									}}

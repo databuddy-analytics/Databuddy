@@ -350,7 +350,7 @@ export function ExpirationPicker({
 								type="button"
 							>
 								<CalendarIcon aria-hidden="true" className="size-4" />
-								<span>Custom date & time</span>
+								<span>Custom date and time</span>
 								{activePreset === "custom" && (
 									<CheckIcon aria-hidden="true" className="ml-auto size-3.5" />
 								)}

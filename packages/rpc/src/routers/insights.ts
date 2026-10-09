@@ -1,5 +1,5 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
-import { getAutumn } from "../lib/autumn-client";
+import { billingMode, readBooleanEnv } from "@databuddy/env/app";
+import { autumnCall, getAutumn } from "../lib/autumn-client";
 import { getBillingCustomerId } from "../utils/billing";
 import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
@@ -37,6 +37,7 @@ import {
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { getWebsiteBusinessScope } from "@databuddy/services/business-memory";
 import {
+	formatInvestigationNext,
 	historyInsightSchema,
 	insightBriefItemSchema,
 	insightReplySlackDeliverySchema,
@@ -58,7 +59,6 @@ import { isDeepStrictEqual } from "node:util";
 // what the definition measures. Compare them order-insensitively.
 const canonicalFilters = (filters: unknown[] | null | undefined): string[] =>
 	[...(filters ?? [])].map((filter) => JSON.stringify(filter)).sort();
-import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -74,16 +74,9 @@ import {
 	protectedProcedure,
 	publicProcedure,
 } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { hasAccess, withWorkspace } from "../procedures/with-workspace";
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
-
-function isAccessDenied(error: unknown): boolean {
-	return (
-		error instanceof ORPCError &&
-		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
-	);
-}
 
 const appendInvestigationReplyInputSchema = z
 	.object({
@@ -97,7 +90,7 @@ const appendInvestigationReplyInputSchema = z
 			.min(1)
 			.max(200)
 			.refine((value) => !value.includes(":"), {
-				message: "Reply ids cannot contain colons",
+				message: "Reply IDs cannot contain colons.",
 			})
 			.optional(),
 	})
@@ -118,10 +111,13 @@ const appendInvestigationReplyInputSchema = z
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
+const investigationAIMissing = () =>
+	readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim();
+
 function requireInvestigationAI() {
-	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+	if (investigationAIMissing()) {
 		throw rpcError.badRequest(
-			"Ask your administrator to configure AI before continuing an investigation."
+			"AI is not set up on this Databuddy instance. Ask your administrator to configure it before continuing an investigation."
 		);
 	}
 }
@@ -129,7 +125,7 @@ function requireInvestigationAI() {
 async function queueInsightReply(
 	replyId: string
 ): Promise<z.infer<typeof insightReplyStatusSchema>> {
-	try {
+	const enqueueAndRecord = async () => {
 		const status = await enqueueInsightsResume(replyId);
 		if (status === "succeeded") {
 			await db
@@ -138,18 +134,14 @@ async function queueInsightReply(
 				.where(eq(insightReplies.id, replyId));
 		}
 		return status;
+	};
+	try {
+		return await enqueueAndRecord();
 	} catch (error) {
 		logger.error({ error, replyId }, "Failed to queue investigation reply");
 		try {
 			if (await getInsightsQueue().getJob(insightsResumeJobId(replyId))) {
-				const status = await enqueueInsightsResume(replyId);
-				if (status === "succeeded") {
-					await db
-						.update(insightReplies)
-						.set({ status })
-						.where(eq(insightReplies.id, replyId));
-				}
-				return status;
+				return await enqueueAndRecord();
 			}
 		} catch (reconciliationError) {
 			logger.warn(
@@ -184,7 +176,7 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
-	if (readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim()) {
+	if (investigationAIMissing()) {
 		return;
 	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
@@ -362,6 +354,11 @@ const insightBriefSelection = {
 	investigationId: analyticsInsights.id,
 	outcome: insightObservations.outcome,
 	signal: insightObservations.signal,
+	superseded: sql<boolean>`exists (
+		select 1 from insight_observations later
+		where later.insight_id = ${insightObservations.insightId}
+			and (later.created_at, later.id) > (${insightObservations.createdAt}, ${insightObservations.id})
+	)`,
 	websiteDomain: websites.domain,
 	websiteId: insightObservations.websiteId,
 	websiteName: websites.name,
@@ -374,6 +371,7 @@ interface InsightBriefRow {
 	investigationId: string | null;
 	outcome: (typeof insightObservations.$inferSelect)["outcome"];
 	signal: (typeof insightObservations.$inferSelect)["signal"];
+	superseded: boolean;
 	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
@@ -394,6 +392,13 @@ function serializeInsightBrief(
 		id: row.id,
 		impact: outcome.impact,
 		investigationId: row.investigationId ?? null,
+		next:
+			row.superseded || outcome.next.type === "resolve"
+				? null
+				: {
+						text: formatInvestigationNext(outcome, signal),
+						type: outcome.next.type,
+					},
 		rootCause: outcome.rootCause,
 		signal,
 		summary: outcome.summary,
@@ -406,7 +411,7 @@ function serializeInsightBrief(
 
 async function authorizeInsightsRead(
 	context: Context,
-	input: { organizationId: string; runId?: string; websiteId?: string }
+	input: { organizationId: string; websiteId?: string }
 ) {
 	if (input.websiteId) {
 		await withWorkspace(context, {
@@ -561,7 +566,6 @@ export async function appendInvestigationReply(
 		rawAuthorName === undefined
 			? undefined
 			: investigationReplyAuthorNameSchema.parse(rawAuthorName);
-	const id = parsed.replyId ?? randomUUIDv7();
 	const [insight] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
@@ -579,7 +583,7 @@ export async function appendInvestigationReply(
 		.limit(1);
 
 	if (!insight) {
-		throw rpcError.notFound("insight", parsed.insightId);
+		throw rpcError.notFound("investigation", parsed.insightId);
 	}
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -588,11 +592,16 @@ export async function appendInvestigationReply(
 		websiteId: insight.websiteId,
 	});
 	setAuditOrganization(context, insight.organizationId);
+	const id = parsed.replyId
+		? `${insight.organizationId}_${parsed.replyId}`
+		: randomUUIDv7();
 
 	requireInvestigationAI();
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis" && !author.authorId) {
-		throw rpcError.badRequest("Start a new analysis from the dashboard.");
+		throw rpcError.badRequest(
+			"New analyses can only be started from the dashboard. Open the investigation there to continue."
+		);
 	}
 	const principalId =
 		author.authorId ??
@@ -605,27 +614,29 @@ export async function appendInvestigationReply(
 		60
 	);
 	if (!rate.success) {
-		throw rpcError.rateLimited(
-			Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
-		);
+		throw rpcError.rateLimited(rate.reset);
 	}
 	if (
 		parsed.intent === "analysis" &&
 		author.authorId &&
-		!readBooleanEnv("SELFHOST")
+		billingMode() === "live"
 	) {
 		const customerId = await getBillingCustomerId(
 			author.authorId,
 			insight.organizationId
 		);
-		const customer = await getAutumn().customers.get({ customerId });
+		const customer = await autumnCall("customers.get", () =>
+			getAutumn().customers.get({ customerId })
+		);
 		if (
 			customer.id !== customerId ||
 			!hasInvestigationAllowance(
 				customer.balances[INVESTIGATION_USAGE.featureId]
 			)
 		) {
-			throw rpcError.badRequest(
+			throw rpcError.featureUnavailable(
+				INVESTIGATION_USAGE.featureId,
+				undefined,
 				"Activate investigation billing to start a new analysis. Clarifications remain included."
 			);
 		}
@@ -666,7 +677,7 @@ export async function appendInvestigationReply(
 			.limit(1)
 			.for("update");
 		if (!current) {
-			throw rpcError.notFound("insight", parsed.insightId);
+			throw rpcError.notFound("investigation", parsed.insightId);
 		}
 
 		const [existing] = await tx
@@ -700,7 +711,7 @@ export async function appendInvestigationReply(
 				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
 			) {
 				throw rpcError.conflict(
-					"Reply id is already used for different context"
+					"This reply was already sent with different content. Refresh the page and try again."
 				);
 			}
 			return {
@@ -732,7 +743,7 @@ export async function appendInvestigationReply(
 			.limit(1);
 		if (!observation) {
 			throw rpcError.badRequest(
-				"This investigation has no history to continue"
+				"This investigation has no history to continue from. Start a new investigation instead."
 			);
 		}
 
@@ -749,7 +760,7 @@ export async function appendInvestigationReply(
 			.limit(1);
 		if (active) {
 			throw rpcError.badRequest(
-				"Databuddy is already investigating the latest reply"
+				"Databuddy is still working on the latest reply. Wait for it to finish and try again."
 			);
 		}
 
@@ -841,9 +852,11 @@ function definitionActionError(
 ): ReturnType<typeof rpcError.badRequest | typeof rpcError.conflict> {
 	return phase === "initial"
 		? rpcError.badRequest(
-				"This investigation has no executable definition action to apply"
+				"This investigation has no suggested change to apply."
 			)
-		: rpcError.conflict("This definition action is no longer available");
+		: rpcError.conflict(
+				"This suggested change is no longer available. Refresh the page to see the latest version."
+			);
 }
 
 async function applyInsightAction(input: {
@@ -868,7 +881,7 @@ async function applyInsightAction(input: {
 		)
 		.limit(1);
 	if (!target) {
-		throw rpcError.notFound("insight", parsed.insightId);
+		throw rpcError.notFound("investigation", parsed.insightId);
 	}
 	const [latestObservation] = await db
 		.select({
@@ -932,7 +945,7 @@ async function applyInsightAction(input: {
 			current.status !== "open"
 		) {
 			throw rpcError.conflict(
-				"This investigation changed before the action could apply"
+				"This investigation changed before the change could be applied. Refresh the page and try again."
 			);
 		}
 
@@ -985,7 +998,7 @@ async function applyInsightAction(input: {
 			.limit(1);
 		if (activeReply) {
 			throw rpcError.conflict(
-				"Databuddy is already verifying this investigation"
+				"Databuddy is already checking this investigation. Wait for it to finish and try again."
 			);
 		}
 
@@ -1068,7 +1081,7 @@ async function applyInsightAction(input: {
 					)
 				) {
 					throw rpcError.badRequest(
-						"This action does not change the goal definition."
+						"This change matches the current goal, so there is nothing to apply."
 					);
 				}
 				await tx
@@ -1144,7 +1157,7 @@ async function applyInsightAction(input: {
 					)
 				) {
 					throw rpcError.badRequest(
-						"This action does not change the funnel definition."
+						"This change matches the current funnel, so there is nothing to apply."
 					);
 				}
 				await tx
@@ -1223,7 +1236,7 @@ async function authorizeInvestigationShare(
 ) {
 	const insight = await findCurrentInvestigation(insightId);
 	if (!insight) {
-		throw rpcError.notFound("Investigation", insightId);
+		throw rpcError.notFound("investigation", insightId);
 	}
 	await withWorkspace(context, {
 		allowCrossOrg: true,
@@ -1409,18 +1422,14 @@ export const insightsRouter = {
 					)
 			);
 
-			const whereClause = input.websiteId
-				? and(
-						eq(analyticsInsights.organizationId, input.organizationId),
-						eq(analyticsInsights.websiteId, input.websiteId),
-						hasNoActiveReply,
-						isNull(websites.deletedAt)
-					)
-				: and(
-						eq(analyticsInsights.organizationId, input.organizationId),
-						hasNoActiveReply,
-						isNull(websites.deletedAt)
-					);
+			const whereClause = and(
+				eq(analyticsInsights.organizationId, input.organizationId),
+				input.websiteId
+					? eq(analyticsInsights.websiteId, input.websiteId)
+					: undefined,
+				hasNoActiveReply,
+				isNull(websites.deletedAt)
+			);
 
 			const latestCases = db
 				.selectDistinctOn(
@@ -1492,85 +1501,39 @@ export const insightsRouter = {
 			const principalId = context.user?.id ?? `apikey:${context.apiKey?.id}`;
 			const rate = await ratelimit(`insights:getById:${principalId}`, 120, 60);
 			if (!rate.success) {
-				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
-				);
+				throw rpcError.rateLimited(rate.reset);
 			}
 
-			const [row] = await selectInsights()
-				.where(
-					and(
-						eq(analyticsInsights.id, input.insightId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!row) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
+			const empty = { canReply: false, insight: null, timeline: [] };
+			const insight = await findCurrentInvestigation(input.insightId);
+			if (!insight) {
+				return empty;
 			}
-
-			const workspace = await withWorkspace(context, {
-				organizationId: row.organizationId,
-				websiteId: row.websiteId,
-				permissions: ["read"],
-				allowCrossOrg: true,
-			}).catch((error) => {
-				if (isAccessDenied(error)) {
-					return null;
-				}
-				throw error;
-			});
-
-			if (!workspace) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
-			}
-
-			const [current] = await selectInsights()
-				.where(
-					and(
-						eq(analyticsInsights.organizationId, row.organizationId),
-						eq(analyticsInsights.websiteId, row.websiteId),
-						eq(analyticsInsights.subjectKey, row.subjectKey),
-						isNull(websites.deletedAt)
-					)
-				)
-				.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
-				.limit(1);
-			const insight = current ?? row;
-			const timeline = await loadInsightTimeline(insight);
-			const hasInvestigation = timeline.some(
-				(item) => item.kind === "investigation"
+			const canRead = await hasAccess(
+				withWorkspace(context, {
+					allowCrossOrg: true,
+					organizationId: insight.organizationId,
+					permissions: ["read"],
+					websiteId: insight.websiteId,
+				})
 			);
-			if (!hasInvestigation) {
-				return {
-					canReply: false,
-					insight: null,
-					timeline: [],
-				};
+			if (!canRead) {
+				return empty;
 			}
 
-			const canReply = await withWorkspace(context, {
-				allowCrossOrg: true,
-				organizationId: row.organizationId,
-				permissions: ["update"],
-				websiteId: row.websiteId,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
+			const timeline = await loadInsightTimeline(insight);
+			if (!timeline.some((item) => item.kind === "investigation")) {
+				return empty;
+			}
+
+			const canReply = await hasAccess(
+				withWorkspace(context, {
+					allowCrossOrg: true,
+					organizationId: insight.organizationId,
+					permissions: ["update"],
+					websiteId: insight.websiteId,
+				})
+			);
 
 			return {
 				canReply,
@@ -1657,7 +1620,7 @@ export const insightsRouter = {
 				)
 				.limit(1);
 			if (!reply) {
-				throw rpcError.notFound("insight reply", input.replyId);
+				throw rpcError.notFound("investigation reply", input.replyId);
 			}
 			await withWorkspace(context, {
 				allowCrossOrg: true,
@@ -1684,7 +1647,7 @@ export const insightsRouter = {
 					.limit(1)
 					.for("update");
 				if (!current) {
-					throw rpcError.notFound("insight reply", input.replyId);
+					throw rpcError.notFound("investigation reply", input.replyId);
 				}
 
 				const [latest] = await tx
@@ -1698,7 +1661,9 @@ export const insightsRouter = {
 					.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
 					.limit(1);
 				if (latest?.id !== input.replyId) {
-					throw rpcError.badRequest("Only the latest reply can be retried");
+					throw rpcError.badRequest(
+						"Only the latest reply can be retried. Refresh the page to see it."
+					);
 				}
 				if (latest.status !== "failed") {
 					return latest.status;
@@ -1717,7 +1682,7 @@ export const insightsRouter = {
 					.limit(1);
 				if (!observation) {
 					throw rpcError.badRequest(
-						"This investigation has no history to continue"
+						"This investigation has no history to continue from. Start a new investigation instead."
 					);
 				}
 
@@ -1737,7 +1702,7 @@ export const insightsRouter = {
 					.limit(1);
 				if (active) {
 					throw rpcError.badRequest(
-						"Databuddy is already investigating the latest reply"
+						"Databuddy is still working on the latest reply. Wait for it to finish and try again."
 					);
 				}
 
@@ -1792,19 +1757,14 @@ export const insightsRouter = {
 				.where(investigationShareCase(insight))
 				.limit(1);
 			const canPublish = context.user
-				? await withWorkspace(context, {
-						allowCrossOrg: true,
-						organizationId: insight.organizationId,
-						permissions: ["update"],
-						websiteId: insight.websiteId,
-					})
-						.then(() => true)
-						.catch((error) => {
-							if (isAccessDenied(error)) {
-								return false;
-							}
-							throw error;
+				? await hasAccess(
+						withWorkspace(context, {
+							allowCrossOrg: true,
+							organizationId: insight.organizationId,
+							permissions: ["update"],
+							websiteId: insight.websiteId,
 						})
+					)
 				: false;
 			return {
 				canPublish,
@@ -1841,7 +1801,7 @@ export const insightsRouter = {
 			);
 			if (timeline.length === 0) {
 				throw rpcError.badRequest(
-					"This investigation has no findings to publish yet"
+					"This investigation has no findings to share yet. Try again once it has results."
 				);
 			}
 			const snapshot: InvestigationShareSnapshot = {
@@ -1892,7 +1852,9 @@ export const insightsRouter = {
 					version: investigationShares.version,
 				});
 			if (!share) {
-				throw rpcError.internal("Could not publish the investigation");
+				throw rpcError.internal(
+					"The investigation could not be shared. Try again in a moment."
+				);
 			}
 			await fetchPublicInvestigationShare.invalidate(share.id);
 			return {
@@ -1949,7 +1911,7 @@ export const insightsRouter = {
 			);
 			const { share } = await fetchPublicInvestigationShare(input.shareId);
 			if (!share) {
-				throw rpcError.notFound("Investigation", input.shareId);
+				throw rpcError.notFound("investigation", input.shareId);
 			}
 			return share;
 		}),

@@ -1,8 +1,12 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { billingMode } from "@databuddy/env/app";
 import { chQuery, EXCLUDE_IMPORTED_ROWS } from "@databuddy/db/clickhouse";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn } from "../lib/autumn-client";
+import {
+	autumnCall,
+	BillingUnavailableError,
+	getAutumn,
+} from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, trackedSessionProcedure } from "../orpc";
@@ -18,6 +22,7 @@ const EVENT_CATEGORIES = {
 	WEB_VITALS: "web_vitals",
 	CUSTOM_EVENT: "custom_event",
 	OUTGOING_LINK: "outgoing_link",
+	MCP: "mcp",
 } as const;
 
 type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
@@ -41,8 +46,8 @@ interface EventTypeBreakdown {
 interface EventSource {
 	category: EventCategory;
 	dateColumn: string;
-	filterColumn?: string;
 	rowFilter?: string;
+	scope?: string;
 	table: string;
 }
 
@@ -67,12 +72,18 @@ const EVENT_SOURCES: EventSource[] = [
 		table: "analytics.custom_events",
 		dateColumn: "timestamp",
 		category: EVENT_CATEGORIES.CUSTOM_EVENT,
-		filterColumn: "website_id",
+		scope: "website_id IN {websiteIds:Array(String)}",
 	},
 	{
 		table: "analytics.outgoing_links",
 		dateColumn: "timestamp",
 		category: EVENT_CATEGORIES.OUTGOING_LINK,
+	},
+	{
+		table: "analytics.mcp_spans",
+		dateColumn: "timestamp",
+		category: EVENT_CATEGORIES.MCP,
+		scope: "owner_id = {organizationId:String}",
 	},
 ];
 
@@ -84,18 +95,15 @@ const getDefaultDateRange = () => {
 	return { startDate, endDate };
 };
 
-const buildEventSourceQuery = (source: EventSource): string => {
-	const filterCol = source.filterColumn ?? "client_id";
-	return `
+const buildEventSourceQuery = (source: EventSource): string => `
 		SELECT
 			toDate(${source.dateColumn}) as date,
 			'${source.category}' as event_category
 		FROM ${source.table}
-		WHERE ${filterCol} IN {websiteIds:Array(String)}
+		WHERE ${source.scope ?? "client_id IN {websiteIds:Array(String)}"}
 			AND ${source.dateColumn} >= parseDateTimeBestEffort({startDate:String})
 			AND ${source.dateColumn} <= parseDateTimeBestEffort({endDate:String})
 			${source.rowFilter ? `AND ${source.rowFilter}` : ""}`;
-};
 
 const getDailyUsageByTypeQuery = (): string => {
 	const eventQueries = EVENT_SOURCES.map(buildEventSourceQuery).join(
@@ -181,7 +189,7 @@ const autoTopupConfigSchema = z
 			(v.threshold >= MIN_AUTO_TOPUP_THRESHOLD &&
 				v.threshold <= MAX_AUTO_TOPUP_THRESHOLD),
 		{
-			message: `threshold must be between ${MIN_AUTO_TOPUP_THRESHOLD} and ${MAX_AUTO_TOPUP_THRESHOLD}`,
+			message: `Choose a top-up threshold between ${MIN_AUTO_TOPUP_THRESHOLD} and ${MAX_AUTO_TOPUP_THRESHOLD}.`,
 			path: ["threshold"],
 		}
 	)
@@ -191,7 +199,7 @@ const autoTopupConfigSchema = z
 			(v.quantity >= MIN_AUTO_TOPUP_QUANTITY &&
 				v.quantity <= MAX_AUTO_TOPUP_QUANTITY),
 		{
-			message: `quantity must be between ${MIN_AUTO_TOPUP_QUANTITY} and ${MAX_AUTO_TOPUP_QUANTITY}`,
+			message: `Choose a top-up amount between ${MIN_AUTO_TOPUP_QUANTITY} and ${MAX_AUTO_TOPUP_QUANTITY}.`,
 			path: ["quantity"],
 		}
 	);
@@ -207,7 +215,7 @@ const usageAlertConfigSchema = z
 			(v.threshold >= MIN_ALERT_PERCENTAGE &&
 				v.threshold <= MAX_ALERT_PERCENTAGE),
 		{
-			message: `threshold must be between ${MIN_ALERT_PERCENTAGE} and ${MAX_ALERT_PERCENTAGE}`,
+			message: `Choose an alert threshold between ${MIN_ALERT_PERCENTAGE} and ${MAX_ALERT_PERCENTAGE}.`,
 			path: ["threshold"],
 		}
 	);
@@ -226,7 +234,7 @@ const spendLimitConfigSchema = z
 			(v.overageLimit >= MIN_OVERAGE_UNITS &&
 				v.overageLimit <= MAX_OVERAGE_UNITS),
 		{
-			message: `overageLimit must be between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}`,
+			message: `Choose an overage limit between ${MIN_OVERAGE_UNITS} and ${MAX_OVERAGE_UNITS}.`,
 			path: ["overageLimit"],
 		}
 	);
@@ -259,8 +267,10 @@ async function upsertBillingControl<
 	entry: BillingControlEntries[K];
 	operation: string;
 }): Promise<void> {
-	if (readBooleanEnv("SELFHOST")) {
-		throw rpcError.badRequest("Billing is disabled for self-hosted instances");
+	if (billingMode() !== "live") {
+		throw rpcError.badRequest(
+			"Billing is turned off on this Databuddy instance."
+		);
 	}
 	const { customerId, canUserUpgrade } = await getBillingOwner(
 		args.context.user.id,
@@ -268,34 +278,32 @@ async function upsertBillingControl<
 	);
 	if (!canUserUpgrade) {
 		throw rpcError.forbidden(
-			"Only an organization owner or admin can change billing settings."
+			"Only organization owners and admins can change billing settings. Ask one of them to do this."
 		);
 	}
 
-	try {
-		const autumn = getAutumn({ strict: true });
-		const customer = await autumn.customers.getOrCreate({ customerId });
-		if (customer.id !== customerId) {
-			throw new Error("The billing customer could not be verified");
-		}
-		const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
-			featureId: string;
-		}>;
-		const merged = [
-			...existing.filter((e) => e.featureId !== args.entry.featureId),
-			args.entry,
-		];
-		await autumn.customers.update({
+	const autumn = getAutumn();
+	const customer = await autumnCall("customers.getOrCreate", () =>
+		autumn.customers.getOrCreate({ customerId })
+	);
+	if (customer.id !== customerId) {
+		throw new BillingUnavailableError(
+			"The billing customer could not be verified"
+		);
+	}
+	const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
+		featureId: string;
+	}>;
+	const merged = [
+		...existing.filter((e) => e.featureId !== args.entry.featureId),
+		args.entry,
+	];
+	await autumnCall("customers.update", () =>
+		autumn.customers.update({
 			customerId,
 			billingControls: { [args.key]: merged } as Record<K, typeof merged>,
-		});
-	} catch (error) {
-		logger.error(
-			{ error, customerId, userId: args.context.user.id },
-			`Failed to update ${args.operation} configuration`
-		);
-		throw rpcError.internal(`Failed to update ${args.operation} settings`);
-	}
+		})
+	);
 }
 
 export const billingRouter = {
@@ -407,7 +415,7 @@ export const billingRouter = {
 				(input.organizationId?.trim() || null) ?? context.organizationId;
 
 			if (!resolvedOrgId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -423,21 +431,11 @@ export const billingRouter = {
 				});
 				const websiteIds = userWebsites.map((site) => site.id);
 
-				if (websiteIds.length === 0) {
-					return {
-						totalEvents: 0,
-						dailyUsage: [],
-						dailyUsageByType: [],
-						eventTypeBreakdown: [],
-						websiteCount: 0,
-						dateRange: { startDate, endDate },
-					};
-				}
-
 				const dailyUsageByTypeResults = await chQuery<DailyUsageByTypeRow>(
 					getDailyUsageByTypeQuery(),
 					{
 						websiteIds,
+						organizationId: resolvedOrgId,
 						startDate,
 						endDate,
 					}
@@ -478,7 +476,9 @@ export const billingRouter = {
 					`Failed to fetch billing usage: ${errorMessage}`
 				);
 
-				throw rpcError.internal("Failed to fetch billing usage data");
+				throw rpcError.internal(
+					"Billing usage could not be loaded. Try again in a moment."
+				);
 			}
 		}),
 };

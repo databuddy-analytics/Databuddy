@@ -1,6 +1,6 @@
 ---
 title: Jekyll
-description: Add privacy-first analytics to your Jekyll static site
+description: Add cookieless product analytics to your Jekyll static site
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,12 +8,12 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your Jekyll static site by adding the tracking script to your site's main layout file or by creating an include file.
+Add Databuddy's cookieless product analytics to your Jekyll static site by adding the tracking script to your site's main layout file or by creating an include file.
 
-## How to Add Databuddy to Jekyll
+## How to add Databuddy to Jekyll
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Get your Databuddy tracking script from your [Databuddy dashboard](https://app.databuddy.cc). It will look like this:
 
     <CodeBlock
@@ -30,16 +30,16 @@ Add Databuddy's privacy-first analytics to your Jekyll static site by adding the
   </Step>
 </Steps>
 
-## Option A: Add to Default Layout
+## Option A: Add to default layout
 
 The simplest way is to add the script directly to your default layout file.
 
 <Steps>
-  <Step title="Locate Your Main Layout File">
+  <Step title="Locate your main layout file">
     In your Jekyll project, find your main layout file. This is often `_layouts/default.html`.
   </Step>
 
-  <Step title="Add the Tracking Script">
+  <Step title="Add the tracking script">
     Open this file and paste the Databuddy tracking script just before the closing `</body>` tag.
 
     <CodeBlock
@@ -70,17 +70,17 @@ The simplest way is to add the script directly to your default layout file.
 
     **Explanation:**
 
-    - `{% if jekyll.environment == "production" %}`: This Liquid tag ensures the script is only included when your site is built for production (e.g., when `JEKYLL_ENV=production jekyll build`). This prevents tracking your local development views.
+    - `{% if jekyll.environment == "production" %}`: This Liquid tag ensures the script is only included when your site is built for production (e.g. when `JEKYLL_ENV=production jekyll build`). This prevents tracking your local development views.
     - Replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 </Steps>
 
-## Option B: Create an Include File (Recommended)
+## Option B: Create an include file (recommended)
 
 A cleaner approach is to create an include file for the script.
 
 <Steps>
-  <Step title="Create the Include File">
+  <Step title="Create the include file">
     In your Jekyll project, navigate to the `_includes/` directory. If it doesn't exist, create it.
 
     Create a new file named `databuddy-analytics.html` inside `_includes/` and paste the following:
@@ -100,8 +100,8 @@ A cleaner approach is to create an include file for the script.
     />
   </Step>
 
-  <Step title="Include in Layout">
-    Open your main layout file (e.g., `_layouts/default.html`).
+  <Step title="Include in layout">
+    Open your main layout file (e.g. `_layouts/default.html`).
 
     Just before the closing `</body>` tag, add:
 
@@ -138,7 +138,7 @@ databuddy_client_id: "YOUR_CLIENT_ID"`}
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by modifying the include file:
 
@@ -161,11 +161,11 @@ Enable additional tracking features by modifying the include file:
 {% endif %}`}
 />
 
-## Custom Event Tracking
+## Custom event tracking
 
 Track custom events in your Jekyll posts and pages using data attributes or inline JavaScript.
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-### In Jekyll Posts
+### In Jekyll posts
 
 Add tracking to specific blog posts using front matter and includes:
 
@@ -230,7 +230,7 @@ if (window.databuddy) {
 {% endif %}`}
 />
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Hugo" href="/docs/Integrations/hugo">

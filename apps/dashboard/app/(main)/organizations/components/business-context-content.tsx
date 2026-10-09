@@ -9,6 +9,7 @@ import { cn, dayjs } from "@databuddy/ui";
 import { Accordion } from "@databuddy/ui/client";
 import { ArrowSquareOutIcon, FileTextIcon } from "@databuddy/ui/icons";
 import { Streamdown } from "streamdown";
+import { ImageAltText } from "@/components/ai-elements/message";
 
 export function BusinessContextMarkdown({
 	content,
@@ -22,7 +23,7 @@ export function BusinessContextMarkdown({
 			className="min-w-0 space-y-4 break-words text-foreground text-sm leading-7 [&_h1]:text-xl [&_h2]:text-base [&_h3]:text-sm [&_pre]:max-w-full [&_pre]:overflow-x-auto"
 			mode={streaming ? "streaming" : "static"}
 			isAnimating={streaming}
-			components={{ img: ({ alt }) => (alt ? <span>{alt}</span> : null) }}
+			components={{ img: ImageAltText }}
 		>
 			{content}
 		</Streamdown>
@@ -210,7 +211,7 @@ export function BusinessContextResearchReport({
 									>
 										{page.status === "read"
 											? "Read"
-											: "Could not read this page"}
+											: "Failed to read this page"}
 									</p>
 								</li>
 							))}

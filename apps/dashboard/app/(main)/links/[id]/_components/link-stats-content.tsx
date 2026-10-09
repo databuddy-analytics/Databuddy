@@ -140,7 +140,7 @@ export function LinkStatsContent() {
 		return (
 			<ResourceUnavailableState
 				backHref="/links"
-				backLabel="Back to Links"
+				backLabel="Back to links"
 				className="h-full p-6"
 			/>
 		);
@@ -159,7 +159,7 @@ export function LinkStatsContent() {
 						id="clicks-chart"
 						isLoading={isLoading}
 						showChart={true}
-						title="Total Clicks"
+						title="Total clicks"
 						value={formatNumber(stats?.totalClicks ?? 0)}
 					/>
 					<StatCard
@@ -202,7 +202,7 @@ export function LinkStatsContent() {
 						isLoading={isLoading}
 						minHeight={350}
 						tabs={sourceTabs}
-						title="Traffic Sources"
+						title="Traffic sources"
 					/>
 					<DataTable
 						description="Geographic distribution"
@@ -210,7 +210,7 @@ export function LinkStatsContent() {
 						isLoading={isLoading}
 						minHeight={350}
 						tabs={geoTabs}
-						title="Geographic Distribution"
+						title="Geographic distribution"
 					/>
 				</div>
 			</div>

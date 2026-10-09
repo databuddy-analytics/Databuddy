@@ -79,7 +79,7 @@ function FunnelRow({
 							{!funnel.isActive && (
 								<Badge
 									className="rounded px-1.5 py-0.5 text-[10px]!"
-									variant="default"
+									variant="warning"
 								>
 									Paused
 								</Badge>
@@ -287,7 +287,7 @@ export function FunnelsListRenderer({
 							variant="secondary"
 						>
 							<PlusIcon className="size-4" />
-							Create Funnel
+							Create funnel
 						</Button>
 					</div>
 				</div>
@@ -322,7 +322,7 @@ export function FunnelsListRenderer({
 							<div className="ml-auto flex items-center gap-2">
 								<Button onClick={openCreate} size="sm" variant="primary">
 									<PlusIcon className="size-3.5" />
-									New
+									Create funnel
 								</Button>
 							</div>
 						</div>
@@ -357,13 +357,13 @@ export function FunnelsListRenderer({
 			/>
 
 			<DeleteDialog
-				confirmLabel="Delete Funnel"
+				confirmLabel="Delete funnel"
 				description="This action cannot be undone and will permanently remove all funnel analytics data."
 				isDeleting={isDeleting}
 				isOpen={!!deletingId}
 				onClose={() => setDeletingId(null)}
 				onConfirm={confirmDelete}
-				title="Delete Funnel"
+				title="Delete funnel"
 			/>
 		</>
 	);

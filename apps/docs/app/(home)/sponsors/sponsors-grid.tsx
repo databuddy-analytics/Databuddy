@@ -78,7 +78,7 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 	if (sponsors.length === 0) {
 		return (
 			<div className="text-center">
-				<h2 className="mb-4 font-semibold text-2xl">Our Sponsors</h2>
+				<h2 className="mb-4 font-semibold text-2xl">Our sponsors</h2>
 				<p className="text-muted-foreground">
 					No sponsors to display at the moment
 				</p>
@@ -106,7 +106,7 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 			{/* Header */}
 			<div className="mb-12 text-center">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Our Sponsors
+					Our sponsors
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Thank you to these amazing companies and individuals for supporting
@@ -123,10 +123,10 @@ export default function SponsorsGrid({ sponsors }: SponsorsGridProps) {
 					}
 
 					const tierLabels: Record<typeof tier, string> = {
-						platinum: "Platinum Sponsors",
-						gold: "Gold Sponsors",
-						silver: "Silver Sponsors",
-						bronze: "Bronze Sponsors",
+						platinum: "Platinum sponsors",
+						gold: "Gold sponsors",
+						silver: "Silver sponsors",
+						bronze: "Bronze sponsors",
 					};
 
 					// Dynamic grid columns based on number of items

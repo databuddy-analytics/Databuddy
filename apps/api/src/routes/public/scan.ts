@@ -139,7 +139,7 @@ export const scanRoute = new Elysia({ prefix: "/v1/scan" }).post(
 					request,
 					429,
 					"RATE_LIMITED",
-					"Scan rate limit reached",
+					"Too many requests. Try again shortly.",
 					getRateLimitHeaders(rl)
 				);
 			}

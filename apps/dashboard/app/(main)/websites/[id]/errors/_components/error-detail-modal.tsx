@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import { getDeviceIcon } from "./error-icons";
 import type { RecentError } from "./types";
-import { getErrorCategory, getSeverityColor } from "./utils";
+import { getErrorCategory, getSeverityColor, SEVERITY_LABELS } from "./utils";
 import { BugIcon, CheckIcon, CopyIcon, StackIcon } from "@databuddy/ui/icons";
 import { Accordion, Sheet } from "@databuddy/ui/client";
 import { Badge, Button, formatDateTime, fromNow } from "@databuddy/ui";
@@ -114,10 +115,8 @@ export const ErrorDetailModal = ({
 			setCopiedField(field);
 			toast.success("Copied to clipboard");
 			setTimeout(() => setCopiedField(null), 2000);
-		} catch (err) {
-			toast.error("Failed to copy", {
-				description: err instanceof Error ? err.message : "Unknown error",
-			});
+		} catch (copyError) {
+			showErrorToast(copyError, "Failed to copy to clipboard");
 		}
 	};
 
@@ -215,9 +214,9 @@ export const ErrorDetailModal = ({
 		error.client_id
 			? { key: "client", label: "Client ID", value: error.client_id }
 			: null,
-		error.ip ? { key: "ip", label: "IP Address", value: error.ip } : null,
+		error.ip ? { key: "ip", label: "IP address", value: error.ip } : null,
 		error.user_agent
-			? { key: "agent", label: "User Agent", value: error.user_agent }
+			? { key: "agent", label: "User agent", value: error.user_agent }
 			: null,
 	].filter((row): row is NonNullable<typeof row> => row !== null);
 
@@ -233,7 +232,7 @@ export const ErrorDetailModal = ({
 							<div className="flex items-center gap-2">
 								<Sheet.Title className="text-lg">{type}</Sheet.Title>
 								<Badge className={getSeverityColor(severity)} size="sm">
-									{severity}
+									{SEVERITY_LABELS[severity]}
 								</Badge>
 							</div>
 							<Sheet.Description className="text-xs">
@@ -288,7 +287,7 @@ export const ErrorDetailModal = ({
 								<Accordion.Trigger>
 									<StackIcon className="size-4 shrink-0 text-muted-foreground" />
 									<span className="font-medium text-foreground">
-										Stack Trace
+										Stack trace
 									</span>
 								</Accordion.Trigger>
 								<Accordion.Content>
@@ -333,7 +332,7 @@ export const ErrorDetailModal = ({
 							<Accordion>
 								<Accordion.Trigger>
 									<span className="font-medium text-foreground">
-										Technical Details
+										Technical details
 									</span>
 									<Badge className="ml-auto" size="sm" variant="muted">
 										{technicalRows.length}
@@ -375,7 +374,7 @@ export const ErrorDetailModal = ({
 						) : (
 							<CopyIcon className="size-4" />
 						)}
-						Copy All
+						Copy all
 					</Button>
 				</Sheet.Footer>
 			</Sheet.Content>

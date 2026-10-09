@@ -17,7 +17,7 @@ const registry = {
 	},
 	alarm: {
 		authResource: "organization",
-		label: "Alarm",
+		label: "Alert",
 		load: (id: string) =>
 			db.query.alarms.findFirst({
 				where: { id },
@@ -112,7 +112,7 @@ export async function authorizeTransfer<K extends TransferableResource>(
 
 	if (row.organizationId === options.targetOrganizationId) {
 		throw rpcError.badRequest(
-			`${entry.label} already belongs to this organization`
+			`This ${entry.label.toLowerCase()} already belongs to that organization. Pick a different organization.`
 		);
 	}
 

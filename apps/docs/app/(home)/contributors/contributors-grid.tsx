@@ -68,7 +68,7 @@ export default function ContributorsGrid({
 	if (contributors.length === 0) {
 		return (
 			<div className="text-center">
-				<h2 className="mb-4 font-semibold text-2xl">Top Contributors</h2>
+				<h2 className="mb-4 font-semibold text-2xl">Top contributors</h2>
 				<p className="text-muted-foreground">No contributors data available</p>
 			</div>
 		);
@@ -79,7 +79,7 @@ export default function ContributorsGrid({
 			{/* Header */}
 			<div className="mb-12 text-center">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Top Contributors
+					Top contributors
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					The amazing developers who make Databuddy possible through their code

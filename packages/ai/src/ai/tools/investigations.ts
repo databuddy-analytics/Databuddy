@@ -6,7 +6,7 @@ import {
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
-import { tool } from "ai";
+import { type ToolExecutionOptions, tool } from "ai";
 import { z } from "zod";
 import type { AppContext } from "../config/context";
 import { callRPCProcedure, getAppContext } from "./utils";
@@ -51,7 +51,7 @@ const inputSchema = z.object({
 		),
 });
 
-type Input = z.infer<typeof inputSchema>;
+type Input = z.input<typeof inputSchema>;
 
 export const investigationActionSchema = z
 	.object({
@@ -81,7 +81,7 @@ export const investigationActionSchema = z
 			.min(1)
 			.max(200)
 			.refine((value) => !value.includes(":"), {
-				message: "Reply ids cannot contain colons",
+				message: "Reply IDs cannot contain colons",
 			})
 			.optional()
 			.describe(
@@ -95,32 +95,29 @@ export const investigationActionSchema = z
 	})
 	.strict();
 
-type InvestigationAction = z.input<typeof investigationActionSchema>;
-type RpcCaller = (
-	routerName: string,
-	method: string,
-	input: unknown,
-	context: AppContext,
-	abortSignal?: AbortSignal
-) => Promise<unknown>;
+const readOnlyInvestigationActionSchema = investigationActionSchema
+	.omit({ body: true, replyId: true })
+	.extend({
+		action: investigationActionSchema.shape.action
+			.exclude(["reply"])
+			.describe(
+				"Read published insights, list cases, or get one case and its timeline"
+			),
+		investigationId:
+			investigationActionSchema.shape.investigationId.describe(
+				"Required for get"
+			),
+	});
 
-function isDryRunReceipt(value: unknown): value is {
-	dryRun: true;
-	message: string;
-	mutationBlocked: true;
-	success: false;
-} {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"dryRun" in value &&
-		value.dryRun === true &&
-		"mutationBlocked" in value &&
-		value.mutationBlocked === true &&
-		"message" in value &&
-		typeof value.message === "string"
-	);
-}
+type InvestigationAction = z.input<typeof investigationActionSchema>;
+type RpcCaller = typeof callRPCProcedure;
+
+const dryRunReceiptSchema = z.object({
+	dryRun: z.literal(true),
+	message: z.string(),
+	mutationBlocked: z.literal(true),
+	success: z.literal(false),
+});
 
 export async function runInvestigationAction(
 	rawInput: InvestigationAction,
@@ -129,69 +126,37 @@ export async function runInvestigationAction(
 	callRpc: RpcCaller = callRPCProcedure
 ) {
 	const input = investigationActionSchema.parse(rawInput);
-	if (input.action === "brief") {
+	if (input.action === "brief" || input.action === "list") {
 		if (!context.organizationId) {
 			throw new Error("Select an organization first");
 		}
 		const websiteId =
-			input.websiteId ??
-			context.defaultWebsiteId ??
-			context.websiteId ??
-			undefined;
-		const result = z
-			.object({
-				hasMore: z.boolean(),
-				insights: z.array(insightBriefItemSchema),
-			})
-			.parse(
-				await callRpc(
-					"insights",
-					"brief",
-					{
-						limit: input.limit,
-						offset: input.offset,
-						organizationId: context.organizationId,
-						...(websiteId ? { websiteId } : {}),
-					},
-					context,
-					abortSignal
-				)
-			);
-		return {
-			action: "brief" as const,
-			hasMore: result.hasMore,
-			insights: result.insights,
+			input.websiteId ?? context.defaultWebsiteId ?? context.websiteId;
+		const page = {
+			limit: input.limit,
+			offset: input.offset,
+			organizationId: context.organizationId,
+			...(websiteId ? { websiteId } : {}),
 		};
-	}
-
-	if (input.action === "list") {
-		if (!context.organizationId) {
-			throw new Error("Select an organization first");
+		if (input.action === "brief") {
+			const result = z
+				.object({
+					hasMore: z.boolean(),
+					insights: z.array(insightBriefItemSchema),
+				})
+				.parse(await callRpc("insights", "brief", page, context, abortSignal));
+			return {
+				action: "brief" as const,
+				hasMore: result.hasMore,
+				insights: result.insights,
+			};
 		}
-		const websiteId =
-			input.websiteId ??
-			context.defaultWebsiteId ??
-			context.websiteId ??
-			undefined;
 		const result = z
 			.object({
 				hasMore: z.boolean(),
 				insights: z.array(historyInsightSchema),
 			})
-			.parse(
-				await callRpc(
-					"insights",
-					"history",
-					{
-						limit: input.limit,
-						offset: input.offset,
-						organizationId: context.organizationId,
-						...(websiteId ? { websiteId } : {}),
-					},
-					context,
-					abortSignal
-				)
-			);
+			.parse(await callRpc("insights", "history", page, context, abortSignal));
 		return {
 			action: "list" as const,
 			hasMore: result.hasMore,
@@ -222,7 +187,13 @@ export async function runInvestigationAction(
 			action: "get" as const,
 			canReply: result.canReply,
 			investigation: result.insight,
-			timeline: result.timeline,
+			timeline: result.timeline.map((item) => {
+				if (item.kind !== "investigation") {
+					return item;
+				}
+				const { contextSnapshot: _snapshot, ...outcome } = item.outcome;
+				return { ...item, outcome };
+			}),
 		};
 	}
 
@@ -243,8 +214,9 @@ export async function runInvestigationAction(
 		context,
 		abortSignal
 	);
-	if (isDryRunReceipt(response)) {
-		return { action: "reply" as const, ...response };
+	const receipt = dryRunReceiptSchema.safeParse(response);
+	if (receipt.success) {
+		return { action: "reply" as const, ...receipt.data };
 	}
 	const result = z
 		.object({ reply: insightTimelineReplySchema })
@@ -277,115 +249,146 @@ function validateConfiguration(input: Input): void {
 	}
 }
 
-export function createInvestigationTools() {
+function executeInvestigations(
+	input: InvestigationAction,
+	options: ToolExecutionOptions
+) {
+	return runInvestigationAction(
+		input,
+		getAppContext(options),
+		options.abortSignal
+	);
+}
+
+function executeConfigureInvestigations(
+	input: Input,
+	options: ToolExecutionOptions
+) {
+	const context = getAppContext(options);
+	const organizationId = context.organizationId;
+	if (!organizationId) {
+		throw new Error("Select an organization first");
+	}
+
+	if (input.action === "status") {
+		return callRPCProcedure(
+			"insightGeneration",
+			"getConfig",
+			{ organizationId },
+			context
+		);
+	}
+
+	if (input.action === "configure") {
+		validateConfiguration(input);
+	}
+	const websiteId = context.defaultWebsiteId ?? context.websiteId;
+	if (!input.confirmed) {
+		const startsAnalysis =
+			input.action === "run" ||
+			input.frequency === "daily" ||
+			input.frequency === "weekly" ||
+			input.channelAction === "add";
+		return {
+			confirmationRequired: true,
+			scope:
+				input.action === "run" && websiteId
+					? `Website ${websiteId}`
+					: "All websites in this organization",
+			billing: startsAnalysis
+				? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. AI credits pay for Databunny chat and are not drawn down by investigations.`
+				: undefined,
+		};
+	}
+
+	if (input.action === "run") {
+		return callRPCProcedure(
+			"insightGeneration",
+			"triggerRun",
+			{
+				organizationId,
+				websiteIds: websiteId ? [websiteId] : undefined,
+			},
+			context
+		);
+	}
+
+	if (input.channelAction === "add" && input.channelId) {
+		return callRPCProcedure(
+			"insightGeneration",
+			"addSlackDelivery",
+			{
+				organizationId,
+				channelId: input.channelId,
+				frequency: input.frequency === "off" ? undefined : input.frequency,
+			},
+			context
+		);
+	}
+
+	if (input.channelAction === "remove" && input.channelId) {
+		return callRPCProcedure(
+			"insightGeneration",
+			"removeSlackDelivery",
+			{ organizationId, channelId: input.channelId },
+			context
+		);
+	}
+
+	return callRPCProcedure(
+		"insightGeneration",
+		"upsertConfig",
+		{
+			organizationId,
+			...(input.frequency
+				? {
+						enabled: input.frequency !== "off",
+						...(input.frequency === "off"
+							? {}
+							: { frequency: input.frequency }),
+					}
+				: {}),
+			...(input.timezone ? { timezone: input.timezone } : {}),
+		},
+		context
+	);
+}
+
+export function createInvestigationTools({
+	readOnly = false,
+}: {
+	readOnly?: boolean;
+} = {}) {
+	if (readOnly) {
+		return {
+			investigations: tool({
+				description:
+					"Read existing intelligence. brief returns published insights with their next steps; list/get reads durable cases. Preserve returned advice instead of adding more.",
+				inputSchema: readOnlyInvestigationActionSchema,
+				execute: executeInvestigations,
+			}),
+			configure_investigations: tool({
+				description:
+					"Read automatic investigations. status returns the organization config: Off/Daily/Weekly schedule, timezone, and Slack delivery.",
+				inputSchema: z.object({ action: z.enum(["status"]) }),
+				execute: executeConfigureInvestigations,
+			}),
+		} as const;
+	}
 	return {
 		investigations: tool({
 			description:
-				"Read existing intelligence. brief returns published insights with their recommendations; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
+				"Read existing intelligence. brief returns published insights with their next steps; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
 			inputSchema: investigationActionSchema,
-			execute: (input, options) =>
-				runInvestigationAction(
-					input,
-					getAppContext(options),
-					options.abortSignal
-				),
+			needsApproval: ({ action }) => action === "reply",
+			execute: executeInvestigations,
 		}),
 		configure_investigations: tool({
 			description:
 				"Read or change automatic investigations. status returns the organization config; configure sets Off/Daily/Weekly, timezone, or Slack delivery; run investigates the selected website now, or every website when none is selected. Configure and run require a separate confirmation turn. Show the preview's scope and billing disclosure before asking for confirmation. A run may investigate several signals; its price is not a single investigation's price.",
 			inputSchema,
-			execute: (input, options) => {
-				const context = getAppContext(options);
-				const organizationId = context.organizationId;
-				if (!organizationId) {
-					throw new Error("Select an organization first");
-				}
-
-				if (input.action === "status") {
-					return callRPCProcedure(
-						"insightGeneration",
-						"getConfig",
-						{ organizationId },
-						context
-					);
-				}
-
-				if (input.action === "configure") {
-					validateConfiguration(input);
-				}
-				if (!input.confirmed) {
-					const websiteId = context.defaultWebsiteId ?? context.websiteId;
-					const startsAnalysis =
-						input.action === "run" ||
-						input.frequency === "daily" ||
-						input.frequency === "weekly" ||
-						input.channelAction === "add";
-					return {
-						confirmationRequired: true,
-						scope:
-							input.action === "run" && websiteId
-								? `Website ${websiteId}`
-								: "All websites in this organization",
-						billing: startsAnalysis
-							? `For organizations on fixed-price investigation billing: ${INVESTIGATION_USAGE.description} Each manual or scheduled run may investigate several signals and use multiple investigations. Additional usage is billed monthly when overage is enabled. Changing settings does not itself charge for an investigation. AI credits pay for Databunny chat and are not drawn down by investigations.`
-							: undefined,
-					};
-				}
-
-				if (input.action === "run") {
-					const websiteId = context.defaultWebsiteId ?? context.websiteId;
-					return callRPCProcedure(
-						"insightGeneration",
-						"triggerRun",
-						{
-							organizationId,
-							websiteIds: websiteId ? [websiteId] : undefined,
-						},
-						context
-					);
-				}
-
-				if (input.channelAction === "add" && input.channelId) {
-					return callRPCProcedure(
-						"insightGeneration",
-						"addSlackDelivery",
-						{
-							organizationId,
-							channelId: input.channelId,
-							frequency:
-								input.frequency === "off" ? undefined : input.frequency,
-						},
-						context
-					);
-				}
-
-				if (input.channelAction === "remove" && input.channelId) {
-					return callRPCProcedure(
-						"insightGeneration",
-						"removeSlackDelivery",
-						{ organizationId, channelId: input.channelId },
-						context
-					);
-				}
-
-				return callRPCProcedure(
-					"insightGeneration",
-					"upsertConfig",
-					{
-						organizationId,
-						...(input.frequency
-							? {
-									enabled: input.frequency !== "off",
-									...(input.frequency === "off"
-										? {}
-										: { frequency: input.frequency }),
-								}
-							: {}),
-						...(input.timezone ? { timezone: input.timezone } : {}),
-					},
-					context
-				);
-			},
+			needsApproval: ({ confirmed }) => confirmed === true,
+			execute: executeConfigureInvestigations,
 		}),
 	} as const;
 }

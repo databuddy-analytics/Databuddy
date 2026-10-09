@@ -1,22 +1,23 @@
+import { ORPCError } from "@orpc/server";
 import { analyticsDateRangeSchema } from "@databuddy/validation";
 import { z } from "zod";
 import {
 	type DatePreset,
-	MCP_DATE_PRESETS,
+	DatePresetSchema,
 	resolveDatePreset,
 } from "../../lib/date-presets";
+import { captureError } from "../../lib/tracing";
+import { callRPCProcedure } from "../tools/utils";
 import { McpToolError, type McpHandlerContext } from "./define-tool";
+import { buildRpcContext } from "./tool-context";
 
 const DateOnlySchema = z.iso.date();
 
 export const McpDateRangeSchema = z
 	.object({
-		preset: z
-			.enum(MCP_DATE_PRESETS as [DatePreset, ...DatePreset[]])
-			.optional()
-			.describe(
-				"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
-			),
+		preset: DatePresetSchema.optional().describe(
+			"Date preset such as last_7d. Alternative to from/to; defaults to last_30d."
+		),
 		from: DateOnlySchema.optional().describe(
 			"Start date YYYY-MM-DD. Use with to; alternative to preset."
 		),
@@ -72,13 +73,296 @@ export const WebsiteSelectorSchema = {
 		.describe("Website domain. Alternative to websiteId."),
 } as const;
 
-export const WorkflowFilterSchema = z.object({
-	field: z.string(),
-	operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
+export const PageSchema = {
+	limit: z
+		.number()
+		.int()
+		.min(1)
+		.max(100)
+		.optional()
+		.default(50)
+		.describe("Maximum items to return, 1-100. Defaults to 50."),
+	offset: z
+		.number()
+		.int()
+		.min(0)
+		.optional()
+		.default(0)
+		.describe(
+			"Items to skip. Use the previous offset plus limit for the next page."
+		),
+} as const;
 
-export const ConfirmedSchema = z.boolean().optional().default(false);
+export function paginate<T>(
+	items: readonly T[],
+	page: { limit: number; offset: number }
+): { hasMore: boolean; items: T[]; total: number } {
+	const pageItems = items.slice(page.offset, page.offset + page.limit);
+	return {
+		hasMore: page.offset + pageItems.length < items.length,
+		items: pageItems,
+		total: items.length,
+	};
+}
+
+type Row = Record<string, unknown>;
+
+function asRow(value: unknown): Row {
+	return value && typeof value === "object" && !Array.isArray(value)
+		? Object.fromEntries(Object.entries(value))
+		: {};
+}
+
+function jsonValue(value: unknown): unknown {
+	return value instanceof Date ? value.toISOString() : (value ?? null);
+}
+
+export function pickFields(value: unknown, keys: readonly string[]): Row {
+	const row = asRow(value);
+	return Object.fromEntries(keys.map((key) => [key, jsonValue(row[key])]));
+}
+
+export const GOAL_FIELDS = [
+	"id",
+	"name",
+	"type",
+	"target",
+	"description",
+	"filters",
+	"isActive",
+	"ignoreHistoricData",
+	"updatedAt",
+] as const;
+
+export const FUNNEL_FIELDS = [
+	"id",
+	"name",
+	"description",
+	"steps",
+	"filters",
+	"isActive",
+	"ignoreHistoricData",
+	"updatedAt",
+] as const;
+
+export const ANNOTATION_FIELDS = [
+	"id",
+	"annotationType",
+	"text",
+	"xValue",
+	"xEndValue",
+	"tags",
+	"color",
+	"isPublic",
+	"updatedAt",
+] as const;
+
+export const FLAG_FIELDS = [
+	"id",
+	"key",
+	"name",
+	"description",
+	"type",
+	"status",
+	"defaultValue",
+	"rolloutPercentage",
+	"rolloutBy",
+	"rules",
+	"variants",
+	"dependencies",
+	"environment",
+	"persistAcrossAuth",
+	"payload",
+	"targetGroups",
+	"updatedAt",
+] as const;
+
+export const FLAG_IDENTITY_FIELDS = ["id", "key", "name", "status"] as const;
+
+export const FLAG_WRITE_FIELDS = FLAG_FIELDS.filter(
+	(field) => field !== "targetGroups"
+);
+
+const FLAG_RULE_VALUE_LIMIT = 10;
+const TARGET_GROUP_FIELDS = ["id", "name", "description", "rules"] as const;
+
+function stringValues(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string")
+		: [];
+}
+
+function summarizeFlagRules(rules: unknown, valueLimit: number): unknown {
+	if (!Array.isArray(rules)) {
+		return rules ?? null;
+	}
+	return rules.map((rule) => {
+		const { values, batchValues, ...rest } = asRow(rule);
+		const batchTargets = stringValues(batchValues);
+		const [key, targets] =
+			rest.batch === true && batchTargets.length > 0
+				? ["batchValues", batchTargets]
+				: ["values", stringValues(values)];
+		if (targets.length === 0) {
+			return rest;
+		}
+		return {
+			...rest,
+			[key]: targets.slice(0, valueLimit),
+			...(targets.length > valueLimit && {
+				valueCount: targets.length,
+				valuesTruncated: true,
+			}),
+		};
+	});
+}
+
+export function pickFlagFields(
+	value: unknown,
+	keys: readonly string[] = FLAG_FIELDS,
+	ruleValueLimit = FLAG_RULE_VALUE_LIMIT
+): Row {
+	const flag = pickFields(value, keys);
+	return {
+		...flag,
+		...("rules" in flag && {
+			rules: summarizeFlagRules(flag.rules, ruleValueLimit),
+		}),
+		...(Array.isArray(flag.targetGroups) && {
+			targetGroups: flag.targetGroups.map((group) => {
+				const summary = pickFields(group, TARGET_GROUP_FIELDS);
+				return {
+					...summary,
+					rules: summarizeFlagRules(summary.rules, ruleValueLimit),
+				};
+			}),
+		}),
+	};
+}
+
+const MAX_TIME_SERIES_POINTS = 90;
+const ANALYTICS_INTERNAL_KEYS = [
+	"measurement",
+	"savedDefinition",
+	"cohort",
+	"time_series",
+	"steps_analytics",
+];
+const UNMEASURED_TIMING_KEYS = [
+	"avg_completion_time",
+	"avg_completion_time_formatted",
+	"duration_available",
+	"avg_time_to_complete",
+	"avg_time",
+];
+const UNMEASURED_ERROR_KEYS = [
+	"error_insights",
+	"error_context_available",
+	"error_count",
+	"error_rate",
+	"top_errors",
+];
+
+function omitKeys(row: Row, keys: ReadonlySet<string>): Row {
+	return Object.fromEntries(
+		Object.entries(row).filter(([key]) => !keys.has(key))
+	);
+}
+
+export function summarizeConversionAnalytics(
+	value: unknown,
+	requestedRange: { from?: string; to?: string }
+): Row {
+	const row = asRow(value);
+	const measurement = asRow(row.measurement);
+	const range = {
+		from:
+			typeof measurement.startDate === "string"
+				? measurement.startDate
+				: requestedRange.from,
+		to:
+			typeof measurement.endDate === "string"
+				? measurement.endDate
+				: requestedRange.to,
+	};
+	const omitted = new Set([
+		...ANALYTICS_INTERNAL_KEYS,
+		...(row.duration_available === true ? [] : UNMEASURED_TIMING_KEYS),
+		...(asRow(row.error_insights).available === true
+			? []
+			: UNMEASURED_ERROR_KEYS),
+	]);
+	const steps = Array.isArray(row.steps_analytics) ? row.steps_analytics : null;
+	const series = Array.isArray(row.time_series) ? row.time_series : null;
+	return {
+		...omitKeys(row, omitted),
+		range,
+		...((range.from !== requestedRange.from ||
+			range.to !== requestedRange.to) && { requestedRange }),
+		...(steps && {
+			steps_analytics: steps.map((step) => omitKeys(asRow(step), omitted)),
+		}),
+		...(series && {
+			time_series: series
+				.slice(-MAX_TIME_SERIES_POINTS)
+				.map((point) => omitKeys(asRow(point), omitted)),
+			timeSeriesTruncated: series.length > MAX_TIME_SERIES_POINTS,
+		}),
+	};
+}
+
+export async function readConversionAnalytics(
+	tool: string,
+	procedure: readonly ["funnels" | "goals", string],
+	input: Record<string, unknown>,
+	ctx: McpHandlerContext
+): Promise<unknown> {
+	const [router, method] = procedure;
+	try {
+		return await callRPCProcedure(
+			router,
+			method,
+			input,
+			buildRpcContext(ctx),
+			ctx.abortSignal
+		);
+	} catch (error) {
+		if (error instanceof ORPCError || error instanceof McpToolError) {
+			throw error;
+		}
+		captureError(error, { mcp_tool: tool });
+		throw new McpToolError("query_failed", `The ${tool} query failed to run.`, {
+			hint: "Shorten the date range or retry.",
+		});
+	}
+}
+
+export function updatePreview(
+	entity: string,
+	current: Row,
+	updates: Row,
+	extra: Row = {}
+): Row {
+	const hasChanges = Object.keys(updates).length > 0;
+	return {
+		preview: true,
+		message: hasChanges
+			? `Review this ${entity} update before applying it.`
+			: `No changes detected. The ${entity} will remain unchanged.`,
+		confirmationRequired: hasChanges,
+		current,
+		...(hasChanges ? { updates } : {}),
+		...extra,
+	};
+}
+
+export const ConfirmedSchema = z
+	.boolean()
+	.optional()
+	.default(false)
+	.describe(
+		"false (default) returns a preview without writing; true applies the change."
+	);
 export const DynamicObjectSchema = z.object({}).passthrough();
 export const MutationResultSchema = z
 	.object({
@@ -94,4 +378,14 @@ export function getResolvedWebsiteId(ctx: McpHandlerContext): string {
 		throw new McpToolError("internal", "Website was not resolved.");
 	}
 	return ctx.websiteId;
+}
+
+export function getResolvedOrganizationId(ctx: McpHandlerContext): string {
+	if (!ctx.websiteOrganizationId) {
+		throw new McpToolError(
+			"internal",
+			"Website organization was not resolved."
+		);
+	}
+	return ctx.websiteOrganizationId;
 }

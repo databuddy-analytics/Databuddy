@@ -25,33 +25,33 @@ interface Reward {
 const rewards: Reward[] = [
 	{
 		icon: DiamondIcon,
-		title: "Free Premium Access",
+		title: "Free premium access",
 		description: "Lifetime access to all premium features and analytics",
 		value: "Pro plan access",
 		highlight: true,
 	},
 	{
 		icon: GiftIcon,
-		title: "Exclusive Swag",
+		title: "Exclusive swag",
 		description: "Limited edition Databuddy merchandise and swag box",
 		value: "$150 value",
 		soon: true,
 	},
 	{
 		icon: StarIcon,
-		title: "Early Access",
+		title: "Early access",
 		description: "First access to new features and beta releases",
 		value: "Priceless",
 	},
 	{
 		icon: UsersIcon,
-		title: "Private Community",
+		title: "Private community",
 		description: "Access to exclusive ambassador-only Discord channels",
 		value: "Exclusive",
 	},
 	{
 		icon: TrophyIcon,
-		title: "Revenue Share",
+		title: "Revenue share",
 		description: "Earn commission on referrals and partnerships",
 		value: "Up to 30%",
 		highlight: true,
@@ -59,7 +59,7 @@ const rewards: Reward[] = [
 	},
 	{
 		icon: CrownIcon,
-		title: "VIP Support",
+		title: "VIP support",
 		description: "Priority support and direct line to our team",
 		value: "Premium",
 	},
@@ -125,7 +125,7 @@ export default function AmbassadorRewards() {
 			{/* Header */}
 			<div className="mb-12 text-center">
 				<h2 className="mb-4 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-					Ambassador Rewards
+					Ambassador rewards
 				</h2>
 				<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Join our program and unlock exclusive benefits, insider previews, and

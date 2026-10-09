@@ -1,4 +1,4 @@
-import { readBooleanEnv } from "@databuddy/env/boolean";
+import { config, readBooleanEnv } from "@databuddy/env/app";
 import {
 	type AlarmDestinationType,
 	isForbiddenWebhookHeaderName,
@@ -113,7 +113,7 @@ const buildWebhookTarget: AlarmDestinationBuilder = (dest) => {
 };
 
 const buildEmailTarget: AlarmDestinationBuilder = (dest, ctx) => {
-	if (!process.env.RESEND_API_KEY) {
+	if (!config.services.resendApiKey) {
 		warnAlarmEmailUnconfigured();
 		return;
 	}
@@ -130,7 +130,7 @@ const buildEmailTarget: AlarmDestinationBuilder = (dest, ctx) => {
 					text?: string;
 				}) => {
 					const { Resend } = await import("resend");
-					const apiKey = process.env.RESEND_API_KEY;
+					const apiKey = config.services.resendApiKey;
 					if (!apiKey) {
 						throw new Error("Email delivery is not configured");
 					}

@@ -15,6 +15,7 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATES = new Set(["waiting", "active", "delayed", "prioritized"]);
@@ -39,6 +40,16 @@ const GRAIN_LABEL = {
 	event: "Full detail",
 	rollup: "Daily totals",
 } as const;
+const RUN_STATE_LABELS: Record<string, string> = {
+	active: "Active",
+	completed: "Completed",
+	delayed: "Delayed",
+	failed: "Failed",
+	prioritized: "Prioritized",
+	unknown: "Unknown",
+	waiting: "Waiting",
+	"waiting-children": "Waiting",
+};
 const GRAIN_HINT = {
 	event: "Per-visit rows, so every breakdown is preserved.",
 	rollup:
@@ -79,8 +90,14 @@ export default function ImportPage() {
 			ACTIVE_STATES.has(query.state.data?.state ?? "") ? 2000 : false,
 	});
 
-	const createUpload = useMutation(orpc.imports.createUpload.mutationOptions());
-	const startImport = useMutation(orpc.imports.start.mutationOptions());
+	const createUpload = useMutation({
+		...orpc.imports.createUpload.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+	});
+	const startImport = useMutation({
+		...orpc.imports.start.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
+	});
 
 	const selectedProvider = providers?.find(
 		(provider) => provider.id === providerId
@@ -94,7 +111,7 @@ export default function ImportPage() {
 		const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
 		const contentType = CONTENT_TYPES[extension];
 		if (!contentType) {
-			toast.error("Upload a .zip, .csv or .jsonl export file.");
+			toast.error("Upload a .zip, .csv, or .jsonl export file.");
 			return;
 		}
 
@@ -125,11 +142,9 @@ export default function ImportPage() {
 				timezone,
 			});
 			setRunId(started.runId);
-			toast.success("Import queued. This can take a few minutes.");
+			toast.success("Import queued. This can take a few minutes");
 		} catch (error) {
-			toast.error(
-				error instanceof Error ? error.message : "Could not start the import"
-			);
+			showErrorToast(error, "Failed to start import");
 		}
 	}, [
 		file,
@@ -282,14 +297,14 @@ export default function ImportPage() {
 
 							{selectedProvider.grain === "rollup" && (
 								<div className="space-y-2 border-t pt-4">
-									<p className="font-medium text-sm">Source time zone</p>
+									<p className="font-medium text-sm">Source timezone</p>
 									<p className="text-muted-foreground text-xs">
-										Daily totals have no clock time, so this must match the time
-										zone configured in {selectedProvider.label} or days will
+										Daily totals have no clock time, so this must match the
+										timezone configured in {selectedProvider.label} or days will
 										shift by one.
 									</p>
 									<Input
-										aria-label="Source time zone"
+										aria-label="Source timezone"
 										onChange={(event) => setTimezone(event.target.value)}
 										placeholder="UTC"
 										value={timezone}
@@ -344,7 +359,7 @@ export default function ImportPage() {
 						<Card.Content>
 							<div className="flex items-center gap-2">
 								<Badge variant={run.failedReason ? "destructive" : "muted"}>
-									{run.state}
+									{RUN_STATE_LABELS[run.state] ?? run.state}
 								</Badge>
 								{run.failedReason && (
 									<span className="flex items-center gap-1 text-destructive text-xs">

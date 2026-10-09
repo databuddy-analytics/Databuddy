@@ -1003,6 +1003,7 @@ export const TOPIC_MAP: Record<string, string> = {
 	"analytics-engagement-spans": TABLE_NAMES.engagement_spans,
 	"analytics-custom-events": TABLE_NAMES.custom_events,
 	"analytics-ai-traffic-spans": TABLE_NAMES.ai_traffic_spans,
+	"analytics-mcp-spans": TABLE_NAMES.mcp_spans,
 	"analytics-link-visits": TABLE_NAMES.link_visits,
 };
 

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".changeset/**"
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -34,7 +35,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:

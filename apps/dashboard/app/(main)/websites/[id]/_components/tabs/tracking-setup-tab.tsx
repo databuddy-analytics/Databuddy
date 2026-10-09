@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
-import { createHighlighterCoreSync } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import bash from "shiki/langs/bash.mjs";
-import html from "shiki/langs/html.mjs";
-import tsx from "shiki/langs/tsx.mjs";
-import vue from "shiki/langs/vue.mjs";
-import vesper from "shiki/themes/vesper.mjs";
-import { toast } from "sonner";
+import {
+	CodeBlock,
+	CodeBlockCopyButton,
+} from "@/components/ai-elements/code-block";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { ConnectApp } from "@/components/websites/connect-app";
+import { useAgentInstall } from "@/hooks/use-agent-install";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { useSiteResearch } from "@/hooks/use-site-research";
+import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -21,7 +23,6 @@ import {
 import {
 	ADVANCED_TRACKING_OPTIONS,
 	BASIC_TRACKING_OPTIONS,
-	COPY_SUCCESS_TIMEOUT,
 } from "../constants/settings-constants";
 import {
 	generateNodeCode,
@@ -32,7 +33,6 @@ import {
 } from "../utils/code-generators";
 import type { TrackingOptionConfig } from "../utils/types";
 import {
-	ArrowClockwiseIcon,
 	BookOpenIcon,
 	CaretDownIcon,
 	CheckIcon,
@@ -40,87 +40,14 @@ import {
 	CodeIcon,
 	LightningIcon,
 	PackageIcon,
-	PulseIcon,
 	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Button, Card } from "@databuddy/ui";
+import { Badge, Card } from "@databuddy/ui";
 import { Switch, Tabs } from "@databuddy/ui/client";
 
 interface TrackingSetupTabProps {
 	websiteId: string;
-}
-
-const highlighter = createHighlighterCoreSync({
-	themes: [vesper],
-	langs: [tsx, html, bash, vue],
-	engine: createJavaScriptRegexEngine(),
-});
-
-type Lang = "bash" | "html" | "tsx" | "vue";
-
-function getLanguage(code: string): Lang {
-	if (
-		code.includes("npm install") ||
-		code.includes("yarn add") ||
-		code.includes("pnpm add") ||
-		code.includes("bun add")
-	) {
-		return "bash";
-	}
-	if (code.includes("<script setup>")) {
-		return "vue";
-	}
-	if (code.includes("<script")) {
-		return "html";
-	}
-	return "tsx";
-}
-
-function CodeBlock({
-	code,
-	copied,
-	onCopy,
-}: {
-	code: string;
-	copied: boolean;
-	onCopy: () => void;
-}) {
-	const highlighted = useMemo(
-		() =>
-			highlighter.codeToHtml(code, {
-				lang: getLanguage(code),
-				theme: "vesper",
-			}),
-		[code]
-	);
-
-	return (
-		<div className="group relative overflow-hidden rounded-lg border border-white/10 bg-[#101010]">
-			<div
-				className={cn(
-					"overflow-x-auto font-mono text-[13px] leading-relaxed",
-					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-					"[&>pre>code]:block [&>pre>code]:w-full",
-					"[&_.line]:min-h-5"
-				)}
-				dangerouslySetInnerHTML={{ __html: highlighted }}
-			/>
-			<Button
-				aria-label="Copy code"
-				className="absolute top-2 right-2 size-7 bg-white/10 opacity-0 backdrop-blur-sm transition-opacity hover:bg-white/20 group-hover:opacity-100"
-				onClick={onCopy}
-				size="icon"
-				variant="ghost"
-			>
-				{copied ? (
-					<CheckIcon className="size-3.5 text-success" />
-				) : (
-					<ClipboardIcon className="size-3.5 text-white/70" />
-				)}
-			</Button>
-		</div>
-	);
 }
 
 function OptionToggle({
@@ -165,15 +92,7 @@ const INSTALL_COMMANDS = {
 	pnpm: "pnpm add @databuddy/sdk",
 };
 
-function PackageInstallTabs({
-	copiedBlockId,
-	onCopy,
-	prefix,
-}: {
-	copiedBlockId: string | null;
-	onCopy: (code: string, blockId: string, message: string) => void;
-	prefix: string;
-}) {
+function PackageInstallTabs() {
 	return (
 		<Tabs className="w-full" defaultValue="bun">
 			<Tabs.List className="max-w-full overflow-x-auto">
@@ -185,13 +104,9 @@ function PackageInstallTabs({
 			</Tabs.List>
 			{Object.entries(INSTALL_COMMANDS).map(([manager, command]) => (
 				<Tabs.Panel className="mt-3" key={manager} value={manager}>
-					<CodeBlock
-						code={command}
-						copied={copiedBlockId === `${prefix}-${manager}-install`}
-						onCopy={() =>
-							onCopy(command, `${prefix}-${manager}-install`, "Command copied!")
-						}
-					/>
+					<CodeBlock code={command} language="bash">
+						<CodeBlockCopyButton />
+					</CodeBlock>
 				</Tabs.Panel>
 			))}
 		</Tabs>
@@ -248,13 +163,17 @@ function VueLogo({ className }: { className?: string }) {
 }
 
 export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
-	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
-	const [isRefreshing, setIsRefreshing] = useState(false);
+	const { isCopied, copyToClipboard } = useCopyToClipboard();
 	const [usePinnedVersion, setUsePinnedVersion] = useState(false);
 	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 	const [trackingOptions] = useAtom(trackingOptionsAtom);
 	const [, toggleTrackingOptionAction] = useAtom(toggleTrackingOptionAtom);
 	const [troubleshootingOpen, setTroubleshootingOpen] = useState(false);
+	const { activeOrganization } = useOrganizationsContext();
+	const { data: website } = useWebsite(websiteId);
+	const install = useAgentInstall(websiteId);
+	const site = website ? { id: website.id, domain: website.domain } : null;
+	const research = useSiteResearch(activeOrganization?.id, site);
 
 	const { data: trackerVersionsData } = useQuery(
 		orpc.tracker.listVersions.queryOptions({
@@ -290,140 +209,92 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	const activeCode =
 		usePinnedVersion && pinnedTrackingCode ? pinnedTrackingCode : trackingCode;
 
-	const { data: trackingSetupData, refetch: refetchTrackingSetup } = useQuery({
-		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),
-		enabled: !!websiteId,
-	});
-
-	const isSetup = Boolean(trackingSetupData?.tracking_setup);
-	const hasRecentEvents = (trackingSetupData?.recent_events ?? 0) > 0;
-	const trackingIssue = trackingSetupData?.tracking_issue ?? null;
-	const statusIsHealthy = isSetup && hasRecentEvents && !trackingIssue;
-	const statusTitle = trackingIssue
-		? "Tracking Issue Detected"
-		: statusIsHealthy
-			? "Tracking Active"
-			: isSetup
-				? "Installed, no recent data"
-				: "Awaiting Installation";
-	const statusDescription =
-		trackingIssue?.message ?? trackingSetupData?.status_message;
-
-	const handleCopy = (code: string, blockId: string, message: string) => {
-		navigator.clipboard.writeText(code);
-		setCopiedBlockId(blockId);
-		toast.success(message);
-		setTimeout(() => setCopiedBlockId(null), COPY_SUCCESS_TIMEOUT);
-	};
-
-	const handleRefresh = async () => {
-		setIsRefreshing(true);
-		try {
-			const result = await refetchTrackingSetup();
-			if (result.data?.tracking_issue) {
-				toast.warning(result.data.tracking_issue.message);
-			} else if (result.data?.tracking_setup) {
-				toast.success("Tracking verified! Data is flowing.");
-			} else {
-				toast.info("No tracking detected yet. Check your installation.");
-			}
-		} catch {
-			toast.error("Couldn't verify tracking. Try again shortly.");
-		} finally {
-			setIsRefreshing(false);
-		}
-	};
+	const issue = install.tracking.issue;
+	const healthy = install.verified && install.recentEvents > 0 && !issue;
 
 	return (
 		<div className="space-y-6">
-			<div
-				className={cn(
-					"flex items-center justify-between gap-3 rounded-lg border p-3",
-					statusIsHealthy
-						? "border-success/30 bg-success/5"
-						: "border-amber-500/30 bg-amber-500/5"
-				)}
-			>
-				<div className="flex min-w-0 items-start gap-2.5">
-					{statusIsHealthy ? (
-						<PulseIcon className="mt-0.5 size-4 text-success" />
-					) : (
-						<WarningCircleIcon className="mt-0.5 size-4 text-warning" />
-					)}
-					<div className="min-w-0 space-y-1">
-						<div className="flex flex-wrap items-center gap-2">
-							<span className="font-medium text-sm">{statusTitle}</span>
-							<Badge variant={statusIsHealthy ? "success" : "warning"}>
-								{statusIsHealthy
-									? "Live"
-									: trackingIssue
-										? "Blocked"
-										: isSetup
-											? "No recent data"
-											: "Pending"}
-							</Badge>
-						</div>
-						{statusDescription ? (
-							<p className="text-muted-foreground text-xs leading-relaxed">
-								{statusDescription}
-							</p>
+			<Card className="gap-0 py-0">
+				<Card.Header className="flex-row items-center justify-between gap-3 border-border border-b bg-card px-5 py-4">
+					<div className="min-w-0">
+						<Card.Title>
+							{issue
+								? "Tracking issue detected"
+								: healthy
+									? "Tracking active"
+									: install.verified
+										? "Installed, no recent data"
+										: `Install tracking on ${website?.domain ?? "your site"}`}
+						</Card.Title>
+						{issue || install.verified ? (
+							<Card.Description className="mt-1">
+								{issue?.message ?? install.statusMessage}
+							</Card.Description>
 						) : null}
 					</div>
-				</div>
-				<Button
-					disabled={isRefreshing}
-					onClick={handleRefresh}
-					size="sm"
-					variant="ghost"
-				>
-					<ArrowClockwiseIcon
-						className={cn("size-3.5", isRefreshing && "animate-spin")}
-					/>
-					{isRefreshing ? "Checking..." : "Check Status"}
-				</Button>
-			</div>
-
-			<Card className="gap-0 py-0">
-				<Card.Content className="p-5">
+					<Badge variant={healthy ? "success" : "warning"}>
+						{healthy
+							? "Live"
+							: issue
+								? "Blocked"
+								: install.verified
+									? "No recent data"
+									: "Waiting"}
+					</Badge>
+				</Card.Header>
+				<Card.Content className="px-5 py-5">
+					{website ? (
+						<ConnectApp
+							agentProgress={install.agentProgress}
+							domain={website.domain}
+							onCopy={install.markCopied}
+							research={research.research}
+							setupSession={install.setupSession}
+							manualInstall={false}
+							onStartResearch={research.start}
+							tracking={install.tracking}
+							websiteId={websiteId}
+						/>
+					) : null}
+				</Card.Content>
+				<Card.Content className="border-border border-t p-5">
+					<div className="mb-4 flex items-center justify-between gap-3">
+						<h3 className="font-semibold text-sm">Install it yourself</h3>
+						{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
+						<button
+							className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
+							onClick={() => copyToClipboard(websiteId)}
+							title={websiteId}
+							type="button"
+						>
+							<span className="text-muted-foreground">ID:</span>
+							<span className="min-w-0 truncate">{websiteId}</span>
+							{isCopied ? (
+								<CheckIcon className="size-3 text-success" />
+							) : (
+								<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
+							)}
+						</button>
+					</div>
 					<Tabs className="w-full" defaultValue="script">
-						<div className="flex items-center justify-between gap-4">
-							<Tabs.List className="max-w-full overflow-x-auto">
-								<Tabs.Tab value="script">
-									<CodeIcon className="size-3.5" />
-									Script Tag
-								</Tabs.Tab>
-								<Tabs.Tab value="react">
-									<PackageIcon className="size-3.5" />
-									React
-								</Tabs.Tab>
-								<Tabs.Tab value="vue">
-									<VueLogo className="size-3.5" />
-									Vue
-								</Tabs.Tab>
-								<Tabs.Tab value="node">
-									<PackageIcon className="size-3.5" />
-									Node.js
-								</Tabs.Tab>
-							</Tabs.List>
-
-							{/* policy-ignore dashboard/no-raw-interactive-html: pre-existing compact copy chip; @databuddy/ui Button variants don't match this inline badge styling */}
-							<button
-								className="group flex min-w-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
-								onClick={() =>
-									handleCopy(websiteId, "client-id", "Client ID copied!")
-								}
-								title={websiteId}
-								type="button"
-							>
-								<span className="text-muted-foreground">ID:</span>
-								<span className="min-w-0 truncate">{websiteId}</span>
-								{copiedBlockId === "client-id" ? (
-									<CheckIcon className="size-3 text-success" />
-								) : (
-									<ClipboardIcon className="size-3 opacity-50 transition-opacity group-hover:opacity-100" />
-								)}
-							</button>
-						</div>
+						<Tabs.List className="max-w-full overflow-x-auto">
+							<Tabs.Tab value="script">
+								<CodeIcon className="size-3.5" />
+								Script tag
+							</Tabs.Tab>
+							<Tabs.Tab value="react">
+								<PackageIcon className="size-3.5" />
+								React
+							</Tabs.Tab>
+							<Tabs.Tab value="vue">
+								<VueLogo className="size-3.5" />
+								Vue
+							</Tabs.Tab>
+							<Tabs.Tab value="node">
+								<PackageIcon className="size-3.5" />
+								Node.js
+							</Tabs.Tab>
+						</Tabs.List>
 
 						<Tabs.Panel className="mt-4 space-y-3" value="script">
 							<p className="text-pretty text-muted-foreground text-sm">
@@ -434,13 +305,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								of your website:
 							</p>
 
-							<CodeBlock
-								code={activeCode}
-								copied={copiedBlockId === "script-tag"}
-								onCopy={() =>
-									handleCopy(activeCode, "script-tag", "Script tag copied!")
-								}
-							/>
+							<CodeBlock code={activeCode} language="tsx">
+								<CodeBlockCopyButton />
+							</CodeBlock>
 
 							{availableVersions.length > 0 && (
 								<div className="space-y-2.5">
@@ -514,24 +381,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="react"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
 									Add the component to your layout:
 								</p>
-								<CodeBlock
-									code={npmCode}
-									copied={copiedBlockId === "react-code"}
-									onCopy={() =>
-										handleCopy(npmCode, "react-code", "Code copied!")
-									}
-								/>
+								<CodeBlock code={npmCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 						</Tabs.Panel>
 
@@ -540,22 +399,16 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="vue"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
 								<p className="text-muted-foreground text-sm">
 									Add the component to your root layout:
 								</p>
-								<CodeBlock
-									code={vueCode}
-									copied={copiedBlockId === "vue-code"}
-									onCopy={() => handleCopy(vueCode, "vue-code", "Code copied!")}
-								/>
+								<CodeBlock code={vueCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 						</Tabs.Panel>
 
@@ -564,11 +417,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Install the SDK in your backend:
 								</p>
-								<PackageInstallTabs
-									copiedBlockId={copiedBlockId}
-									onCopy={handleCopy}
-									prefix="node"
-								/>
+								<PackageInstallTabs />
 							</div>
 
 							<div className="rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
@@ -577,7 +426,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 									className="font-medium text-foreground underline underline-offset-4"
 									href="/organizations/settings#api-keys"
 								>
-									Organization Settings → API Keys
+									Organization settings → API keys
 								</Link>
 								, then set it as{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
@@ -590,13 +439,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 								<p className="text-muted-foreground text-sm">
 									Track server-side events:
 								</p>
-								<CodeBlock
-									code={nodeCode}
-									copied={copiedBlockId === "node-code"}
-									onCopy={() =>
-										handleCopy(nodeCode, "node-code", "Code copied!")
-									}
-								/>
+								<CodeBlock code={nodeCode} language="tsx">
+									<CodeBlockCopyButton />
+								</CodeBlock>
 							</div>
 
 							<a
@@ -616,7 +461,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 			<Card className="gap-0 py-0">
 				<Card.Content className="p-5">
 					<div className="mb-4 flex items-center justify-between">
-						<h3 className="font-semibold text-sm">Tracking Options</h3>
+						<h3 className="font-semibold text-sm">Tracking options</h3>
 						<p className="text-muted-foreground text-xs tabular-nums">
 							{
 								[

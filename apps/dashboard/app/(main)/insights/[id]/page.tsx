@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { TopBar } from "@/components/layout/top-bar";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -72,6 +73,7 @@ export default function InsightDetailPage() {
 	const latest = data?.timeline.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
 	);
+	const recovered = insight?.resolvedReason === "recovered";
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -119,14 +121,22 @@ export default function InsightDetailPage() {
 											insight.status === "resolved" ? "success" : "warning"
 										}
 									/>
-									{insight.status === "resolved" ? "Resolved" : "Open"}
+									{insight.status === "resolved"
+										? recovered
+											? "Recovered"
+											: "Resolved"
+										: "Open"}
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
 								{latest?.entity.label ?? insight.title}
 							</h2>
 						</header>
-						<CaseState items={data?.timeline ?? []} latest={latest ?? null} />
+						<CaseState
+							items={data?.timeline ?? []}
+							latest={latest ?? null}
+							recovered={recovered}
+						/>
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
@@ -186,8 +196,9 @@ function ShareMenu({
 	const publish = useMutation({
 		...orpc.insights.publishShare.mutationOptions(),
 		onError: (error) => {
-			toast.error(error instanceof Error ? error.message : "Could not publish");
+			showErrorToast(error, "Failed to publish public link");
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (published) => {
 			refreshShare();
 			copyToClipboard(publicUrl(published.id));
@@ -205,10 +216,9 @@ function ShareMenu({
 	const unpublish = useMutation({
 		...orpc.insights.unpublishShare.mutationOptions(),
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Could not turn off the link"
-			);
+			showErrorToast(error, "Failed to turn off public link");
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: () => {
 			refreshShare();
 			toast.success("Public link turned off");
@@ -325,16 +335,17 @@ function CaseActivity({
 	const retry = useMutation({
 		...orpc.insights.retryReply.mutationOptions(),
 		onError: (error) => {
-			toast.error(error instanceof Error ? error.message : "Could not retry");
+			showErrorToast(error, "Failed to retry investigation");
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (result) => {
 			queryClient.invalidateQueries({
 				queryKey: insightQueries.all(),
 			});
 			if (result.status === "failed") {
-				toast.error(
-					"The reply was saved, but the investigation could not start"
-				);
+				toast.error("Failed to start investigation", {
+					description: "Your reply was saved. Try again in a moment.",
+				});
 			} else {
 				toast.success("Investigation resumed");
 			}
@@ -500,7 +511,7 @@ function TimelineEntry({
 										size="sm"
 										variant="secondary"
 									>
-										Retry
+										Try again
 									</Button>
 								)}
 							</div>
@@ -569,10 +580,9 @@ function ReplyComposer({
 	const replyMutation = useMutation({
 		...orpc.insights.reply.mutationOptions(),
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Could not add reply"
-			);
+			showErrorToast(error, "Failed to add reply");
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: (data) => {
 			setBody("");
 			onClose();
@@ -580,7 +590,9 @@ function ReplyComposer({
 				queryKey: insightQueries.all(),
 			});
 			if (data.reply.status === "failed") {
-				toast.error("Reply saved, but the investigation could not start");
+				toast.error("Failed to start investigation", {
+					description: "Your reply was saved. Try again in a moment.",
+				});
 			}
 		},
 	});

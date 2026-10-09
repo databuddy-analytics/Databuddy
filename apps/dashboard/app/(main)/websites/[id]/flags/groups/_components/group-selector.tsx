@@ -167,7 +167,7 @@ export function GroupSelector({
 				</Popover.Trigger>
 				<Popover.Content className="w-72 p-2" side="bottom">
 					<div className="mb-2 px-2 pt-1">
-						<Popover.Title>Target Groups</Popover.Title>
+						<Popover.Title>Target groups</Popover.Title>
 						<Popover.Description>Select groups to target</Popover.Description>
 					</div>
 					<div className="max-h-64 space-y-0.5 overflow-y-auto">

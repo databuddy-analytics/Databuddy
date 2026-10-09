@@ -1,68 +1,17 @@
 import { describe, expect, it } from "bun:test";
+import { type ComponentSpec, splitAgentText } from "@databuddy/ai/agent/render";
 import {
 	type Block,
-	ComponentStreamSplitter,
-	type ComponentSpec,
 	componentsToBlocks,
 	componentToBlocks,
-	splitAgentText,
 } from "@/slack/blocks";
-
-const DATA_TABLE = `{"type":"data-table","title":"Top Pages","columns":["Page","Visitors"],"rows":[["/",1500],["/pricing",820]]}`;
-
-function pushAll(chunks: string[]): { components: unknown[]; text: string } {
-	const splitter = new ComponentStreamSplitter();
-	let text = "";
-	for (const chunk of chunks) {
-		text += splitter.push(chunk);
-	}
-	const tail = splitter.flush();
-	return { components: tail.components, text: text + tail.text };
-}
+import { buildAnalyticsInstructionsForMcp } from "@databuddy/ai/prompts/analytics";
 
 function firstBlock(spec: ComponentSpec): Block {
 	const blocks = componentToBlocks(spec);
 	expect(blocks.length).toBeGreaterThan(0);
 	return blocks[0];
 }
-
-describe("ComponentStreamSplitter", () => {
-	it("diverts a data-table component out of the prose text", () => {
-		const input = `Here are your top pages.\n${DATA_TABLE}\nLet me know if you need more.`;
-		const { text, components } = splitAgentText(input);
-
-		expect(text).not.toContain('{"type"');
-		expect(text).toContain("Here are your top pages.");
-		expect(text).toContain("Let me know if you need more.");
-		expect(components).toHaveLength(1);
-	});
-
-	it("reassembles a component split across multiple chunks", () => {
-		const mid = Math.floor(DATA_TABLE.length / 2);
-		const { text, components } = pushAll([
-			"prose ",
-			DATA_TABLE.slice(0, mid),
-			DATA_TABLE.slice(mid),
-			" tail",
-		]);
-
-		expect(components).toHaveLength(1);
-		expect(text).toBe("prose  tail");
-	});
-
-	it("holds back a partial component marker instead of leaking it mid-stream", () => {
-		const splitter = new ComponentStreamSplitter();
-		const emitted = splitter.push('done. {"ty');
-		expect(emitted).toBe("done. ");
-	});
-
-	it("does not divert ordinary JSON-looking prose without a known type", () => {
-		const input = 'The config was {"port": 3010} yesterday.';
-		const { text, components } = splitAgentText(input);
-		expect(components).toHaveLength(0);
-		expect(text).toContain('{"port": 3010}');
-	});
-});
 
 describe("componentToBlocks tables and lists", () => {
 	it("maps a data-table numeric cell to raw_number with value and text", () => {
@@ -248,12 +197,19 @@ describe("componentToBlocks charts", () => {
 });
 
 describe("componentToBlocks native actions and previews", () => {
-	it("renders dashboard-actions as link buttons with absolute urls", () => {
+	it("renders dashboard-actions as link buttons only for dashboard urls", () => {
 		const block = firstBlock({
 			type: "dashboard-actions",
 			actions: [
 				{ label: "Open errors", href: "/websites/abc/errors" },
 				{ label: "External", href: "https://example.com" },
+				{
+					label: "Open goals",
+					href: "https://app.databuddy.cc/websites/abc/goals",
+				},
+				{ label: "Protocol relative", href: "//example.com/websites" },
+				{ label: "Userinfo", href: "https://app.databuddy.cc@example.com/" },
+				{ label: "Lookalike", href: "https://app.databuddy.cc.example.com/" },
 				{ label: "No href" },
 			],
 		});
@@ -261,14 +217,18 @@ describe("componentToBlocks native actions and previews", () => {
 		if (block.type !== "actions") {
 			throw new Error("Expected an actions block");
 		}
-		const elements = block.elements.filter(
-			(element) => element.type === "button"
-		);
-		expect(block.elements).toHaveLength(2);
-		expect(elements[0].url).toBe(
-			"https://app.databuddy.cc/websites/abc/errors"
-		);
-		expect(elements[1].url).toBe("https://example.com");
+		expect(block.elements).toEqual([
+			{
+				type: "button",
+				text: { type: "plain_text", text: "Open errors" },
+				url: "https://app.databuddy.cc/websites/abc/errors",
+			},
+			{
+				type: "button",
+				text: { type: "plain_text", text: "Open goals" },
+				url: "https://app.databuddy.cc/websites/abc/goals",
+			},
+		]);
 	});
 
 	it("renders suggested-actions as drill-down buttons carrying the prompt", () => {
@@ -318,5 +278,25 @@ describe("componentToBlocks no silent drop", () => {
 		]);
 		expect(blocks.length).toBe(2);
 		expect(blocks.every((b) => typeof b.type === "string")).toBe(true);
+	});
+});
+
+describe("Slack agent prompt components", () => {
+	it("renders every component example the Slack agent is given as native blocks", () => {
+		const { components, text } = splitAgentText(
+			buildAnalyticsInstructionsForMcp({
+				currentDateTime: "2026-10-03T12:00:00.000Z",
+				mutationMode: "dry-run",
+				source: "slack",
+			})
+		);
+		const rendered = components.map((component) => [
+			component.type,
+			componentToBlocks(component)[0]?.type,
+		]);
+
+		expect(text).not.toContain('{"type":"');
+		expect(rendered).toContainEqual(["data-table", "data_table"]);
+		expect(rendered.map(([, block]) => block)).not.toContain("context");
 	});
 });

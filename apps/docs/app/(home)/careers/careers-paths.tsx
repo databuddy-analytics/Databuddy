@@ -36,7 +36,7 @@ const paths: Path[] = [
 	},
 	{
 		icon: StarIcon,
-		title: "Join the Ambassador Program",
+		title: "Join the ambassador program",
 		tagline: "For builders who love the product",
 		description:
 			"If you're already using Databuddy and want to help grow it, the ambassador program comes with early access, a private channel, and a direct line to the team.",

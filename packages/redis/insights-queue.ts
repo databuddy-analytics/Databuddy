@@ -3,6 +3,8 @@ import { getBullMQConnectionOptions } from "./bullmq";
 
 export const INSIGHTS_QUEUE_ENV_PREFIX = "INSIGHTS";
 export const INSIGHTS_QUEUE_NAME = "insights-generation";
+export const AI_DIGEST_DISPATCH_JOB_NAME = "ai-digest-dispatch";
+export const AI_DIGEST_WEBSITE_JOB_NAME = "ai-digest-website";
 export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
 export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";
@@ -29,14 +31,14 @@ export const INSIGHTS_JOB_OPTIONS = {
 
 export type InsightGenerationReason = "manual" | "scheduled";
 
-export interface InsightsDispatchJobData {
-	reason: "scheduled";
+export interface InsightsScheduledJobData {
+	reason: "ai_digest" | "maintenance" | "scheduled";
 	triggeredAt: string;
 }
 
-export interface InsightsMaintenanceJobData {
-	reason: "maintenance";
-	triggeredAt: string;
+export interface AiDigestWebsiteJobData {
+	websiteId: string;
+	weekStart: string;
 }
 
 export interface InsightsResumeJobData {
@@ -53,10 +55,10 @@ export interface InsightsGenerateWebsiteJobData {
 }
 
 export type InsightsQueueJobData =
-	| InsightsDispatchJobData
+	| AiDigestWebsiteJobData
 	| InsightsGenerateWebsiteJobData
-	| InsightsMaintenanceJobData
-	| InsightsResumeJobData;
+	| InsightsResumeJobData
+	| InsightsScheduledJobData;
 
 let insightsQueue: Queue<InsightsQueueJobData> | null = null;
 
@@ -82,6 +84,10 @@ export async function closeInsightsQueue(): Promise<void> {
 
 export function insightsWebsiteJobId(runId: string, websiteId: string): string {
 	return `insights-website-${runId}-${websiteId}`;
+}
+
+export function aiDigestJobId(weekStart: string, websiteId: string): string {
+	return `ai-digest-${weekStart}-${websiteId}`;
 }
 
 export function insightsResumeJobId(replyId: string): string {

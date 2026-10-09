@@ -1,4 +1,6 @@
 import { setupCheckUserAgent } from "@databuddy/shared/bot-detection/ai-agents";
+import type { ApiKeyRow } from "@lib/api-key";
+import { gzipSync } from "node:zlib";
 import { vi, afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const {
@@ -12,14 +14,13 @@ const {
 	mockInsertTrackEventsBatch,
 	mockInsertOutgoingLinksBatch,
 	mockInsertIndividualVitals,
+	mockInsertEngagementSpans,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
 	mockGetGeo,
 	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
-	mockHasGlobalAccess,
-	mockGetAccessibleWebsiteIds,
 	mockGetWebsiteByIdV2,
 	mockResolveApiKeyOwnerId,
 	mockDenyApiKeyWebsiteAccess,
@@ -66,7 +67,7 @@ const {
 			})
 		),
 		mockCheckForBot: vi.fn(
-			(): Promise<{ error?: Response } | undefined> =>
+			(): ReturnType<typeof import("@lib/request-validation").checkForBot> =>
 				Promise.resolve(undefined)
 		),
 		mockInsertTrackEvent: vi.fn(() => Promise.resolve()),
@@ -74,6 +75,7 @@ const {
 		mockInsertTrackEventsBatch: vi.fn(() => Promise.resolve()),
 		mockInsertOutgoingLinksBatch: vi.fn(() => Promise.resolve()),
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
+		mockInsertEngagementSpans: vi.fn((_spans: unknown[]) => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
 		mockGetGeo: vi.fn(() =>
@@ -87,8 +89,6 @@ const {
 		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
-		mockHasGlobalAccess: vi.fn(() => false),
-		mockGetAccessibleWebsiteIds: vi.fn(() => ["ws_test"]),
 		mockGetWebsiteByIdV2: vi.fn(() => Promise.resolve(defaultWebsite)),
 		mockResolveApiKeyOwnerId: vi.fn(() => Promise.resolve("user_1")),
 	};
@@ -104,11 +104,11 @@ vi.mock("@lib/tracing", () => ({
 	mergeWideEvent: noop,
 }));
 
-vi.mock("@lib/request-validation", () => ({
+vi.mock("@lib/request-validation", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@lib/request-validation")>()),
 	validateRequest: mockValidateRequest,
 	checkForBot: mockCheckForBot,
 	getWebsiteSecuritySettings: vi.fn(() => null),
-	ValidatedRequest: {},
 }));
 
 vi.mock("@lib/event-service", () => ({
@@ -122,7 +122,7 @@ vi.mock("@lib/event-service", () => ({
 	insertTrackEventsBatch: mockInsertTrackEventsBatch,
 	insertOutgoingLinksBatch: mockInsertOutgoingLinksBatch,
 	insertIndividualVitals: mockInsertIndividualVitals,
-	insertEngagementSpans: vi.fn(async () => {}),
+	insertEngagementSpans: mockInsertEngagementSpans,
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
 	stableAnalyticsEventId: vi.fn(() => "stable_id"),
@@ -151,8 +151,7 @@ vi.mock("@utils/ip-geo", () => ({
 	closeGeoIPReader: noop,
 }));
 
-vi.mock("@utils/user-agent", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@utils/user-agent")>()),
+vi.mock("@utils/user-agent", () => ({
 	parseUserAgent: vi.fn(() =>
 		Promise.resolve({ browserName: "Chrome", osName: "Windows" })
 	),
@@ -178,8 +177,6 @@ vi.mock("@lib/api-key", () => ({
 	denyApiKeyWebsiteAccess: mockDenyApiKeyWebsiteAccess,
 	getApiKeyFromHeader: mockGetApiKeyFromHeader,
 	hasKeyScope: mockHasKeyScope,
-	hasGlobalAccess: mockHasGlobalAccess,
-	getAccessibleWebsiteIds: mockGetAccessibleWebsiteIds,
 }));
 
 vi.mock("@databuddy/redis/redis", () => ({
@@ -204,10 +201,13 @@ const { basketErrors, buildBasketErrorPayload } = await import(
 	"@lib/structured-errors"
 );
 const { ERRORS_BODY_MAX_BYTES } = await import("../routes/basket");
-const { send: mockSend } = await import("@lib/producer");
+const { send: mockSend, sendBatch: mockSendBatch } = await import(
+	"@lib/producer"
+);
 const { isOriginAllowed } = await import("@hooks/auth");
-apiKeyDenialErrors.website_scope_mismatch =
-	basketErrors.trackWebsiteScopeMismatch;
+const realApiKey =
+	await vi.importActual<typeof import("@lib/api-key")>("@lib/api-key");
+Object.assign(apiKeyDenialErrors, realApiKey.API_KEY_DENIAL_ERRORS);
 const { createError, EvlogError } = await import("evlog");
 const { Elysia } = await import("elysia");
 const mockGlobalErrorHandler = vi.fn();
@@ -233,7 +233,9 @@ const basketApp = new Elysia()
 	})
 	.use(rawBasket);
 
-const rawTrack = (await import("./track")).trackRoute;
+const { trackRoute: rawTrack, vercelDrainRoute: rawVercelDrain } = await import(
+	"./track"
+);
 const trackRoute = new Elysia()
 	.onError(({ error, code }) => {
 		if (code === "NOT_FOUND") {
@@ -247,7 +249,8 @@ const trackRoute = new Elysia()
 			headers: { "Content-Type": "application/json" },
 		});
 	})
-	.use(rawTrack);
+	.use(rawTrack)
+	.use(rawVercelDrain);
 
 const now = Date.now();
 
@@ -417,6 +420,27 @@ describe("POST /engagement", () => {
 			{ ...span, exitType: "teleport" },
 		]);
 		expect(res.status).toBe(400);
+	});
+
+	test("over-long click descriptor → 200, the span is kept", async () => {
+		const target = `div:unnamed in section:${"x".repeat(2000)}`;
+		const res = await post(basketApp, "/engagement", [
+			{
+				...span,
+				rageClickTarget: target,
+				deadClickTarget: target,
+				lastFormField: target,
+			},
+		]);
+		expect(res.status).toBe(200);
+		expect((await json(res)).count).toBe(1);
+		expect(mockInsertEngagementSpans.mock.calls.at(-1)?.[0]).toEqual([
+			expect.objectContaining({
+				rageClickTarget: target.slice(0, 64),
+				deadClickTarget: target.slice(0, 64),
+				lastFormField: target.slice(0, 64),
+			}),
+		]);
 	});
 
 	test("empty array → 200 with count 0", async () => {
@@ -831,26 +855,54 @@ describe("GET /px.jpg", () => {
 	});
 });
 
+const orgKey: ApiKeyRow = {
+	id: "key_1",
+	name: "MCP",
+	prefix: "dbdy",
+	start: "dbdy_mcp",
+	keyHash: "hash_1",
+	userId: "user_1",
+	organizationId: "org_1",
+	type: "user",
+	scopes: [],
+	enabled: true,
+	revokedAt: null,
+	rateLimitEnabled: true,
+	rateLimitTimeWindow: null,
+	rateLimitMax: null,
+	expiresAt: null,
+	lastUsedAt: null,
+	metadata: { resources: { global: ["track:events"] } },
+	createdAt: new Date(),
+	updatedAt: new Date(),
+};
+const websiteKey: ApiKeyRow = {
+	...orgKey,
+	metadata: { resources: { "website:ws_test": ["track:events"] } },
+};
+const globalReadKey: ApiKeyRow = {
+	...orgKey,
+	metadata: {
+		resources: {
+			global: ["read:data"],
+			"website:ws_test": ["track:events"],
+		},
+	},
+};
+
 describe("POST /track", () => {
 	beforeEach(() => {
 		mockInsertCustomEvents.mockClear();
 		mockGetApiKeyFromHeader.mockReset();
-		mockHasKeyScope.mockReset();
-		mockHasGlobalAccess.mockReset();
-		mockGetAccessibleWebsiteIds.mockReset();
 		mockGetWebsiteByIdV2.mockReset();
 		mockResolveApiKeyOwnerId.mockReset();
 		mockCheckAutumnUsage.mockClear();
 
-		mockGetApiKeyFromHeader.mockResolvedValue({
-			id: "key_1",
-			organizationId: "org_1",
-			userId: "user_1",
-			scopes: ["track:events"],
-		});
-		mockHasKeyScope.mockReturnValue(true);
-		mockHasGlobalAccess.mockReturnValue(false);
-		mockGetAccessibleWebsiteIds.mockReturnValue(["ws_test"]);
+		mockGetApiKeyFromHeader.mockResolvedValue(websiteKey);
+		mockHasKeyScope.mockImplementation(realApiKey.hasKeyScope);
+		mockDenyApiKeyWebsiteAccess.mockImplementation(
+			realApiKey.denyApiKeyWebsiteAccess
+		);
 		mockGetWebsiteByIdV2.mockResolvedValue({
 			id: "ws_test",
 			domain: "example.com",
@@ -862,10 +914,16 @@ describe("POST /track", () => {
 		mockResolveApiKeyOwnerId.mockResolvedValue("user_1");
 	});
 
+	afterEach(() => {
+		mockHasKeyScope.mockReset();
+		mockDenyApiKeyWebsiteAccess.mockReset();
+	});
+
 	test("bot user agent short-circuits before the billing check", async () => {
 		mockCheckForBot.mockClear();
 		mockCheckForBot.mockResolvedValueOnce({
-			error: new Response(null, { status: 204 }),
+			response: new Response(null, { status: 204 }),
+			isTrackOnly: true,
 		});
 		const res = await post(
 			trackRoute,
@@ -936,7 +994,7 @@ describe("POST /track", () => {
 	});
 
 	test("api key + no websiteId → 200 (org-scoped event)", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
 		const res = await post(trackRoute, "/track", { name: "org_event" });
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
@@ -972,6 +1030,26 @@ describe("POST /track", () => {
 			],
 			undefined
 		);
+	});
+
+	test("api key with top-level track:events scope + its organization's website → 200", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce({
+			...orgKey,
+			scopes: ["track:events"],
+			metadata: {},
+		});
+		const res = await post(trackRoute, "/track", {
+			name: "signup",
+			websiteId: "ws_test",
+		});
+		expect(res.status).toBe(200);
+	});
+
+	test("website-scoped api key with global read access + no websiteId → 403", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
+		const res = await post(trackRoute, "/track", { name: "org_event" });
+		expect(res.status).toBe(403);
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 
 	test("website-scoped api key + websiteId outside scope → 403", async () => {
@@ -1132,8 +1210,8 @@ describe("POST /track", () => {
 		expect(summaryCall.rejectedEventNames).toEqual(["ok_name"]);
 	});
 
-	test("global api key + websiteId in event still allowed (not scope-checked)", async () => {
-		mockHasGlobalAccess.mockReturnValue(true);
+	test("org-wide api key + any website of its organization → 200", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
 		const res = await post(trackRoute, "/track", {
 			name: "any_event",
 			websiteId: "ws_anywhere",
@@ -1151,7 +1229,10 @@ describe("POST /track", () => {
 	});
 
 	test("api key with no scope → 403 (regression: trackMissingScope)", async () => {
-		mockHasKeyScope.mockReturnValue(false);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce({
+			...orgKey,
+			metadata: { resources: { global: ["read:data"] } },
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1162,11 +1243,10 @@ describe("POST /track", () => {
 
 	test("api key without owner → 400 (regression: trackMissingOwner)", async () => {
 		mockGetApiKeyFromHeader.mockResolvedValueOnce({
-			id: "key_x",
+			...orgKey,
 			organizationId: null,
 			userId: null,
-			scopes: ["track:events"],
-		} as never);
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1177,11 +1257,9 @@ describe("POST /track", () => {
 
 	test("api key without organization cannot target websites", async () => {
 		mockGetApiKeyFromHeader.mockResolvedValueOnce({
-			id: "key_user",
+			...orgKey,
 			organizationId: null,
-			userId: "user_1",
-			scopes: ["track:events"],
-		} as never);
+		});
 		const res = await post(trackRoute, "/track", {
 			name: "signup",
 			websiteId: "ws_test",
@@ -1506,11 +1584,449 @@ describe("POST /ai-traffic", () => {
 			trackRoute.handle(new Request(`http://localhost${path}`));
 		const recorded = await check("/ai-traffic/setup-check/ws_test/nonce_1");
 		const missing = await check("/ai-traffic/setup-check/ws_test/nonce_2");
-		const oversized = await check(
-			`/ai-traffic/setup-check/ws_test/${"n".repeat(65)}`
-		);
 		expect(await recorded.json()).toEqual({ recorded: true });
 		expect(await missing.json()).toEqual({ recorded: false });
-		expect(oversized.status).toBe(400);
+	});
+});
+
+describe("POST /mcp", () => {
+	const call = {
+		tool: "search_docs",
+		durationMs: 42,
+		clientName: "claude-code",
+	};
+
+	const sameOrgWebsite = {
+		id: "ws_other",
+		organizationId: "org_1",
+		status: "ACTIVE",
+	};
+
+	beforeEach(() => {
+		vi.mocked(mockSendBatch).mockClear();
+		mockCheckAutumnUsage.mockClear();
+		mockGetApiKeyFromHeader.mockResolvedValue(orgKey);
+		mockHasKeyScope.mockImplementation(realApiKey.hasKeyScope);
+		mockDenyApiKeyWebsiteAccess.mockImplementation(
+			realApiKey.denyApiKeyWebsiteAccess
+		);
+	});
+
+	afterEach(() => {
+		mockHasKeyScope.mockReset();
+		mockDenyApiKeyWebsiteAccess.mockReset();
+	});
+
+	test("stores tool calls under the key's organization and bills each call", async () => {
+		const message = "preset: Invalid option";
+		const res = await post(trackRoute, "/mcp", [
+			call,
+			{
+				tool: "get_data",
+				durationMs: 7,
+				error: "Unknown tool",
+				userAgent: "openai-mcp/1.0.0",
+			},
+			{
+				tool: "get_data",
+				durationMs: 9,
+				error: JSON.stringify({
+					success: false,
+					error: { code: "NOT_FOUND", message: "Website not found" },
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 11,
+				error: JSON.stringify({
+					error: {
+						code: "invalid_input",
+						message,
+						details: { issues: "x".repeat(600) },
+					},
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 13,
+				error: "MCP error -32602: Input validation error: preset is required",
+			},
+			{
+				tool: "get_data",
+				durationMs: 15,
+				error: "connect ECONNREFUSED 127.0.0.1:5432",
+				errorCode: "ECONNREFUSED",
+			},
+			{
+				tool: "get_data",
+				durationMs: 17,
+				error: "MCP error -32050: quota exceeded",
+				userAgent: "Cursor/1.0.0",
+			},
+			{
+				tool: "get_data",
+				durationMs: 19,
+				error: JSON.stringify({
+					error: {
+						message: "Rate limit reached",
+						type: "requests",
+						param: null,
+						code: null,
+					},
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 21,
+				error:
+					"Input validation error: Invalid arguments for tool get_data: preset is required",
+			},
+			{
+				tool: "get_data",
+				durationMs: 23,
+				error:
+					"Invalid arguments for tool get_data: arguments contain more than the maximum of 100 elements",
+			},
+			{
+				tool: "get_data",
+				durationMs: 25,
+				error: "Output validation error: Invalid structured content",
+			},
+			{
+				tool: "get_data",
+				durationMs: 27,
+				error: "Tool nope not found",
+				errorCode: "-32602",
+				userAgent: "codex-mcp-client/0.50.0",
+			},
+			{
+				tool: "get_data",
+				durationMs: 29,
+				error: "Cancelled by the client",
+				errorCode: "cancelled",
+				userAgent: "Claude-User",
+			},
+			{
+				tool: "get_data",
+				durationMs: 31,
+				error: JSON.stringify({
+					error: { code: -32_603, message: "m".repeat(600) },
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 33,
+				error: JSON.stringify({
+					statusCode: 400,
+					code: "FST_ERR_VALIDATION",
+					error: "Bad Request",
+					message: "body must have required property 'preset'",
+				}),
+			},
+			{
+				tool: "get_data",
+				durationMs: 35,
+				error: "",
+				errorCode: "invalid_params",
+			},
+			{
+				tool: "get_data",
+				durationMs: 37,
+				error: JSON.stringify({ error: { code: "NOT_FOUND", message: "x" } }),
+				errorCode: "ECONNRESET",
+			},
+			{
+				tool: "get_data",
+				durationMs: 39,
+				error: `MCP error -32603: ${JSON.stringify({
+					error: { code: "rate_limited", message: "inner" },
+				})}`,
+			},
+		]);
+		expect(res.status).toBe(202);
+		expect(mockCheckAutumnUsage).toHaveBeenCalledWith(
+			"user_1",
+			"events",
+			{ api_route: "mcp", batch_size: 18 },
+			18
+		);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({
+				owner_id: "org_1",
+				tool: "search_docs",
+				is_error: false,
+				client: "Claude Code",
+			}),
+			expect.objectContaining({
+				tool: "get_data",
+				is_error: true,
+				error: "Unknown tool",
+				error_code: undefined,
+				client: "ChatGPT",
+			}),
+			expect.objectContaining({
+				error: "Website not found",
+				error_code: "NOT_FOUND",
+			}),
+			expect.objectContaining({ error: message, error_code: "invalid_input" }),
+			expect.objectContaining({
+				error: "Input validation error: preset is required",
+				error_code: "invalid_params",
+			}),
+			expect.objectContaining({
+				error: "connect ECONNREFUSED 127.0.0.1:5432",
+				error_code: "ECONNREFUSED",
+			}),
+			expect.objectContaining({
+				error: "quota exceeded",
+				error_code: "-32050",
+				client: "Cursor",
+			}),
+			expect.objectContaining({
+				error: "Rate limit reached",
+				error_code: undefined,
+			}),
+			expect.objectContaining({ error_code: "invalid_params" }),
+			expect.objectContaining({ error_code: "invalid_params" }),
+			expect.objectContaining({ error_code: "invalid_output" }),
+			expect.objectContaining({
+				error: "Tool nope not found",
+				error_code: "invalid_params",
+				client: "Codex",
+			}),
+			expect.objectContaining({
+				error: "Cancelled by the client",
+				error_code: "cancelled",
+				client: "Claude",
+			}),
+			expect.objectContaining({
+				error: "m".repeat(512),
+				error_code: "internal_error",
+			}),
+			expect.objectContaining({
+				error: "body must have required property 'preset'",
+				error_code: "FST_ERR_VALIDATION",
+			}),
+			expect.objectContaining({
+				is_error: true,
+				error: "",
+				error_code: "invalid_params",
+			}),
+			expect.objectContaining({ error: "x", error_code: "ECONNRESET" }),
+			expect.objectContaining({ error: "inner", error_code: "rate_limited" }),
+		]);
+	});
+
+	test("links calls to a website of the key's organization", async () => {
+		const res = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test", environment: "production" },
+		]);
+		expect(res.status).toBe(202);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({
+				owner_id: "org_1",
+				website_id: "ws_test",
+				environment: "production",
+			}),
+		]);
+		mockGetApiKeyFromHeader.mockResolvedValue({
+			...orgKey,
+			scopes: ["track:events"],
+			metadata: {},
+		});
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(202);
+		const linked = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+		]);
+		expect(linked.status).toBe(202);
+	});
+
+	test("rejects oversized batches before authenticating", async () => {
+		mockGetApiKeyFromHeader.mockClear();
+		const res = await post(trackRoute, "/mcp", [
+			{ ...call, error: "x".repeat(1024 * 1024) },
+		]);
+		expect(res.status).toBe(413);
+		expect(mockGetApiKeyFromHeader).not.toHaveBeenCalled();
+	});
+
+	test("accepts a website-limited key only for calls linked to its website", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValue(websiteKey);
+		const linked = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+		]);
+		expect(linked.status).toBe(202);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-mcp-spans", [
+			expect.objectContaining({ owner_id: "org_1", website_id: "ws_test" }),
+		]);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(403);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(sameOrgWebsite);
+		const other = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(other.status).toBe(403);
+		const mixed = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_test" },
+			call,
+		]);
+		expect(mixed.status).toBe(403);
+		expect(mockSendBatch).toHaveBeenCalledOnce();
+		expect(mockCheckAutumnUsage).toHaveBeenCalledOnce();
+	});
+
+	test("rejects calls without a key or outside the key's websites", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(null);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(401);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
+		expect((await post(trackRoute, "/mcp", [call])).status).toBe(403);
+		mockGetApiKeyFromHeader.mockResolvedValueOnce(globalReadKey);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(sameOrgWebsite);
+		const unscoped = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(unscoped.status).toBe(403);
+		mockGetWebsiteByIdV2.mockResolvedValueOnce({
+			id: "ws_other",
+			organizationId: "org_2",
+			status: "ACTIVE",
+		});
+		const foreign = await post(trackRoute, "/mcp", [
+			{ ...call, websiteId: "ws_other" },
+		]);
+		expect(foreign.status).toBe(403);
+		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+	});
+});
+
+describe("POST /vercel/:websiteId", () => {
+	const CLAUDE_CODE =
+		"Claude-User (claude-code/2.1.280; +https://support.anthropic.com/)";
+	const GPTBOT =
+		"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)";
+	const CHROME_UA =
+		"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
+
+	beforeEach(() => {
+		vi.mocked(mockSendBatch).mockClear();
+		vi.mocked(mockRedisSet).mockClear();
+		vi.mocked(isOriginAllowed).mockImplementation(
+			(origin: string, domain: string) =>
+				new URL(origin).hostname.endsWith(domain)
+		);
+	});
+
+	afterEach(() => {
+		vi.mocked(isOriginAllowed).mockImplementation(() => true);
+	});
+
+	function logLine(
+		userAgent: string,
+		proxy: Record<string, unknown> = {},
+		requestId: string = crypto.randomUUID()
+	) {
+		return {
+			id: crypto.randomUUID(),
+			requestId,
+			source: "static",
+			timestamp: 1_790_700_000_000,
+			proxy: {
+				host: "docs.example.com",
+				method: "GET",
+				path: "/docs/intro.md?ref=chat",
+				statusCode: 200,
+				timestamp: 1_790_700_000_000,
+				userAgent: [userAgent],
+				...proxy,
+			},
+		};
+	}
+
+	function drain(body: BodyInit) {
+		return trackRoute.handle(
+			new Request("http://localhost/vercel/ws_test", { method: "POST", body })
+		);
+	}
+
+	function storedSpans() {
+		return vi.mocked(mockSendBatch).mock.calls[0]?.[1] ?? [];
+	}
+
+	test("stores AI agent requests from a JSON batch with their status and format", async () => {
+		const res = await drain(
+			JSON.stringify([
+				logLine(CLAUDE_CODE),
+				logLine(GPTBOT, { path: "/llms.txt", statusCode: 404 }),
+				logLine(CHROME_UA),
+			])
+		);
+		expect(res.status).toBe(200);
+		expect(storedSpans()).toEqual([
+			expect.objectContaining({
+				client_id: "ws_test",
+				agent_id: "claude-code",
+				path: "/docs/intro.md",
+				format: "markdown",
+				host: "docs.example.com",
+				status_code: 200,
+				source: "vercel",
+			}),
+			expect.objectContaining({
+				agent_id: "openai-crawler",
+				path: "/llms.txt",
+				format: "llms",
+				status_code: 404,
+			}),
+		]);
+	});
+
+	test("reads gzipped NDJSON and counts a request's repeated log lines once", async () => {
+		const request = logLine(CLAUDE_CODE);
+		const consoleLine = {
+			...request,
+			id: crypto.randomUUID(),
+			source: "lambda",
+		};
+		const ndjson = [
+			request,
+			consoleLine,
+			logLine(GPTBOT, {}, ""),
+			logLine(GPTBOT, {}, ""),
+		]
+			.map((line) => JSON.stringify(line))
+			.join("\n");
+		const res = await drain(gzipSync(ndjson));
+		expect(res.status).toBe(200);
+		expect(storedSpans()).toHaveLength(3);
+	});
+
+	test("skips other hosts, writes, revalidations and setup checks", async () => {
+		const res = await drain(
+			JSON.stringify([
+				logLine(CLAUDE_CODE, { host: "other-site.dev" }),
+				logLine(CLAUDE_CODE, { method: "POST" }),
+				logLine(CLAUDE_CODE, { statusCode: -1 }),
+				logLine(CLAUDE_CODE, { method: undefined }),
+				logLine(CLAUDE_CODE, { path: "/_next/static/chunks/app.js" }),
+				logLine(setupCheckUserAgent("nonce_1"), { path: "/welcome.pdf" }),
+			])
+		);
+		expect(res.status).toBe(200);
+		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"ai-agent-setup-check:ws_test:nonce_1",
+			"1",
+			"EX",
+			120
+		);
+	});
+
+	test("rejects an unknown website, an unreadable body and a gzip bomb", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValueOnce(null as never);
+		expect((await drain("[]")).status).toBe(404);
+		expect((await drain("[not json")).status).toBe(400);
+		expect((await drain(gzipSync(" ".repeat(11 * 1024 * 1024)))).status).toBe(
+			400
+		);
 	});
 });

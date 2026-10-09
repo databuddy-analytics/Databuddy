@@ -36,9 +36,32 @@ set an accessible baseline of at least one year, extend it for contract or
 regulatory requirements, and document the deletion or crypto-shredding path.
 
 Application code only inserts audit events; it does not expose update or
-delete operations. Database roles should separately enforce append-only access
-and monitor DDL or privilege changes. That infrastructure control is still an
-operational follow-up, not something this application file can guarantee.
+delete operations. Production Postgres enforces this independently: the
+`audit_events_append_only_rows` and `audit_events_append_only_truncate`
+triggers (function `audit_events_append_only()`, owned by `postgres`) reject
+every UPDATE, DELETE, and TRUNCATE on `audit_events`, whatever the role. The
+application role holds `pg_write_all_data`, which per-table REVOKEs cannot
+narrow, so the triggers are the control. Only a table owner can disable them,
+which is a DDL change. `db:push` does not create or remove triggers, so a new
+database needs them installed by hand:
+
+```sql
+CREATE OR REPLACE FUNCTION audit_events_append_only() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	RAISE EXCEPTION 'audit_events is append-only: % is not allowed', TG_OP
+		USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+CREATE TRIGGER audit_events_append_only_rows
+	BEFORE UPDATE OR DELETE ON audit_events
+	FOR EACH ROW EXECUTE FUNCTION audit_events_append_only();
+CREATE TRIGGER audit_events_append_only_truncate
+	BEFORE TRUNCATE ON audit_events
+	FOR EACH STATEMENT EXECUTE FUNCTION audit_events_append_only();
+```
+
+Monitoring DDL and privilege changes is still an operational follow-up.
 
 ## Review checklist
 

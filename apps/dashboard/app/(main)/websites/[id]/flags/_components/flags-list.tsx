@@ -40,7 +40,7 @@ interface FlagsListProps {
 }
 
 const FLAG_LIST_MIN_WIDTH_CLASS = "min-w-[980px]";
-const FLAG_ACTIVITY_ACCURACY_COPY = `Directional browser telemetry from the last ${FLAG_STATS_WINDOW_DAYS} days—not an exact count of people who used the feature. It may undercount when tracking is blocked, sampled, opted out, or evaluated on the server.`;
+const FLAG_ACTIVITY_ACCURACY_COPY = `Directional browser telemetry from the last ${FLAG_STATS_WINDOW_DAYS} days, not an exact count of people who used the feature. It may undercount when tracking is blocked, sampled, opted out, or evaluated on the server.`;
 
 const TYPE_CONFIG = {
 	boolean: { icon: FlagIcon, label: "Boolean", color: "text-blue-500" },
@@ -111,16 +111,9 @@ function StatusToggle({ flag, websiteId }: { flag: Flag; websiteId: string }) {
 				disabled={updateStatusMutation.isPending || flag.status === "archived"}
 				onCheckedChange={handleChange}
 			/>
-			<span
-				className={cn(
-					"font-medium text-xs",
-					isActive
-						? "text-green-600 dark:text-green-400"
-						: "text-muted-foreground"
-				)}
-			>
+			<Badge size="sm" variant={isActive ? "success" : "muted"}>
 				{isActive ? "On" : "Off"}
-			</span>
+			</Badge>
 		</div>
 	);
 }
@@ -173,7 +166,7 @@ function FlagActions({
 				<DropdownMenu.Content align="end" className="w-44">
 					<DropdownMenu.Item className="gap-2" onClick={() => onEdit(flag)}>
 						<PencilSimpleIcon className="size-4" />
-						Edit Flag
+						Edit
 					</DropdownMenu.Item>
 					<DropdownMenu.Item className="gap-2" onClick={handleArchive}>
 						<ArchiveIcon className="size-4" />
@@ -186,7 +179,7 @@ function FlagActions({
 						variant="destructive"
 					>
 						<TrashIcon className="size-4 fill-destructive" />
-						Delete Flag
+						Delete
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu>

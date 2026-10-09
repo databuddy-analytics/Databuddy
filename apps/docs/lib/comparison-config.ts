@@ -2,8 +2,11 @@ import {
 	INVESTIGATION_ALLOWANCES,
 	INVESTIGATION_USAGE,
 } from "@databuddy/shared/billing";
+import { DASHBOARD_URL, SITE_URL } from "@/app/util/constants";
 
 const investigationPrice = `${INVESTIGATION_ALLOWANCES.intelligence}/month on Business, ${INVESTIGATION_ALLOWANCES.intelligence_scale}/month on Scale · $${INVESTIGATION_USAGE.priceUsd} per additional investigation, billed monthly`;
+
+export const comparisonsReviewedAt = "2026-10-02";
 
 export interface ComparisonFeature {
 	benefit: string;
@@ -36,6 +39,11 @@ export interface PricingTier {
 	pageviews: string;
 }
 
+export interface ComparisonVerdict {
+	competitor: string[];
+	databuddy: string[];
+}
+
 export interface ComparisonData {
 	competitor: CompetitorInfo;
 	faqs: FaqItem[];
@@ -50,6 +58,7 @@ export interface ComparisonData {
 		description: string;
 	};
 	sources: { label: string; href: string }[];
+	verdict: ComparisonVerdict;
 }
 
 export const competitors: Record<string, ComparisonData> = {
@@ -72,9 +81,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Google Analytics reporting and advertising integrations with Databuddy’s analytics, error tracking, and AI analysis.",
 		},
 		seo: {
-			title: "Databuddy vs Google Analytics: Features and Pricing",
+			title: "Google Analytics alternative: Databuddy vs GA4 (2026)",
 			description:
-				"Compare Google Analytics reporting and advertising integrations with Databuddy’s analytics, error tracking, and AI analysis.",
+				"Databuddy vs GA4: cookieless analytics with funnels and goals, an AI analyst that shows its query, and uptime and feature flags built in, free up to 10,000 events a month.",
+		},
+		verdict: {
+			competitor: [
+				"You run Google Ads and want GA4’s advertising integrations.",
+				"You want to export raw events to BigQuery.",
+			],
+			databuddy: [
+				"You want cookieless tracking by default, not only when a visitor denies consent.",
+				"You want to ask Databunny, the built-in AI analyst, about your numbers and see the query behind each answer.",
+				"You want uptime monitoring and feature flags in the same dashboard as your analytics.",
+			],
 		},
 		features: [
 			{
@@ -99,10 +119,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: false,
 				benefit:
-					"Databuddy can run on your infrastructure. Google Analytics is a hosted service.",
+					"Databuddy is open source; a packaged self-host release is pending. Google Analytics is a hosted service.",
 			},
 			{
 				name: "Raw data export",
@@ -172,9 +192,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Plausible’s web analytics with Databuddy’s analytics, optional identified-user profiles, and investigations.",
 		},
 		seo: {
-			title: "Databuddy vs Plausible: Features and Pricing",
+			title: "Plausible alternative: Databuddy vs Plausible (2026)",
 			description:
-				"Compare Plausible’s web analytics with Databuddy’s analytics, optional identified-user profiles, and investigations.",
+				"Databuddy vs Plausible: both are cookieless and open source, with funnels and custom properties. Databuddy also links events to identified-user profiles.",
+		},
+		verdict: {
+			competitor: [
+				"You want simple traffic reports from a tool that excludes persistent user identifiers.",
+				"You want to self-host today with Plausible Community Edition.",
+			],
+			databuddy: [
+				"You want to link activity to signed-in users with identified-user profiles.",
+				"You want error tracking, uptime monitoring, and feature flags in the same dashboard.",
+				"You want to start on a free plan with 10,000 events a month.",
+			],
 		},
 		features: [
 			{
@@ -211,10 +242,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: true,
 				benefit:
-					"Both have open-source self-hosted versions; cloud packaging differs.",
+					"Plausible Community Edition is open source and self-hostable. Databuddy is open source; a packaged self-host release is pending.",
 			},
 		],
 		faqs: [
@@ -281,9 +312,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Fathom’s web analytics with Databuddy’s funnels, error tracking, and investigations.",
 		},
 		seo: {
-			title: "Databuddy vs Fathom Analytics: Features and Pricing",
+			title: "Fathom alternative: Databuddy vs Fathom Analytics (2026)",
 			description:
-				"Compare Fathom’s web analytics with Databuddy’s funnels, error tracking, and investigations.",
+				"Databuddy vs Fathom: both are cookieless, with conversion goals and CSV exports. Databuddy adds a multi-step funnel builder and a Free plan with 10,000 events.",
+		},
+		verdict: {
+			competitor: [
+				"You want hosted traffic analytics with 100,000 monthly pageviews from $15 a month.",
+				"Conversion goals cover what you measure, and you don’t need multi-step funnels.",
+			],
+			databuddy: [
+				"You want a multi-step funnel builder on top of conversion goals.",
+				"You want to start on a free plan with 10,000 events a month instead of a trial.",
+				"You want user profiles, error tracking, and feature flags next to your traffic data.",
+			],
 		},
 		features: [
 			{
@@ -314,10 +356,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: false,
 				benefit:
-					"Commercial Fathom is hosted. Its older Fathom Lite project is a separate self-hosted product.",
+					"Commercial Fathom is hosted; Fathom Lite is a separate self-hosted project. Databuddy is open source; a packaged self-host release is pending.",
 			},
 			{
 				name: "Free hosted plan",
@@ -391,9 +433,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"PostHog combines analytics, replay, experiments, surveys, and AI. Databuddy combines analytics, errors, monitoring, and investigations in one dashboard.",
 		},
 		seo: {
-			title: "Databuddy vs PostHog: Features and Pricing",
+			title: "PostHog alternative: Databuddy vs PostHog (2026)",
 			description:
-				"PostHog combines analytics, replay, experiments, surveys, and AI. Databuddy combines analytics, errors, monitoring, and investigations in one dashboard.",
+				"Databuddy vs PostHog: both track product events, run feature flags, and have AI. Databuddy is one cookieless script; PostHog adds replay and surveys.",
+		},
+		verdict: {
+			competitor: [
+				"You need session replay or in-app surveys.",
+				"You run experiments and want PostHog’s experiment analysis engine.",
+			],
+			databuddy: [
+				"You want one cookieless script for traffic, custom events, funnels, and goals.",
+				"You want pageviews, custom events, errors, and Web Vitals to share one event allowance.",
+				"You want uptime monitoring next to your product analytics, errors, and feature flags.",
+			],
 		},
 		features: [
 			{
@@ -446,11 +499,6 @@ export const competitors: Record<string, ComparisonData> = {
 				answer:
 					"Databuddy does not provide session replay or in-app surveys. PostHog includes both.",
 			},
-			{
-				question: "Which tracker has less overhead?",
-				answer:
-					"The current Databuddy tracker is about 13 KB gzip and loads asynchronously. Compare current builds with the features you enable, then measure both on your site.",
-			},
 		],
 		pricingTiers: [
 			{
@@ -495,9 +543,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Umami’s analytics with Databuddy’s investigations, feature flags, and error tracking.",
 		},
 		seo: {
-			title: "Databuddy vs Umami: Features and Pricing",
+			title: "Umami alternative: Databuddy vs Umami (2026)",
 			description:
-				"Compare Umami’s analytics with Databuddy’s investigations, feature flags, and error tracking.",
+				"Databuddy vs Umami: both have funnels, goals, identified users, event properties, exports, and MCP access. Compare features, pricing, and when to pick each.",
+		},
+		verdict: {
+			competitor: [
+				"You want to self-host today under the MIT license.",
+				"You want a free cloud tier with 100,000 monthly events, funnels, and goals.",
+			],
+			databuddy: [
+				"You want feature flags, error tracking, and uptime monitoring in the same dashboard as your analytics.",
+				"You want Databunny, the built-in AI analyst, to answer questions and show the query behind each answer.",
+				"You want scheduled investigations: Business and Scale check your metrics daily or weekly, comparing the last 7 days with the prior 7.",
+			],
 		},
 		features: [
 			{
@@ -529,9 +588,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: true,
-				benefit: "Databuddy uses AGPL-3.0; Umami uses MIT.",
+				benefit:
+					"Umami is MIT-licensed and self-hostable. Databuddy is open source under AGPL-3.0; a packaged self-host release is pending.",
 			},
 			{
 				name: "Data exports",
@@ -605,9 +665,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Mixpanel’s product and web analytics, cohorts, and AI agents with Databuddy’s analytics, monitoring, and investigations.",
 		},
 		seo: {
-			title: "Databuddy vs Mixpanel: Features and Pricing",
+			title: "Mixpanel alternative: Databuddy vs Mixpanel (2026)",
 			description:
-				"Compare Mixpanel’s product and web analytics, cohorts, and AI agents with Databuddy’s analytics, monitoring, and investigations.",
+				"Databuddy vs Mixpanel: both have web analytics, funnels, flags, identified users, and AI analysis. Mixpanel adds cohorts; Databuddy is one cookieless script.",
+		},
+		verdict: {
+			competitor: [
+				"You need behavioral cohorts and audience segmentation.",
+				"You expect more than 10,000 events a month on a free plan; Mixpanel Free includes 1 million.",
+			],
+			databuddy: [
+				"You want one cookieless script for traffic, events, funnels, and goals.",
+				"You want uptime monitoring and error tracking next to your product analytics.",
+				"You want analytics code you can read: Databuddy is open source under AGPL-3.0.",
+			],
 		},
 		features: [
 			{
@@ -649,9 +720,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: false,
-				benefit: "Databuddy is self-hostable. Mixpanel is a hosted platform.",
+				benefit:
+					"Databuddy is open source; a packaged self-host release is pending. Mixpanel is a hosted platform.",
 			},
 		],
 		faqs: [
@@ -718,9 +790,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Amplitude’s product analytics, cohorts, replay, experiments, and AI agents with Databuddy’s analytics and investigation workflows.",
 		},
 		seo: {
-			title: "Databuddy vs Amplitude: Features and Pricing",
+			title: "Amplitude alternative: Databuddy vs Amplitude (2026)",
 			description:
-				"Compare Amplitude’s product analytics, cohorts, replay, experiments, and AI agents with Databuddy’s analytics and investigation workflows.",
+				"Databuddy vs Amplitude: both have AI analysis, feature flags, and custom events. Amplitude adds session replay and cohorts; Databuddy is one cookieless script.",
+		},
+		verdict: {
+			competitor: [
+				"You need session replay, behavioral cohorts, or an experimentation suite.",
+				"You want autocapture on top of custom event tracking.",
+			],
+			databuddy: [
+				"You want error tracking and uptime monitoring in the same dashboard as your analytics.",
+				"You want one cookieless script for traffic, events, funnels, and goals.",
+				"You want analytics code you can read: Databuddy is open source under AGPL-3.0.",
+			],
 		},
 		features: [
 			{
@@ -763,10 +846,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: false,
 				benefit:
-					"Databuddy can run on your infrastructure; Amplitude is hosted.",
+					"Databuddy is open source; a packaged self-host release is pending. Amplitude is hosted.",
 			},
 		],
 		faqs: [
@@ -783,7 +866,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Amplitude offer beyond Databuddy?",
 				answer:
-					"Amplitude provides dedicated cohort analysis, session replay, and an experimentation suite. Databuddy includes error tracking, uptime monitoring, and optional self-hosting.",
+					"Amplitude provides dedicated cohort analysis, session replay, and an experimentation suite. Databuddy includes error tracking and uptime monitoring, and its code is open source.",
 			},
 		],
 		pricingTiers: [
@@ -833,9 +916,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Both offer cookieless analytics, identified profiles, funnels, and MCP access. Rybbit adds replay and retention; Databuddy adds flags and investigation workflows.",
 		},
 		seo: {
-			title: "Databuddy vs Rybbit: Features and Pricing",
+			title: "Rybbit alternative: Databuddy vs Rybbit (2026)",
 			description:
-				"Both offer cookieless analytics, identified profiles, funnels, and MCP access. Rybbit adds replay and retention; Databuddy adds flags and investigation workflows.",
+				"Databuddy vs Rybbit: both are cookieless, with identified profiles, funnels, MCP access, and managed cloud. Rybbit adds session replay and retention reports.",
+		},
+		verdict: {
+			competitor: [
+				"You need session replay or retention reports.",
+				"You want to self-host today with Rybbit’s open-source release.",
+			],
+			databuddy: [
+				"You want feature flags, uptime monitoring, and short links in the same dashboard.",
+				"You want to start on a free hosted plan with 10,000 events a month.",
+				"You want Databunny, the built-in AI analyst, to answer questions and show the query behind each answer.",
+			],
 		},
 		features: [
 			{
@@ -874,9 +968,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: true,
-				benefit: "Both publish open-source self-hosted versions.",
+				benefit:
+					"Rybbit publishes an open-source self-hosted version. Databuddy is open source; a packaged self-host release is pending.",
 			},
 			{
 				name: "Session replay",
@@ -949,9 +1044,20 @@ export const competitors: Record<string, ComparisonData> = {
 				"Compare Vercel’s integrated Web Analytics and related platform tools with Databuddy’s analytics, errors, and investigations across hosting providers.",
 		},
 		seo: {
-			title: "Databuddy vs Vercel Analytics: Features and Pricing",
+			title: "Vercel Analytics alternative: Databuddy vs Vercel (2026)",
 			description:
-				"Compare Vercel’s integrated Web Analytics and related platform tools with Databuddy’s analytics, errors, and investigations across hosting providers.",
+				"Databuddy vs Vercel Analytics: both are cookieless, with custom events, Next.js support, Web Vitals, and flags. Databuddy works on any host and is free up to 10,000 events a month.",
+		},
+		verdict: {
+			competitor: [
+				"Your sites run on Vercel and you want analytics inside your Vercel projects.",
+				"You already use Speed Insights and Vercel Flags.",
+			],
+			databuddy: [
+				"You host on more than one provider and want one dashboard for every site.",
+				"You want to ask Databunny, the built-in AI analyst, about your traffic and see the query behind each answer.",
+				"You want uptime monitoring and short links in the same dashboard as your analytics.",
+			],
 		},
 		features: [
 			{
@@ -989,10 +1095,10 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 			{
 				name: "Self-hosting",
-				databuddy: true,
+				databuddy: false,
 				competitor: false,
 				benefit:
-					"Databuddy can be self-hosted. Vercel Web Analytics integrates with Vercel projects.",
+					"Databuddy is open source; a packaged self-host release is pending. Vercel Web Analytics integrates with Vercel projects.",
 			},
 		],
 		faqs: [
@@ -1059,17 +1165,22 @@ export const competitors: Record<string, ComparisonData> = {
 				"Matomo offers managed and self-hosted analytics with an established reporting and plugin ecosystem. Compare that with Databuddy’s analytics and AI workflows.",
 		},
 		seo: {
-			title: "Databuddy vs Matomo: Features and Pricing",
+			title: "Matomo alternative: Databuddy vs Matomo (2026)",
 			description:
-				"Matomo offers managed and self-hosted analytics with an established reporting and plugin ecosystem. Compare that with Databuddy’s analytics and AI workflows.",
+				"Databuddy vs Matomo: both track events, goals, and live visits, with reporting APIs. Matomo adds heatmaps and recordings; Databuddy is one cookieless script.",
+		},
+		verdict: {
+			competitor: [
+				"You need heatmaps or session recordings.",
+				"You want to self-host today on PHP and MySQL, with a large plugin ecosystem.",
+			],
+			databuddy: [
+				"You want to ask Databunny, the built-in AI analyst, about your numbers and see the query behind each answer.",
+				"You want feature flags with weighted variants and uptime monitoring in the same dashboard.",
+				"You want a hosted plan that starts free at 10,000 events a month.",
+			],
 		},
 		features: [
-			{
-				name: "Self-hosting",
-				databuddy: true,
-				competitor: true,
-				benefit: "Both offer self-hosted analytics as well as managed hosting.",
-			},
 			{
 				name: "Custom events and goals",
 				databuddy: true,
@@ -1109,6 +1220,13 @@ export const competitors: Record<string, ComparisonData> = {
 				benefit:
 					"Databuddy supports weighted feature flags. Matomo offers a separate A/B testing feature.",
 			},
+			{
+				name: "Self-hosting",
+				databuddy: false,
+				competitor: true,
+				benefit:
+					"Matomo offers self-hosted and managed hosting. Databuddy is open source and hosted; a packaged self-host release is pending.",
+			},
 		],
 		faqs: [
 			{
@@ -1117,9 +1235,9 @@ export const competitors: Record<string, ComparisonData> = {
 					"Matomo offers heatmaps, session recordings, and a larger reporting and plugin ecosystem. Packaging differs between Cloud and On-Premise.",
 			},
 			{
-				question: "How does self-hosting differ?",
+				question: "Can I self-host Databuddy like Matomo?",
 				answer:
-					"Matomo uses PHP and MySQL. Databuddy uses Bun with PostgreSQL, ClickHouse, and Redis. Compare operational requirements against the infrastructure your team maintains.",
+					"Not with a packaged release yet. Databuddy is open source, but its self-host release is pending, so use hosted Databuddy for now. Matomo On-Premise runs on PHP and MySQL.",
 			},
 			{
 				question: "What are Matomo’s AI Assistants reports?",
@@ -1151,12 +1269,336 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 		],
 	},
+	"simple-analytics": {
+		competitor: {
+			name: "Simple Analytics",
+			slug: "simple-analytics",
+			description: "Privacy-friendly web analytics, EU-owned and EU-hosted",
+			website: "https://www.simpleanalytics.com",
+			tagline: "Cookieless analytics with a one-page dashboard",
+			color: "#FF4F64",
+			pricing: {
+				starting: "Free",
+				note: "Free plan with unlimited pageviews under fair use, 1 month of history, and a required badge. Paid plans start at $20/month for 100,000 pageviews.",
+			},
+		},
+		hero: {
+			title: "Databuddy vs Simple Analytics",
+			description:
+				"Compare Simple Analytics’ traffic dashboard with Databuddy’s analytics, identified-user profiles, error tracking, and uptime monitoring.",
+		},
+		seo: {
+			title:
+				"Simple Analytics alternative: Databuddy vs Simple Analytics (2026)",
+			description:
+				"Databuddy vs Simple Analytics: both are cookieless, with events, goals, and funnels. Databuddy adds user profiles, error tracking, uptime monitoring, and feature flags.",
+		},
+		verdict: {
+			competitor: [
+				"You want a free plan without a pageview cap, and one month of history is enough.",
+				"You want EU-owned, EU-hosted analytics with a single-page dashboard.",
+			],
+			databuddy: [
+				"You want to link activity to signed-in users with identified-user profiles.",
+				"You want error tracking, uptime monitoring, and feature flags in the same dashboard as your analytics.",
+			],
+		},
+		features: [
+			{
+				name: "Cookieless analytics",
+				databuddy: true,
+				competitor: true,
+				benefit: "Both collect analytics without analytics cookies.",
+			},
+			{
+				name: "Events, goals, and funnels",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Simple Analytics tracks events and goals and builds multi-step funnels.",
+			},
+			{
+				name: "Identified-user profiles",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy can link activity to user IDs you supply. Simple Analytics does not collect personal data.",
+			},
+			{
+				name: "Error tracking and uptime monitoring",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy includes both. Simple Analytics’ feature list covers traffic analytics.",
+			},
+			{
+				name: "Data exports",
+				databuddy: true,
+				competitor: true,
+				benefit: "Simple Analytics exports data as CSV and through its APIs.",
+			},
+			{
+				name: "Free hosted plan",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Simple Analytics’ free plan has unlimited pageviews under fair use, 1 month of history, 5 websites, and a required badge. Databuddy’s free plan includes 10,000 events a month.",
+			},
+			{
+				name: "Self-hosting",
+				databuddy: false,
+				competitor: false,
+				benefit:
+					"Simple Analytics is hosted in the EU. Databuddy is open source; a packaged self-host release is pending.",
+			},
+		],
+		faqs: [
+			{
+				question: "Is Simple Analytics free?",
+				answer:
+					"Yes. The free plan has unlimited pageviews under a fair use policy, keeps 1 month of history, covers 5 websites, and requires a badge. Paid plans start at $20/month for 100,000 pageviews.",
+			},
+			{
+				question: "Does Simple Analytics support funnels?",
+				answer:
+					"Yes. Simple Analytics tracks events and goals and builds multi-step funnels. Databuddy also includes funnels, with limits that vary by plan.",
+			},
+			{
+				question: "Can Simple Analytics identify signed-in users?",
+				answer:
+					"No. Simple Analytics does not collect personal data. Databuddy can link activity to user IDs and traits you supply.",
+			},
+		],
+		pricingTiers: [
+			{
+				pageviews: "Entry options",
+				competitor:
+					"Free · unlimited pageviews under fair use, 1 month of history, badge required. Paid from $20/month for 100,000 pageviews.",
+				databuddy: "Free · 10,000 monthly events",
+			},
+			{
+				pageviews: "Automatic investigations",
+				competitor: "See vendor feature documentation",
+				databuddy: investigationPrice,
+			},
+		],
+		sources: [
+			{
+				label: "Pricing",
+				href: "https://www.simpleanalytics.com/pricing",
+			},
+			{
+				label: "Features",
+				href: "https://www.simpleanalytics.com/features",
+			},
+			{
+				label: "Events",
+				href: "https://docs.simpleanalytics.com/events",
+			},
+		],
+	},
+	pirsch: {
+		competitor: {
+			name: "Pirsch",
+			slug: "pirsch",
+			description: "Privacy-friendly web analytics hosted in Germany",
+			website: "https://pirsch.io",
+			tagline: "Cookieless analytics with server-side tracking",
+			color: "#000000",
+			pricing: {
+				starting: "$6/month",
+				note: "Standard at 10,000 monthly pageviews, with a 30-day free trial and no credit card required.",
+			},
+		},
+		hero: {
+			title: "Databuddy vs Pirsch",
+			description:
+				"Compare Pirsch’s cookieless web analytics with Databuddy’s analytics, identified-user profiles, error tracking, and uptime monitoring.",
+		},
+		seo: {
+			title: "Pirsch alternative: Databuddy vs Pirsch (2026)",
+			description:
+				"Databuddy vs Pirsch: both are cookieless, with events, funnels, and short links. Databuddy adds user profiles, error tracking, uptime monitoring, and a free plan.",
+		},
+		verdict: {
+			competitor: [
+				"You want unlimited data retention and 50 websites from $6 a month.",
+				"You want server-side tracking or an on-premise install on Enterprise.",
+			],
+			databuddy: [
+				"You want to link activity to signed-in users with identified-user profiles.",
+				"You want error tracking, uptime monitoring, and feature flags in the same dashboard.",
+				"You want to start on a free plan with 10,000 events a month instead of a trial.",
+			],
+		},
+		features: [
+			{
+				name: "Cookieless analytics",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Both collect analytics without analytics cookies. Pirsch counts visitors with a daily hashed fingerprint.",
+			},
+			{
+				name: "Events and conversion goals",
+				databuddy: true,
+				competitor: true,
+				benefit: "Pirsch includes events and conversion goals on Standard.",
+			},
+			{
+				name: "Funnels",
+				databuddy: true,
+				competitor: true,
+				benefit: "Pirsch includes funnels on Plus.",
+			},
+			{
+				name: "Short links",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Pirsch includes a URL shortener on Standard. Databuddy includes short links.",
+			},
+			{
+				name: "Identified-user profiles",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy can link activity to user IDs you supply. Pirsch stores no personal information.",
+			},
+			{
+				name: "Self-hosting",
+				databuddy: false,
+				competitor: true,
+				benefit:
+					"Pirsch offers on-premise installation on Enterprise, and its tracking core is an open-source Go library. Databuddy is open source; a packaged self-host release is pending.",
+			},
+			{
+				name: "Free hosted plan",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Databuddy includes 10,000 monthly events free. Pirsch offers a 30-day trial.",
+			},
+		],
+		faqs: [
+			{
+				question: "Is Pirsch open source?",
+				answer:
+					"Pirsch publishes its tracking core as an open-source Go library. On-premise installation of the full product is an Enterprise option.",
+			},
+			{
+				question: "How long does Pirsch keep data?",
+				answer: "Pirsch lists unlimited data retention on every plan.",
+			},
+			{
+				question: "Does Pirsch support funnels?",
+				answer:
+					"Yes, on the Plus plan. Databuddy also includes funnels, with limits that vary by plan.",
+			},
+		],
+		pricingTiers: [
+			{
+				pageviews: "Entry options",
+				competitor:
+					"$6/month · Standard at 10,000 monthly pageviews, 30-day free trial.",
+				databuddy: "Free · 10,000 monthly events",
+			},
+			{
+				pageviews: "Automatic investigations",
+				competitor: "See vendor feature documentation",
+				databuddy: investigationPrice,
+			},
+		],
+		sources: [
+			{
+				label: "Pricing",
+				href: "https://pirsch.io/pricing",
+			},
+			{
+				label: "Funnels",
+				href: "https://docs.pirsch.io/advanced/funnels",
+			},
+			{
+				label: "Open-source core",
+				href: "https://github.com/pirsch-analytics/pirsch",
+			},
+		],
+	},
 };
 
 export function getComparisonData(slug: string): ComparisonData | null {
-	return competitors[slug] ?? null;
+	return Object.hasOwn(competitors, slug) ? (competitors[slug] ?? null) : null;
 }
 
 export function getAllCompetitorSlugs(): string[] {
 	return Object.keys(competitors);
+}
+
+const mark = (value: boolean) => (value ? "Yes" : "No");
+const cell = (text: string) => text.replaceAll("|", "\\|");
+const bullets = (items: string[]) =>
+	items.map((item) => `- ${item}`).join("\n");
+
+export function createComparisonMarkdown(data: ComparisonData): string {
+	const { competitor, verdict } = data;
+	const featureRows = data.features
+		.map(
+			(feature) =>
+				`| ${cell(feature.name)} | ${mark(feature.databuddy)} | ${mark(feature.competitor)} | ${cell(feature.benefit)} |`
+		)
+		.join("\n");
+	const pricingRows = data.pricingTiers
+		.map(
+			(tier) =>
+				`| ${cell(tier.pageviews)} | ${cell(tier.databuddy)} | ${cell(tier.competitor)} |`
+		)
+		.join("\n");
+	const faqs = data.faqs
+		.map((faq) => `### ${faq.question}\n\n${faq.answer}`)
+		.join("\n\n");
+	const sources = data.sources
+		.map((source) => `- [${source.label}](${source.href})`)
+		.join("\n");
+
+	return `# ${data.hero.title}
+
+> ${data.seo.description}
+
+Canonical: ${SITE_URL}/compare/${competitor.slug}
+Last reviewed: ${comparisonsReviewedAt}
+
+## Choose Databuddy if
+
+${bullets(verdict.databuddy)}
+
+## Choose ${competitor.name} if
+
+${bullets(verdict.competitor)}
+
+## Features
+
+| Feature | Databuddy | ${cell(competitor.name)} | Notes |
+| --- | --- | --- | --- |
+${featureRows}
+
+## Pricing
+
+| Plan | Databuddy | ${cell(competitor.name)} |
+| --- | --- | --- |
+${pricingRows}
+
+${competitor.name} starts at ${competitor.pricing.starting}.${competitor.pricing.note ? ` ${competitor.pricing.note}` : ""}
+
+Databuddy pricing: ${SITE_URL}/pricing.md
+
+## FAQ
+
+${faqs}
+
+## Sources
+
+${sources}
+
+Start free: ${DASHBOARD_URL}/register
+`;
 }

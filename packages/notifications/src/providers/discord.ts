@@ -120,7 +120,7 @@ export class DiscordProvider extends BaseProvider {
 				});
 
 				if (!res.ok) {
-					const text = await res.text().catch(() => "Unable to read response");
+					const text = await res.text().catch(() => "Failed to read response");
 					throw new Error(
 						`Discord API error: ${res.status} ${res.statusText} - ${text.slice(0, 200)}`
 					);

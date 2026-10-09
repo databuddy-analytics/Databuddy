@@ -144,7 +144,7 @@ describe("apikeys website resource ownership", () => {
 		).rejects.toMatchObject({
 			code: "BAD_REQUEST",
 			message:
-				"API key website resources must belong to the selected organization",
+				"This API key can only be limited to websites in the selected organization. Remove the others and try again.",
 		});
 	});
 
@@ -160,7 +160,7 @@ describe("apikeys website resource ownership", () => {
 		).rejects.toMatchObject({
 			code: "BAD_REQUEST",
 			message:
-				"API key website resources must belong to the selected organization",
+				"This API key can only be limited to websites in the selected organization. Remove the others and try again.",
 		});
 	});
 

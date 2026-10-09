@@ -26,6 +26,7 @@ interface FetchError {
 	error: true;
 	status: number;
 	statusText: string;
+	unconfigured?: true;
 }
 
 const NOTRA_REVALIDATE_SECONDS = 3600;
@@ -71,6 +72,7 @@ async function fetchFromNotra<T>(
 				error: true,
 				status: 500,
 				statusText: "NOTRA_API_KEY environment variable is required",
+				unconfigured: true,
 			};
 		}
 

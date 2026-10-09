@@ -18,7 +18,7 @@ const TABLE = [
 ].join("|");
 const RELATION = new RegExp(`\\b(?:FROM|JOIN)\\s+(?:${TABLE})`, "gi");
 
-function maskCommentsAndStrings(sql: string): string {
+export function maskCommentsAndStrings(sql: string): string {
 	let out = "";
 	let index = 0;
 

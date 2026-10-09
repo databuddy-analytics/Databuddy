@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { LINKS_BASE_URL, getPublicLinkUrl } from "@/lib/links-url";
@@ -173,7 +174,12 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 				toast.success("Link created");
 			}
 			onOpenChange(false);
-		} catch {}
+		} catch (error) {
+			showErrorToast(
+				error,
+				isEditing ? "Failed to update link" : "Failed to create link"
+			);
+		}
 	};
 
 	const { copyToClipboard } = useCopyToClipboard({
@@ -253,7 +259,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					render={({ field, fieldState }) => (
 						<Field error={!!fieldState.error}>
 							<Field.Label>Name</Field.Label>
-							<Input placeholder="Marketing Campaign…" {...field} />
+							<Input placeholder="Marketing campaign" {...field} />
 							{fieldState.error && (
 								<Field.Error>{fieldState.error.message}</Field.Error>
 							)}
@@ -267,7 +273,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					render={({ field, fieldState }) => (
 						<Field error={!!fieldState.error}>
 							<Field.Label>
-								Short Link{" "}
+								Short link{" "}
 								{!isEditing && (
 									<span className="text-muted-foreground">(optional)</span>
 								)}
@@ -337,7 +343,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					<Accordion>
 						<Accordion.Trigger>
 							<CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
-							<Text variant="label">Link Expiration</Text>
+							<Text variant="label">Link expiration</Text>
 							{hasExpiration && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 									1
@@ -388,7 +394,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					<Accordion>
 						<Accordion.Trigger>
 							<DeviceMobileIcon className="size-4 shrink-0 text-muted-foreground" />
-							<Text variant="label">Device Targeting</Text>
+							<Text variant="label">Device targeting</Text>
 							{deviceTargetingCount > 0 && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 									{deviceTargetingCount}
@@ -461,7 +467,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					<Accordion>
 						<Accordion.Trigger>
 							<LinkSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
-							<Text variant="label">UTM Parameters</Text>
+							<Text variant="label">UTM parameters</Text>
 							{utmCount > 0 && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 									{utmCount}
@@ -482,7 +488,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					<Accordion>
 						<Accordion.Trigger>
 							<ImageIcon className="size-4 shrink-0 text-muted-foreground" />
-							<Text variant="label">Social Preview</Text>
+							<Text variant="label">Social preview</Text>
 							{useCustomOg && (
 								<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
 									1
@@ -508,7 +514,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 		<Sheet onOpenChange={onOpenChange} open={open}>
 			<Sheet.Content className="w-full sm:max-w-lg" side="right">
 				<Sheet.Header>
-					<Sheet.Title>{isEditing ? "Edit Link" : "Create Link"}</Sheet.Title>
+					<Sheet.Title>{isEditing ? "Edit link" : "Create link"}</Sheet.Title>
 					<Sheet.Description>
 						{isEditing
 							? `Editing ${link?.name || link?.slug}`
@@ -526,7 +532,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 								<Tabs.Tab value="details">Details</Tabs.Tab>
 								<Tabs.Tab value="qr-code">
 									<QrCodeIcon className="size-3.5" />
-									QR Code
+									QR code
 								</Tabs.Tab>
 							</Tabs.List>
 
@@ -559,7 +565,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Save Changes{" "}
+									Save changes{" "}
 								</Button>
 							</Sheet.Footer>
 						</Tabs>
@@ -579,7 +585,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Create Link{" "}
+									Create link{" "}
 								</Button>
 							</Sheet.Footer>
 						</>
