@@ -3,12 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { chQuery, clickHouse } from "./client";
 import { listOwnersWithStoredData, purgeAnalyticsData } from "./purge";
 
-const describeIntegration =
-	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"
-		? describe
-		: describe.skip;
-
-describeIntegration("revenue erasure against ClickHouse", () => {
+describe("revenue erasure against ClickHouse", () => {
 	it("erases website and organization rows, keeps other tenants and transferred websites, and discovers revenue-only owners", async () => {
 		const url = new URL(process.env.CLICKHOUSE_URL ?? "http://localhost:8123");
 		if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
