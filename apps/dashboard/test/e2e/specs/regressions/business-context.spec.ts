@@ -593,7 +593,7 @@ test("dismisses a failed generation when no website is configured", {
 	await page.goto(path);
 	const failure = text(page, timeoutError);
 	await expect(failure).toBeVisible();
-	await expect(link(page, "Add a website")).toBeVisible();
+	await expect(link(page, "Add your website")).toBeVisible();
 	const editor = await editBrief(page);
 	await editor.fill("Keep this unfinished brief while dismissing the failure.");
 	await button(page, "Dismiss generation error").click();

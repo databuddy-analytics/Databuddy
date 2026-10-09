@@ -52,6 +52,13 @@ const STATUS_MESSAGES: Record<number, string> = {
 	429: CODE_MESSAGES.RATE_LIMITED,
 };
 
+const NETWORK_FAILURE_FRAGMENTS = [
+	"network",
+	"fetch failed",
+	"failed to fetch",
+	"load failed",
+];
+
 export const DEFAULT_USER_ERROR_MESSAGE =
 	"Something went wrong. Try again in a moment.";
 
@@ -86,7 +93,9 @@ export function getUserFacingErrorMessage(
 	}
 
 	const message = details.message?.toLowerCase() ?? "";
-	if (message.includes("network") || message.includes("fetch failed")) {
+	if (
+		NETWORK_FAILURE_FRAGMENTS.some((fragment) => message.includes(fragment))
+	) {
 		return "We could not reach Databuddy. Check your connection and try again.";
 	}
 
@@ -96,8 +105,11 @@ export function getUserFacingErrorMessage(
 export function showErrorToast(error: unknown, fallback?: string) {
 	const message = getUserFacingErrorMessage(error, fallback);
 	if (fallback && message !== fallback) {
-		toast.error(fallback, { description: message });
+		toast.error(fallback, {
+			description: message,
+			id: `${fallback}:${message}`,
+		});
 		return;
 	}
-	toast.error(message);
+	toast.error(message, { id: message });
 }

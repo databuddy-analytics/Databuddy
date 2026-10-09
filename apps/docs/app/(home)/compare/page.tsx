@@ -76,8 +76,8 @@ export default function ComparePage() {
 							Don't see your platform?
 						</h3>
 						<p className="mb-5 text-pretty text-muted-foreground text-sm">
-							We're adding new comparisons regularly. Try Databuddy today and
-							see the difference.
+							We're adding new comparisons regularly. Start free with no credit
+							card and see how Databuddy handles your own traffic.
 						</p>
 						<div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							<SciFiButton asChild>
@@ -86,14 +86,14 @@ export default function ComparePage() {
 									rel="noopener noreferrer"
 									target="_blank"
 								>
-									Start free, no credit card
+									Start free
 								</Link>
 							</SciFiButton>
 							<Link
 								className="group inline-flex items-center justify-center gap-2 rounded border border-border bg-foreground/5 px-5 py-2 font-medium text-foreground text-sm backdrop-blur-sm transition-colors hover:bg-foreground/10 active:scale-[0.98]"
 								href="/demo"
 							>
-								View live demo
+								Try the live demo
 								<ArrowRightIcon className="size-3.5 transition-transform group-hover:translate-x-0.5" />
 							</Link>
 						</div>

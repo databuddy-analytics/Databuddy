@@ -367,6 +367,25 @@ function buildTrackingIssue(
 	const originHost = getTrackingBlockOriginHost(row.origin);
 	const expectedDomain = websiteDomain || null;
 
+	if (
+		row.issueType === "origin_not_authorized" &&
+		originHost &&
+		isIgnoredTrackingBlockOrigin(row.origin)
+	) {
+		const target = expectedDomain ?? "your live site";
+		return {
+			count: row.count,
+			expectedDomain,
+			fix: `Install the script on ${target} to start collecting data. To test locally first, add ${originHost} under Security → Allowed Origins.`,
+			lastSeen: row.lastSeen,
+			message: `The script is running on ${originHost}, but Databuddy only records visits to ${target}.`,
+			origin: row.origin || null,
+			originHost,
+			severity,
+			type: row.issueType,
+		};
+	}
+
 	if (row.issueType === "origin_not_authorized") {
 		const source = originHost ? ` from ${originHost}` : "";
 		const expected = expectedDomain ? ` (${expectedDomain})` : "";
@@ -451,10 +470,6 @@ function shouldSkipBlockedTrackingIssueRow(
 		websiteDomain: string | null;
 	}
 ): boolean {
-	if (isIgnoredTrackingBlockOrigin(row.origin)) {
-		return true;
-	}
-
 	if (matchesTrackingBlockIgnoredOrigin(row.origin, options.ignoredOrigins)) {
 		return true;
 	}
@@ -469,14 +484,14 @@ function shouldSkipBlockedTrackingIssueRow(
 	);
 }
 
-async function getRecentBlockedTrackingIssue(
+async function getRecentBlockedTrackingRows(
 	websiteId: string,
 	options: {
 		allowedOrigins: string[];
 		ignoredOrigins: string[];
 		websiteDomain: string | null;
 	}
-): Promise<BlockedTrackingIssueRow | null> {
+): Promise<BlockedTrackingIssueRow[]> {
 	try {
 		const rows = await Promise.race([
 			chQuery<BlockedTrackingIssueRow>(
@@ -507,9 +522,8 @@ async function getRecentBlockedTrackingIssue(
 			),
 		]);
 
-		return (
-			rows.find((row) => !shouldSkipBlockedTrackingIssueRow(row, options)) ??
-			null
+		return rows.filter(
+			(row) => !shouldSkipBlockedTrackingIssueRow(row, options)
 		);
 	} catch (error) {
 		const message =
@@ -518,8 +532,19 @@ async function getRecentBlockedTrackingIssue(
 				: "Unknown error checking blocked traffic";
 		const level = getTrackingHealthErrorLogLevel(error);
 		logger[level]({ websiteId }, `Error checking blocked traffic: ${message}`);
-		return null;
+		return [];
 	}
+}
+
+function pickTrackingIssueRow(
+	rows: BlockedTrackingIssueRow[],
+	hasEvents: boolean
+): BlockedTrackingIssueRow | null {
+	const liveRow = rows.find((row) => !isIgnoredTrackingBlockOrigin(row.origin));
+	if (liveRow || hasEvents) {
+		return liveRow ?? null;
+	}
+	return rows[0] ?? null;
 }
 
 const buildStatusMessage = (
@@ -1326,16 +1351,20 @@ export const websitesRouter = {
 			const trackingIssueWarningsDisabled =
 				websiteSettings?.trackingIssueWarningsDisabled === true;
 
-			const [eventsStatus, blockedIssueRow] = await Promise.all([
+			const [eventsStatus, blockedRows] = await Promise.all([
 				getTrackingEventsStatus(input.websiteId),
 				trackingIssueWarningsDisabled
-					? Promise.resolve(null)
-					: getRecentBlockedTrackingIssue(input.websiteId, {
+					? Promise.resolve([])
+					: getRecentBlockedTrackingRows(input.websiteId, {
 							allowedOrigins: websiteSettings?.allowedOrigins ?? [],
 							ignoredOrigins: websiteSettings?.ignoredTrackingOrigins ?? [],
 							websiteDomain: website?.domain ?? null,
 						}),
 			]);
+			const blockedIssueRow = pickTrackingIssueRow(
+				blockedRows,
+				eventsStatus.hasEvents
+			);
 			const trackingIssue = blockedIssueRow
 				? buildTrackingIssue(
 						blockedIssueRow,

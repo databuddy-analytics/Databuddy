@@ -115,6 +115,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 					disabled={process.env.NODE_ENV === "development"}
 					trackAttributes
 					trackErrors
+					trackInteractions
 					trackOutgoingLinks
 					trackWebVitals
 				/>

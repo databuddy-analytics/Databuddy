@@ -100,7 +100,7 @@ export function agentProgressSummary(progress: AgentProgress): string {
 interface ConnectAppProps {
 	agentProgress: AgentProgress | null;
 	domain: string;
-	/** Hide "Or install it yourself" when the page has its own install section. */
+	/** Hide the manual install toggle when the page has its own install section. */
 	manualInstall?: boolean;
 	onCopy?: (method: TrackingCopyMethod, agent?: string) => void;
 	onSkip?: () => void;
@@ -256,7 +256,7 @@ export function ConnectApp({
 								scriptOpen && "rotate-90"
 							)}
 						/>
-						Or install it yourself
+						Or add the script tag or SDK yourself
 					</Button>
 					<div
 						className={cn(

@@ -189,14 +189,17 @@ function ForgotPasswordPage() {
 							onChange={setOtp}
 							value={otp}
 						/>
-						<Button
-							className="h-auto p-0 text-xs"
-							loading={isResending}
-							onClick={handleResendOTP}
-							variant="ghost"
-						>
-							Didn&apos;t receive a code? Resend
-						</Button>
+						<p className="flex items-center gap-1.5 text-pretty text-muted-foreground text-xs">
+							Didn&apos;t receive a code?
+							<Button
+								className="h-auto p-0 text-xs"
+								loading={isResending}
+								onClick={handleResendOTP}
+								variant="ghost"
+							>
+								Resend code
+							</Button>
+						</p>
 					</div>
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -143,7 +143,7 @@ export function WebsiteDialog({
 				<Dialog.Form onSubmit={form.handleSubmit(handleSubmit)}>
 					<Dialog.Header>
 						<Dialog.Title>
-							{isEditing ? "Edit website" : "Create website"}
+							{isEditing ? "Edit website" : "Add your website"}
 						</Dialog.Title>
 						<Dialog.Description>
 							{isEditing
@@ -204,7 +204,7 @@ export function WebsiteDialog({
 							loading={isPending}
 							type="submit"
 						>
-							{isEditing ? "Save changes" : "Create website"}
+							{isEditing ? "Save changes" : "Add website"}
 						</Button>
 					</Dialog.Footer>
 				</Dialog.Form>

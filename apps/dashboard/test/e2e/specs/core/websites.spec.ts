@@ -19,13 +19,11 @@ test("validates, creates, renames, rejects a duplicate domain, and deletes a web
 
 	await page.goto("/websites");
 	await expectDashboardReady(page);
-	await page
-		.getByRole("button", { exact: true, name: "Create website" })
-		.click();
-	const dialog = page.getByRole("dialog", { name: "Create website" });
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
+	const dialog = page.getByRole("dialog", { name: "Add your website" });
 	const nameField = dialog.getByRole("textbox", { name: "Name" });
 	const domainField = dialog.getByRole("textbox", { name: "Domain" });
-	const create = dialog.getByRole("button", { name: "Create website" });
+	const create = dialog.getByRole("button", { name: "Add website" });
 	await nameField.fill("Bad !");
 	await domainField.fill("not-a-domain");
 	await expect(
@@ -44,9 +42,7 @@ test("validates, creates, renames, rejects a duplicate domain, and deletes a web
 	await page.goto("/websites");
 	await expect(websiteCard(page, name)).toBeVisible();
 	await expect(page.getByText(domain)).toBeVisible();
-	await page
-		.getByRole("button", { exact: true, name: "Create website" })
-		.click();
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
 	await nameField.fill(`${name} duplicate`);
 	await domainField.fill(domain);
 	await create.click();
