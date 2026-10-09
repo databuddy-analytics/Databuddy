@@ -20,6 +20,7 @@ export const CLIENT_ID_PURGE_TABLES = {
 export const WEBSITE_ID_PURGE_TABLES = {
 	"analytics.custom_events": "timestamp",
 	"analytics.mcp_spans": "timestamp",
+	"analytics.revenue": "synced_at",
 	"analytics.webhook_deliveries": "received_at",
 } as const;
 
@@ -61,7 +62,11 @@ async function purgeInBatches(
 	for (let start = 0; start < ids.length; start += PURGE_BATCH_SIZE) {
 		const batch = ids.slice(start, start + PURGE_BATCH_SIZE);
 		for (const statement of statements) {
-			await chCommand(statement, { ids: batch });
+			// A queued mutation is not completed erasure. Wait for every replica
+			// before acknowledging this batch to the caller or purge audit log.
+			await chCommand(`${statement} SETTINGS mutations_sync = 2`, {
+				ids: batch,
+			});
 		}
 		await onBatchPurged?.(batch);
 	}
