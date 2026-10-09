@@ -40,9 +40,12 @@ export const GET = withEvlog(async (request: NextRequest) => {
 
 	log.set({ image: { host: URL.parse(url)?.host } });
 
+	const deadline = AbortSignal.timeout(10_000);
+	let response: Response | undefined;
 	try {
-		const response = await safeFetch(url, {
+		response = await safeFetch(url, {
 			timeoutMs: 10_000,
+			signal: deadline,
 			maxRedirects: 0,
 			headers: {
 				"User-Agent": "Databuddy Image Proxy/1.0",
@@ -71,13 +74,33 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			return NextResponse.json({ error: "Image too large" }, { status: 400 });
 		}
 
-		const arrayBuffer = await response.arrayBuffer();
-
-		if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
-			return NextResponse.json({ error: "Image too large" }, { status: 400 });
+		// Keep one bounded buffer rather than retaining an unbounded body or a
+		// potentially huge list of small chunks. Check before copying each chunk.
+		const image = new Uint8Array(MAX_IMAGE_SIZE);
+		let bytesRead = 0;
+		const reader = response.body?.getReader();
+		try {
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) {
+						break;
+					}
+					if (bytesRead + value.byteLength > MAX_IMAGE_SIZE) {
+						return NextResponse.json(
+							{ error: "Image too large" },
+							{ status: 400 }
+						);
+					}
+					image.set(value, bytesRead);
+					bytesRead += value.byteLength;
+				}
+			}
+		} finally {
+			reader?.releaseLock();
 		}
 
-		return new NextResponse(arrayBuffer, {
+		return new NextResponse(image.subarray(0, bytesRead), {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
@@ -87,6 +110,9 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			},
 		});
 	} catch (error) {
+		if (deadline.aborted) {
+			return NextResponse.json({ error: "Request timeout" }, { status: 504 });
+		}
 		if (error instanceof SsrfError) {
 			return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
 		}
@@ -98,5 +124,9 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			{ error: "Failed to fetch image" },
 			{ status: 500 }
 		);
+	} finally {
+		// Release rejected or unread upstream bodies; cancellation may reject if
+		// the stream has already failed or was aborted by the request deadline.
+		await response?.body?.cancel().catch(() => undefined);
 	}
 });
