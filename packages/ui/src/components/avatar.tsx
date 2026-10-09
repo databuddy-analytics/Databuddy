@@ -2,7 +2,7 @@
 
 import { cn } from "../lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
-import { useEffect, useState, type ImgHTMLAttributes } from "react";
+import { useState, type ImgHTMLAttributes } from "react";
 
 const avatar = cva(
 	"relative inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full bg-secondary font-medium text-muted-foreground",
@@ -33,11 +33,7 @@ export function Avatar({
 	fallback,
 	...rest
 }: AvatarProps) {
-	const [failed, setFailed] = useState(false);
-
-	useEffect(() => {
-		setFailed(false);
-	}, [src]);
+	const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
 	const safeSrc = (() => {
 		if (!src || typeof src !== "string") {
@@ -67,6 +63,8 @@ export function Avatar({
 					.toUpperCase()
 			: "?");
 
+	const failed = failedSrc !== null && failedSrc === src;
+
 	if (!safeSrc || failed) {
 		return <span className={cn(avatar({ size }), className)}>{initials}</span>;
 	}
@@ -77,7 +75,11 @@ export function Avatar({
 		<img
 			alt={alt}
 			className={cn(avatar({ size }), "object-cover", className)}
-			onError={() => setFailed(true)}
+			onError={() => {
+				if (typeof src === "string") {
+					setFailedSrc(src);
+				}
+			}}
 			src={safeSrc}
 			{...rest}
 		/>
