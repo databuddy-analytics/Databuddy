@@ -3,7 +3,7 @@ import type { FlagTemplate } from "../../_components/types";
 export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	{
 		id: "gradual-rollout",
-		name: "Gradual Rollout",
+		name: "Gradual rollout",
 		description: "Start at 10% and ramp up over time.",
 		category: "rollout",
 		icon: "rocket",
@@ -14,7 +14,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "ab-test",
-		name: "A/B Test (50/50)",
+		name: "A/B test (50/50)",
 		description: "Even 50/50 split between control and variant.",
 		category: "experiment",
 		icon: "test",
@@ -25,7 +25,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "beta-program",
-		name: "Beta Program",
+		name: "Beta program",
 		description: "Early access for users tagged as beta testers.",
 		category: "targeting",
 		icon: "users",
@@ -45,7 +45,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "internal-only",
-		name: "Internal Team Only",
+		name: "Internal team only",
 		description: "Enable only for your team's email domain.",
 		category: "targeting",
 		icon: "users",
@@ -64,7 +64,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "kill-switch",
-		name: "Emergency Kill Switch",
+		name: "Emergency kill switch",
 		description: "Flip a feature off instantly during incidents.",
 		category: "killswitch",
 		icon: "warning",
@@ -75,7 +75,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "premium-only",
-		name: "Premium Users Only",
+		name: "Premium users only",
 		description: "Limit a feature to users on the premium plan.",
 		category: "targeting",
 		icon: "users",
@@ -95,7 +95,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "canary-release",
-		name: "Canary Release (5%)",
+		name: "Canary release (5%)",
 		description: "Test with 5% of users before going wider.",
 		category: "rollout",
 		icon: "rocket",
@@ -106,7 +106,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "abc-test",
-		name: "A/B/C Test (33%)",
+		name: "A/B/C test (33%)",
 		description: "Enable for one third of users.",
 		category: "experiment",
 		icon: "test",
@@ -117,7 +117,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "vip-users",
-		name: "VIP Users",
+		name: "VIP users",
 		description: "Target users tagged as VIP accounts.",
 		category: "targeting",
 		icon: "users",
@@ -137,7 +137,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "regional-release",
-		name: "Regional Release",
+		name: "Regional release",
 		description: "Enable in specific countries (default: US, CA, GB).",
 		category: "targeting",
 		icon: "users",
@@ -157,7 +157,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "multivariant-ab-test",
-		name: "A/B Test Variants",
+		name: "A/B test variants",
 		description: "Two variants split 50/50 with custom return values.",
 		category: "experiment",
 		icon: "test",
@@ -183,7 +183,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "pricing-tiers",
-		name: "Pricing Tier Test",
+		name: "Pricing tier test",
 		description: "Test three numeric price points ($9, $19, $29).",
 		category: "experiment",
 		icon: "test",
@@ -216,7 +216,7 @@ export const HARDCODED_TEMPLATES: FlagTemplate[] = [
 	},
 	{
 		id: "theme-test",
-		name: "UI Theme Test",
+		name: "UI theme test",
 		description: "Test default, dark, and high-contrast themes.",
 		category: "experiment",
 		icon: "test",

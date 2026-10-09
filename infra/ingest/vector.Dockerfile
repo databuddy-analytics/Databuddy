@@ -1,4 +1,6 @@
-FROM timberio/vector:0.50.0-alpine
+FROM timberio/vector:0.58.0-alpine
+
+ENV VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
 
 # Copy vector.yaml - supports both repo root and infra/ingest/ build contexts
 # When building from repo root: docker build -f infra/ingest/vector.Dockerfile -t vector .

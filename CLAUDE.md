@@ -32,7 +32,7 @@ bun run test:watch
 bun run db:push          # Apply schema changes (no migration files)
 bun run db:migrate       # Run migration files
 bun run db:studio        # Open Drizzle Studio GUI
-bun run db:seed <WEBSITE_ID> [EVENT_COUNT]  # Seed sample analytics data
+bun run workspace [--reset] [--anomaly] [--events N] [--website <ID>]  # Local login, website and seeded analytics
 
 # SDK (must build before dev if SDK changed)
 bun run sdk:build
@@ -144,6 +144,7 @@ Dashboard (Next.js) ←→ ORPC (rpc package) ←→ API (Elysia) → PostgreSQL
 
 - **Linter/Formatter**: Ultracite (Biome-based). Run `bun run lint` / `bun run format`.
 - **TypeScript**: Strict mode. Always use proper types — avoid `any`.
+- **Marketing copy**: Never write staccato sentences on landing pages, docs, or any marketing copy. No runs of clipped fragments like "Fast. Private. Simple." or "No cookies. No banners. No guesswork." Write full sentences that connect the idea to what the reader gets.
 - **Commit format**: `<type>(<scope>): <description>` (e.g., `feat(dashboard): add export button`, `fix(api): handle null session`)
 - **Commit slicing rule**: Prefer one commit per coherent product or technical slice, not one giant snapshot and not ultra-fragmented file-by-file commits.
   - Split commits by intent: feature, bug fix, refactor, style/copy pass, or migration slice.
@@ -201,7 +202,7 @@ cd packages/db && DATABASE_URL="postgres://databuddy:databuddy_dev_password@loca
 ## Drift Prevention
 
 - **Time series bucket in the site's timezone.** Query builders bucket with `toDate(toTimeZone(time, {timezone:String}))` (or `toStartOfHour`), passing `ctx.timezone || "UTC"`; a bare `toDate(time)` buckets by UTC day and shifts evening traffic to the next day. Date-only ranges are bound in the same timezone: `SimpleQueryBuilder` turns `toDateTime({startDate:String})` and `toDateTime(concat({endDate:String}, ' 23:59:59'))` into timezone-aware bounds for non-UTC requests, so write those forms and never convert dates by hand; totals and daily buckets then cover the same local days.
-- **AI agent analytics has one source per list.** The agent registry (ids, names, products, purposes) is `packages/shared/src/utils/bot-detection/ai-agents.ts`, generated from the vendored `well-known-bots.json`; the lists the dashboard needs (`FEATURED_AI_PRODUCTS`, `CONTENT_FORMATS`, `AgentPurpose`, `ROBOTS_ACCESS`) live in the lightweight `bot-detection/types.ts`, because importing `ai-agents.ts` into the dashboard pulls the 437 KB bot JSON into the bundle. Name crawlers and products from the registry by `agent_id`, never from the stored `bot_name` (older rows hold browser engines like "WebKit" or "unknown"). Logos in `apps/dashboard/components/icon.tsx` (`AI_ICON_COLORS`) must match `apps/dashboard/public/ai/*.svg`; `icon.test.ts` enforces it and that every featured product has a logo.
+- **AI agent analytics has one source per list.** The agent registry (ids, names, products, purposes) is `packages/shared/src/utils/bot-detection/ai-agents.ts`, generated from the vendored `well-known-bots.json`; the lists the dashboard needs (`FEATURED_AI_PRODUCTS`, `CONTENT_FORMATS`, `AgentPurpose`, `ROBOTS_ACCESS`) live in the lightweight `bot-detection/types.ts`, because importing `ai-agents.ts` into the dashboard pulls the 437 KB bot JSON into the bundle. Name crawlers and products from the registry by `agent_id`, never from the stored `bot_name` (rows written before the October 2026 detector fix can hold browser engines like "WebKit" or "unknown"). The logo list (`AI_ICON_COLORS`, resolved with `aiProductIcon`) also lives in `bot-detection/types.ts` and must match `apps/dashboard/public/ai/*.svg` and the email logos in `apps/dashboard/public/ai/email/*.png`; `icon.test.ts` enforces both and that every featured product has a logo.
 - **Type test objects against their source type.** Fake API keys must be typed as `Context["apiKey"]`, fake users as `User`, etc. Tests are not type-checked, so this does not fail the build; it makes a partial fixture visible in review and in the editor instead of silently passing.
 - **Never hand-write dependency versions.** Use `bun add <pkg>` to add dependencies. Hand-written version ranges drift from lockfile reality and cause phantom resolution bugs.
 - **Shared test helpers over local copies.** `expectCode`, `userContext`, `apiKeyContext`, env setup — these live in `@databuddy/test`. If you're about to define a helper that already exists there, import it instead.

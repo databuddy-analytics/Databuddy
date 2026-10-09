@@ -8,12 +8,12 @@ Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdo
 
 | Plan | Price | Events / month (included) | Investigations / month (included) | AI credits / month (included) | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Free | $0 | 10,000 | — | 10 | No paid overage — ingestion pauses at the monthly event allowance |
+| Free | $0 | 10,000 | — | 10 | No paid overage; ingestion pauses at the monthly event allowance |
 | Hobby | $9.99/mo | 30,000 | — | 20 (plus 1 / day) | Tiered event overage |
 | Pro | $49.99/mo | 1,000,000 | — | 350 (plus 5 / day) | Tiered event overage |
 | Business | $299/mo | 2,000,000 | 100 / month | 1,500 | $1 per additional investigation, billed monthly; tiered event overage |
 | Scale | $799/mo | 6,000,000 | 250 / month | 3,000 | Adds SSO, audit logs, and guided onboarding. $1 per additional investigation, billed monthly; tiered event overage |
-| Enterprise | Custom | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
+| Enterprise | Custom | Custom | Custom | Custom | Volume, security, and SLAs. See the [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on paid plans)
 
@@ -43,7 +43,7 @@ The [JSON API](https://www.databuddy.cc/api/pricing) declares `overageTierBasis:
 
 All plans include unlimited websites and team members, user tracking, Web Vitals, geographic maps, uptime monitoring, and API access.
 
-## Investigations — monthly allowance, $1 per extra
+## Investigations: monthly allowance, $1 per extra
 
 Only completed investigations count. Same-question clarifications and repair checks are included.
 
@@ -55,7 +55,7 @@ Custom volume, security, and support. [Contact us](https://www.databuddy.cc/cont
 
 ## Definitions
 
-- **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
+- **Event:** A pageview, custom event, captured error, Web Vitals measurement, or MCP tool call counted toward monthly analytics usage. Feature flag evaluations, uptime checks, and AI crawler visits do not count.
 - **Investigation:** A completed analysis of one question.
 - **AI credits:** The monthly allowance that pays for Databunny chat questions and answers about your analytics.
 - **Overage:** Usage above the monthly included allowance. Events have tiered rates; completed investigations cost $1 each above the included amount.

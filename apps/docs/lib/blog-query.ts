@@ -10,6 +10,7 @@ interface FetchError {
 	error: true;
 	status: number;
 	statusText: string;
+	unconfigured?: true;
 }
 
 interface MarbleAuthor {
@@ -115,6 +116,7 @@ export function createMarbleRequest(
 		error: true,
 		status: 500,
 		statusText: "Environment variables not configured",
+		unconfigured: true,
 	};
 }
 
@@ -195,7 +197,7 @@ export const getSinglePost = cache(async (slug: string) => {
 		{ returnStatusOnError: true }
 	);
 	if ("error" in result) {
-		if (result.status === 404) {
+		if (result.status === 404 || result.unconfigured) {
 			notFound();
 		}
 		throw new Error(`Failed to load blog post: ${result.status}`);

@@ -25,7 +25,6 @@ const BentoCard = ({
 	icon: Icon,
 	children,
 	className,
-	headerClassName,
 	contentClassName,
 	href,
 }: {
@@ -34,21 +33,16 @@ const BentoCard = ({
 	icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 	children: React.ReactNode;
 	className?: string;
-	headerClassName?: string;
 	contentClassName?: string;
 	href?: string;
 }) => (
-	<motion.div
+	<div
 		className={cn(
 			"group relative overflow-hidden border border-border bg-card backdrop-blur-xl duration-500",
 			className
 		)}
-		initial={{ opacity: 1, y: 0 }}
-		transition={{ duration: 0.5, ease: "easeOut" }}
-		viewport={{ once: true }}
-		whileInView={{ opacity: 1, y: 0 }}
 	>
-		<CardHeader className={cn("relative z-20 px-6 py-4", headerClassName)}>
+		<CardHeader className="relative z-20 px-6 py-4">
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3">
 					<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
@@ -79,7 +73,7 @@ const BentoCard = ({
 		<CardContent className={cn("relative z-10 p-6 pt-0", contentClassName)}>
 			{children}
 		</CardContent>
-	</motion.div>
+	</div>
 );
 
 const buildSmoothPath = (values: number[], width: number, height: number) => {
@@ -106,14 +100,14 @@ const FunnelsFeature = () => {
 	const data = [
 		{
 			value: 100,
-			name: "Page View",
+			name: "Pageview",
 
 			fill: "var(--primary)",
 			stroke: "var(--primary)",
 		},
 		{
 			value: 65,
-			name: "Sign Up",
+			name: "Signup",
 			fill: "var(--muted-foreground)",
 			stroke: "var(--muted-foreground)",
 		},
@@ -144,7 +138,7 @@ const FunnelsFeature = () => {
 						24.5%
 					</motion.div>
 					<div className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Conversion Rate
+						Conversion rate
 					</div>
 				</div>
 				<Badge variant="gray">+2.4%</Badge>
@@ -245,7 +239,7 @@ const RealTimeFeature = () => {
 						<span className="relative inline-flex size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
 					</span>
 					<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Live Users
+						Live users
 					</span>
 				</div>
 				<motion.div
@@ -679,7 +673,7 @@ export default function Bento() {
 				className="h-full md:col-span-4 md:row-span-2"
 				description="Track user journeys through your app"
 				icon={FunnelIcon}
-				title="Conversion Funnels"
+				title="Conversion funnels"
 			>
 				<FunnelsFeature />
 			</BentoCard>
@@ -696,9 +690,9 @@ export default function Bento() {
 
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
-				description="Watch real user sessions"
+				description="See each session's page, country, and browser"
 				icon={UsersIcon}
-				title="Live Sessions"
+				title="Sessions"
 			>
 				<SessionsFeature />
 			</BentoCard>
@@ -720,7 +714,7 @@ export default function Bento() {
 				description="Catch and fix bugs fast"
 				href="/errors"
 				icon={BugIcon}
-				title="Error Tracking"
+				title="Error tracking"
 			>
 				<ErrorTrackingFeature />
 			</BentoCard>
@@ -730,7 +724,7 @@ export default function Bento() {
 				description="Roll out features safely"
 				href="/feature-flags"
 				icon={FlagIcon}
-				title="Feature Flags"
+				title="Feature flags"
 			>
 				<FeatureFlagsFeature />
 			</BentoCard>

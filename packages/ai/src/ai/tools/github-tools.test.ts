@@ -1,17 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import type { ToolSet } from "ai";
 import { z } from "zod";
-import { createGitHubTools, type GitHubToolDependencies } from "./github-tools";
+import {
+	createGitHubTools,
+	type GitHubToolDependencies,
+	listGitHubProductionDeployments,
+} from "./github-tools";
 import { createToolkit } from "./toolkit";
 
 const repository = { owner: "example", repo: "web-app" };
 
 function schema(tools: ToolSet, name: string): z.ZodType {
 	const input = tools[name]?.inputSchema;
-	if (!(input && "safeParse" in input)) {
+	if (!(input instanceof z.ZodType)) {
 		throw new Error(`Missing Zod schema for ${name}`);
 	}
-	return input as z.ZodType;
+	return input;
 }
 
 function toolkit(githubRepository?: typeof repository | null): ToolSet {
@@ -27,13 +31,11 @@ async function executeTool(
 	name: string,
 	input: unknown
 ): Promise<unknown> {
-	const execute = tools[name]?.execute as
-		| ((value: unknown, options: unknown) => Promise<unknown> | unknown)
-		| undefined;
+	const execute = tools[name]?.execute;
 	if (!execute) {
 		throw new Error(`Missing executable tool ${name}`);
 	}
-	return execute(input, {});
+	return execute(input, { toolCallId: "github-fixture", messages: [] });
 }
 
 describe("GitHub repository binding", () => {
@@ -224,6 +226,52 @@ describe("GitHub release and PR evidence", () => {
 		});
 	});
 
+	test("keeps a 300-file commit within the patch budget and lists the rest", async () => {
+		const names = Array.from(
+			{ length: 300 },
+			(_, index) => `src/module-${String(index).padStart(3, "0")}.ts`
+		);
+		const tools = createGitHubTools(
+			{ organizationId: "org_1", repository },
+			{
+				getToken: async () => "token",
+				request: async () => ({
+					sha: "d4e5f6a123",
+					commit: {
+						message: "refactor: split modules",
+						author: { name: "Dev", date: "2026-09-26T14:00:00Z" },
+					},
+					files: names.map((filename) => ({
+						filename,
+						status: "modified",
+						additions: 120,
+						deletions: 40,
+						patch: "+".repeat(5000),
+					})),
+				}),
+			}
+		);
+
+		const result = z
+			.object({
+				filesChanged: z.number(),
+				files: z.array(z.object({ file: z.string(), patch: z.string() })),
+				omittedFiles: z.array(z.string()),
+			})
+			.parse(
+				await executeTool(tools, "github_commit_diff", { sha: "d4e5f6a" })
+			);
+
+		expect(result.filesChanged).toBe(300);
+		expect(
+			result.files.reduce((total, file) => total + file.patch.length, 0)
+		).toBeLessThanOrEqual(12_000);
+		expect(result.omittedFiles.length).toBeGreaterThan(0);
+		expect(
+			[...result.files.map((file) => file.file), ...result.omittedFiles].sort()
+		).toEqual(names);
+	});
+
 	test("returns PR files and CI without source or log bodies", async () => {
 		const calls: string[] = [];
 		const dependencies: GitHubToolDependencies = {
@@ -298,6 +346,371 @@ describe("GitHub release and PR evidence", () => {
 			commitStatus: "success",
 		});
 		expect(JSON.stringify(result)).not.toContain("private");
+	});
+});
+
+describe("production deployments around a window", () => {
+	const deployment = (id: number, createdAt: string) => ({
+		created_at: createdAt,
+		creator: null,
+		description: null,
+		environment: "Production",
+		id,
+		ref: "main",
+		sha: `a1b2c3d${String(id).padStart(3, "0")}`,
+	});
+	const window = {
+		repository,
+		since: "2026-09-26T06:00:00Z",
+		token: "token",
+		until: "2026-09-26T15:00:00Z",
+	};
+
+	test("pages a busy production environment back to the window and skips previews", async () => {
+		const calls: string[] = [];
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/environments?")) {
+					return {
+						environments: [{ name: "Production" }, { name: "Preview" }],
+					};
+				}
+				if (path.includes("/statuses?")) {
+					return [{ created_at: "2026-09-26T14:52:00Z", state: "success" }];
+				}
+				return path.endsWith("&page=1")
+					? Array.from({ length: 100 }, (_, index) =>
+							deployment(index + 10, "2026-09-27T08:00:00Z")
+						)
+					: [
+							deployment(1, "2026-09-26T14:48:00Z"),
+							deployment(2, "2026-09-25T09:00:00Z"),
+						];
+			},
+		});
+
+		expect(
+			calls.filter((path) => path.includes("environment=Preview"))
+		).toEqual([]);
+		expect(
+			calls.filter((path) => path.includes("environment=Production"))
+		).toHaveLength(2);
+		expect(result).toMatchObject({
+			complete: true,
+			deployments: [
+				{
+					completedAt: "2026-09-26T14:52:00Z",
+					previousSha: "a1b2c3d002",
+					requestedAt: "2026-09-26T14:48:00Z",
+					result: "success",
+				},
+			],
+		});
+	});
+
+	test("reports an incomplete scan when the page budget runs out", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) =>
+				path.includes("/environments?")
+					? { environments: [{ name: "Production" }] }
+					: Array.from({ length: 100 }, (_, index) =>
+							deployment(index, "2026-09-28T08:00:00Z")
+						),
+		});
+
+		expect(result).toEqual({
+			availableEnvironments: ["Production"],
+			complete: false,
+			deployments: [],
+		});
+	});
+
+	test("uses a successful baseline across failed and pending deployment requests, reusing status reads", async () => {
+		const calls: string[] = [];
+		const deploys = [
+			deployment(4, "2026-09-26T14:48:00Z"),
+			deployment(3, "2026-09-26T14:45:00Z"),
+			deployment(2, "2026-09-26T14:42:00Z"),
+			deployment(1, "2026-09-26T14:35:00Z"),
+		];
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 2,
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/environments?")) {
+					return { environments: [{ name: "Production" }] };
+				}
+				if (!path.includes("/statuses?")) {
+					return deploys;
+				}
+				if (path.includes("/deployments/4/")) {
+					return [{ created_at: "2026-09-26T14:52:00Z", state: "success" }];
+				}
+				if (path.includes("/deployments/3/")) {
+					return [{ created_at: "2026-09-26T14:46:00Z", state: "pending" }];
+				}
+				if (path.includes("/deployments/2/")) {
+					return [{ created_at: "2026-09-26T14:43:00Z", state: "failure" }];
+				}
+				return [{ created_at: "2026-09-26T14:40:00Z", state: "success" }];
+			},
+		});
+
+		expect(result).toMatchObject({
+			deployments: [
+				{ sha: "a1b2c3d004", previousSha: "a1b2c3d001", result: "success" },
+				{ sha: "a1b2c3d003", previousSha: "a1b2c3d001", result: null },
+			],
+		});
+		expect(calls.filter((path) => path.includes("/statuses?"))).toHaveLength(4);
+	});
+
+	test("does not use an older request that succeeded after this deployment", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 1,
+			request: async (path) => {
+				if (path.includes("/environments?")) {
+					return { environments: [{ name: "Production" }] };
+				}
+				if (!path.includes("/statuses?")) {
+					return [
+						deployment(2, "2026-09-26T14:48:00Z"),
+						deployment(1, "2026-09-26T14:35:00Z"),
+					];
+				}
+				return [
+					{
+						created_at: path.includes("/deployments/2/")
+							? "2026-09-26T14:52:00Z"
+							: "2026-09-26T14:55:00Z",
+						state: "success",
+					},
+				];
+			},
+		});
+
+		expect(result).toMatchObject({ deployments: [{ previousSha: null }] });
+	});
+
+	test("preserves selected deployments when a shared predecessor status request throws", async () => {
+		const calls: string[] = [];
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 2,
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/environments?")) {
+					return { environments: [{ name: "Production" }] };
+				}
+				if (!path.includes("/statuses?")) {
+					return [
+						deployment(3, "2026-09-26T14:48:00Z"),
+						deployment(2, "2026-09-26T14:40:00Z"),
+						deployment(1, "2026-09-26T14:30:00Z"),
+					];
+				}
+				if (path.includes("/deployments/1/")) {
+					throw new Error("Synthetic predecessor transport failure");
+				}
+				return [
+					{
+						created_at: "2026-09-26T14:52:00Z",
+						state: path.includes("/deployments/3/") ? "success" : "pending",
+					},
+				];
+			},
+		});
+
+		expect(result).toMatchObject({
+			complete: true,
+			deployments: [
+				{ sha: "a1b2c3d003", previousSha: null, result: "success" },
+				{ sha: "a1b2c3d002", previousSha: null, result: null },
+			],
+		});
+		expect(
+			calls.filter((path) => path.includes("/deployments/1/statuses?"))
+		).toHaveLength(1);
+		expect(calls.filter((path) => path.includes("/statuses?"))).toHaveLength(3);
+	});
+
+	test("leaves an unproven baseline null within a bounded status scan", async () => {
+		let statusReads = 0;
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 1,
+			request: async (path) => {
+				if (path.includes("/environments?")) {
+					return { environments: [{ name: "Production" }] };
+				}
+				if (!path.includes("/statuses?")) {
+					return Array.from({ length: 30 }, (_, index) =>
+						deployment(30 - index, "2026-09-26T14:48:00Z")
+					);
+				}
+				statusReads += 1;
+				return [{ created_at: "2026-09-26T14:52:00Z", state: "failure" }];
+			},
+		});
+
+		expect(result).toMatchObject({ deployments: [{ previousSha: null }] });
+		expect(statusReads).toBe(11);
+	});
+
+	test("falls back to a deployment scan when no production environment is listed", async () => {
+		const calls: string[] = [];
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/environments?")) {
+					return { environments: [] };
+				}
+				if (path.includes("/statuses?")) {
+					return [];
+				}
+				return [deployment(1, "2026-09-26T14:48:00Z")];
+			},
+		});
+
+		expect(calls).toContain(
+			"/repos/example/web-app/deployments?per_page=50&page=1"
+		);
+		expect(result).toMatchObject({
+			complete: true,
+			deployments: [{ environment: "Production", sha: "a1b2c3d001" }],
+		});
+	});
+
+	test("does not report a fallback scan complete when listed environments name production differently", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) =>
+				path.includes("/environments?")
+					? { environments: [{ name: "live" }, { name: "Preview" }] }
+					: [
+							{
+								...deployment(1, "2026-09-26T14:48:00Z"),
+								environment: "live",
+							},
+						],
+		});
+
+		expect(result).toEqual({
+			availableEnvironments: ["live"],
+			complete: false,
+			deployments: [],
+		});
+	});
+
+	test("does not treat preview, staging, or pre-production requests as production in the fallback scan", async () => {
+		const result = await listGitHubProductionDeployments({
+			...window,
+			limit: 5,
+			request: async (path) => {
+				if (path.includes("/environments?")) {
+					return { environments: [{ name: "Pre-Production" }] };
+				}
+				if (path.includes("/statuses?")) {
+					return [];
+				}
+				return [
+					"Preview-Production",
+					"staging-prod",
+					"Pre-Production",
+					"Production",
+				].map((environment, index) => ({
+					...deployment(index + 1, "2026-09-26T14:48:00Z"),
+					environment,
+				}));
+			},
+		});
+
+		expect(result).toMatchObject({
+			complete: false,
+			deployments: [{ environment: "Production", previousSha: null }],
+		});
+		if ("error" in result) {
+			throw new Error(result.error);
+		}
+		expect(result.deployments).toHaveLength(1);
+	});
+
+	test("lists production deploys with the SHA each replaced unless another environment is named", async () => {
+		const calls: string[] = [];
+		const tools = createGitHubTools(
+			{ organizationId: "org_1", repository },
+			{
+				getToken: async () => "token",
+				request: async (path) => {
+					calls.push(path);
+					if (path.includes("/environments?")) {
+						return {
+							environments: [{ name: "Production" }, { name: "Preview" }],
+						};
+					}
+					if (path.includes("/statuses?")) {
+						return [{ created_at: "2026-09-26T14:52:00Z", state: "success" }];
+					}
+					if (path.includes("environment=Production")) {
+						return Array.from({ length: 100 }, (_, index) =>
+							deployment(
+								100 - index,
+								new Date(
+									Date.UTC(2026, 8, 26, 14) - index * 60_000
+								).toISOString()
+							)
+						);
+					}
+					return [
+						{
+							...deployment(7, "2026-09-26T13:00:00Z"),
+							environment: "Preview",
+						},
+					];
+				},
+			}
+		);
+		const deploys = (input: Record<string, unknown>) =>
+			executeTool(
+				tools,
+				"github_deploys",
+				schema(tools, "github_deploys").parse(input)
+			);
+
+		expect(await deploys({ limit: 2 })).toMatchObject({
+			availableEnvironments: ["Production", "Preview"],
+			truncated: false,
+			deployments: [
+				{ sha: "a1b2c3d100", previousSha: "a1b2c3d099", result: "success" },
+				{ sha: "a1b2c3d099", previousSha: "a1b2c3d098" },
+			],
+		});
+		expect(calls.filter((path) => path.includes("/deployments?"))).toEqual([
+			"/repos/example/web-app/deployments?environment=Production&per_page=100&page=1",
+		]);
+		expect(
+			await deploys({ environment: "Production", limit: 1 })
+		).toMatchObject({ deployments: [{ previousSha: "a1b2c3d099" }] });
+
+		calls.length = 0;
+		const preview = await deploys({ environment: "preview" });
+		expect(calls.filter((path) => !path.includes("/statuses?"))).toEqual([
+			"/repos/example/web-app/deployments?per_page=50&page=1",
+		]);
+		expect(preview).toMatchObject({
+			deployments: [{ environment: "Preview", sha: "a1b2c3d007" }],
+		});
+		expect(preview).not.toHaveProperty("deployments.0.previousSha");
 	});
 });
 
@@ -395,7 +808,7 @@ describe("GitHub bounded file evidence", () => {
 		for (const [ref, sha, content] of [
 			["release/old", oldSha, oldContent],
 			["abcdef1234567890", newSha, newContent],
-		]) {
+		] as const) {
 			await read(tools, { ref });
 			expect(
 				resultSchema.parse(await read(tools, { ref, offset, length: 100 }))

@@ -483,7 +483,7 @@ describe("business-aware investigation selection", () => {
 		expect(calls).toBe(0);
 	});
 
-	it("keeps malicious sources in data and rejects invented IDs, actions, analytics and duplicates", async () => {
+	it("keeps malicious sources in data and rejects invented IDs, actions and analytics", async () => {
 		const malicious = {
 			...context,
 			sources: [
@@ -497,7 +497,6 @@ describe("business-aware investigation selection", () => {
 		for (const output of [
 			{ selections: [{ ...choice, signalKey: "other-tenant" }] },
 			{ selections: [{ ...choice, action: "delete_goal", current: 999 }] },
-			{ selections: [choice, choice] },
 			{ selections: [choice], actions: ["delete_goal"] },
 		]) {
 			const model = new MockLanguageModelV3({
@@ -530,6 +529,36 @@ describe("business-aware investigation selection", () => {
 			);
 			expect(model.doGenerateCalls).toHaveLength(1);
 		}
+	});
+
+	it("keeps the first selection when the model repeats a signal", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: async () =>
+				response({
+					selections: [
+						choice,
+						{ ...choice, objective: "Repeated objective for the same signal." },
+					],
+				}),
+		});
+		const plan = await planInvestigationsWithBusinessContext(
+			input,
+			[traffic, outcome],
+			{
+				loadBusinessProfile: async () => context,
+				selectCandidates: (params) => chooseInvestigationSignals(params, model),
+			},
+			false,
+			scope,
+			{ reason: "scheduled" }
+		);
+		expect(plan.map((candidate) => candidate.signal.signalKey)).toEqual([
+			choice.signalKey,
+		]);
+		expect(plan[0]?.investigationObjective).toBe(
+			`${outcome.investigationObjective}\nUnverified planning hypothesis: ${choice.objective}`
+		);
+		expect(model.doGenerateCalls).toHaveLength(1);
 	});
 
 	it("selects with 53,847 source characters using whole attributed records and complete definitions", async () => {

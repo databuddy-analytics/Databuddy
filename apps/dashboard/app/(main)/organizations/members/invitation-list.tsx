@@ -20,7 +20,9 @@ interface InvitationToCancel {
 const STATUS_CONFIG = {
 	pending: { label: "Pending", variant: "warning" as const },
 	accepted: { label: "Accepted", variant: "success" as const },
-	expired: { label: "Expired", variant: "muted" as const },
+	canceled: { label: "Canceled", variant: "muted" as const },
+	rejected: { label: "Declined", variant: "muted" as const },
+	expired: { label: "Expired", variant: "warning" as const },
 };
 
 function resolveStatus(invitation: Invitation) {
@@ -70,14 +72,17 @@ function InvitationRow({
 					{invitation.email}
 				</Text>
 				<Text className="truncate" tone="muted" variant="caption">
-					{invitation.role ?? "member"} · {isPending ? "Expires" : "Expired"}{" "}
-					{dayjs(invitation.expiresAt).fromNow()}
+					{invitation.role ?? "member"}
+					{isPending || isExpired
+						? ` · ${isPending ? "Expires" : "Expired"} ${dayjs(invitation.expiresAt).fromNow()}`
+						: ""}
 				</Text>
 			</div>
 			<Badge variant={variant}>{label}</Badge>
 			{showActions ? (
 				<DropdownMenu>
 					<DropdownMenu.Trigger
+						aria-label="Invitation actions"
 						className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
 						disabled={isCancellingInvitation || isResending}
 					>
@@ -165,7 +170,7 @@ export function InvitationList({
 				<Dialog.Content>
 					<Dialog.Close />
 					<Dialog.Header>
-						<Dialog.Title>Cancel Invitation</Dialog.Title>
+						<Dialog.Title>Cancel invitation</Dialog.Title>
 						<Dialog.Description>
 							Are you sure you want to cancel the invitation for{" "}
 							{invitationToCancel?.email}?
@@ -173,14 +178,14 @@ export function InvitationList({
 					</Dialog.Header>
 					<Dialog.Footer>
 						<Dialog.Close>
-							<Button variant="secondary">Keep</Button>
+							<Button variant="secondary">Keep invitation</Button>
 						</Dialog.Close>
 						<Button
 							loading={isCancellingInvitation}
 							onClick={handleCancel}
 							tone="destructive"
 						>
-							Cancel Invitation
+							Cancel invitation
 						</Button>
 					</Dialog.Footer>
 				</Dialog.Content>

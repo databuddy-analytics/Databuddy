@@ -202,7 +202,7 @@ for (const kind of ["goal", "funnel"] as const) {
 			endDate: `${period.endDate} 23:59:59`,
 		});
 		if (kind === "goal") {
-			expect(goalQuery.mock.calls[0]?.[3]).toBe(200);
+			expect(await goalQuery.mock.calls[0]?.[3]).toBe(200);
 		}
 		if (kind === "goal") {
 			expect(entrants.mock.calls[0]).toEqual([

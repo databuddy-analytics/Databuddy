@@ -10,16 +10,17 @@ import {
 	applyDqlAccess,
 	buildDqlAccessStatements,
 	createDqlClient,
-	DQL_SCHEMA,
 	DQL_TENANT_SETTING,
+	dqlPolicyName,
 	dqlSettingsForWebsite,
 	type DqlQueryClient,
 	executeDqlQuery,
+	queryDql,
 } from "./dql";
-import { TABLE_COLUMNS } from "./schema/tables.generated";
+import { AGENT_TABLE_COLUMNS } from "./sql-validation";
 
 describe("DQL ClickHouse access", () => {
-	test("provisions one restricted user, role, policy, and column grant", () => {
+	test("provisions one restricted user and role with per-table policies and column grants", () => {
 		const statements = buildDqlAccessStatements({
 			password: "local-test-password",
 		});
@@ -47,19 +48,23 @@ describe("DQL ClickHouse access", () => {
 		expect(sql).toContain("max_threads = 4 MIN 1 MAX 4");
 		expect(sql).toContain("max_concurrent_queries_for_user = 4 MIN 1 MAX 4");
 		expect(sql).toContain(
-			`USING client_id = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE`
+			`ON analytics.events FOR SELECT USING client_id = getSetting('${DQL_TENANT_SETTING}') AS RESTRICTIVE`
 		);
-		expect(sql).toContain("GRANT SELECT(");
-		expect(sql).toContain("ON analytics.events TO `dql_role`");
-		expect(sql).not.toContain("GRANT SELECT ON analytics.*");
+		expect(sql).toContain(
+			`ON analytics.revenue FOR SELECT USING (owner_id = getSetting('${DQL_TENANT_SETTING}') OR website_id = getSetting('${DQL_TENANT_SETTING}')) AS RESTRICTIVE`
+		);
+		expect(sql).not.toContain("GRANT SELECT ON");
 
-		for (const column of DQL_SCHEMA[0].columns) {
-			expect(sql).toContain(`\`${column.name}\``);
+		for (const table of Object.keys(AGENT_TABLE_COLUMNS)) {
+			expect(sql).toContain(
+				`CREATE ROW POLICY OR REPLACE \`${dqlPolicyName("dql", table)}\` ON ${table}`
+			);
+			expect(sql).toContain(`ON ${table} TO \`dql_role\``);
 		}
 		for (const hidden of [
-			"client_id",
 			"id",
 			"ip",
+			"metadata",
 			"properties",
 			"url",
 			"user_agent",
@@ -68,11 +73,7 @@ describe("DQL ClickHouse access", () => {
 		}
 	});
 
-	test("keeps the catalog physical and rejects unsafe provisioning input", () => {
-		const physicalColumns = new Set(TABLE_COLUMNS["analytics.events"]);
-		expect(
-			DQL_SCHEMA[0].columns.every((column) => physicalColumns.has(column.name))
-		).toBe(true);
+	test("rejects unsafe provisioning input", () => {
 		expect(() =>
 			buildDqlAccessStatements({
 				hosts: ["0.0.0.0/0"],
@@ -147,6 +148,7 @@ describe("DQL ClickHouse client", () => {
 	test("binds the tenant and readonly mode", () => {
 		expect(dqlSettingsForWebsite("website-a")).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
+			output_format_json_quote_64bit_integers: 0,
 			readonly: 1,
 		});
 		expect(
@@ -154,6 +156,7 @@ describe("DQL ClickHouse client", () => {
 		).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
 			final: 1,
+			output_format_json_quote_64bit_integers: 0,
 			readonly: 1,
 		});
 		expect(() => dqlSettingsForWebsite(" ")).toThrow(
@@ -203,6 +206,7 @@ describe("DQL ClickHouse client", () => {
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
 				final: 1,
+				output_format_json_quote_64bit_integers: 0,
 				readonly: 1,
 			},
 		});
@@ -370,7 +374,6 @@ describeIntegration("DQL database boundary", () => {
 		const role = `dql_test_role_${suffix}`;
 		const backdoorRole = `dql_test_backdoor_${suffix}`;
 		const policyPrefix = `dql_test_${suffix}`;
-		const policy = `${policyPrefix}_events_website`;
 		const password = `dql-test-${suffix}`;
 		const admin = createClient({ url: LOCAL_CLICKHOUSE_URL });
 		const allowedHost = await currentClientAddress(admin);
@@ -404,6 +407,17 @@ describeIntegration("DQL database boundary", () => {
 				table: "analytics.events",
 				values: [eventFixture(websiteA, pathA), eventFixture(websiteB, pathB)],
 			});
+			await admin.insert({
+				format: "JSONEachRow",
+				table: "analytics.custom_events",
+				values: [websiteA, websiteB].map((websiteId) => ({
+					event_name: `dql_event_${suffix}`,
+					owner_id: `org-${websiteId}`,
+					properties: '{"email":"person@example.com"}',
+					timestamp: "2026-07-23 12:00:00.000",
+					website_id: websiteId,
+				})),
+			});
 			await applyDqlAccess(admin, {
 				hosts: [allowedHost],
 				password,
@@ -420,7 +434,7 @@ describeIntegration("DQL database boundary", () => {
 				query: `GRANT \`${backdoorRole}\` TO \`${user}\``,
 			});
 			await admin.command({
-				query: `GRANT SELECT(client_id) ON analytics.events TO \`${user}\``,
+				query: `GRANT SELECT(ip) ON analytics.events TO \`${user}\``,
 			});
 			await admin.command({
 				query: `GRANT FILE, INSERT, CREATE TEMPORARY TABLE ON *.* TO \`${role}\``,
@@ -461,6 +475,39 @@ describeIntegration("DQL database boundary", () => {
 			);
 			expect(nested.rows).toEqual([{ path: pathA }, { path: pathA }]);
 
+			const shadowed = await queryDql<{ path: string }>(
+				{
+					params: { other: websiteB, paths: [pathA, pathB] },
+					sql: "SELECT {other:String} AS client_id, path FROM analytics.events WHERE client_id = {other:String} AND path IN {paths:Array(String)}",
+					websiteId: websiteA,
+				},
+				dqlClient
+			);
+			expect(shadowed.rows.map((row) => row.path)).toEqual([pathA]);
+
+			const customEvents = await queryDql<{ website_id: string }>(
+				{
+					params: { name: `dql_event_${suffix}` },
+					sql: "SELECT website_id FROM analytics.custom_events WHERE event_name = {name:String}",
+					websiteId: websiteA,
+				},
+				dqlClient
+			);
+			expect(customEvents.rows).toEqual([{ website_id: websiteA }]);
+
+			for (const sql of [
+				"SELECT substring(path FROM 2) AS p, ip FROM analytics.events",
+				"SELECT count() FROM analytics.events WHERE toUInt8(user_agent) = 1",
+				"SELECT count() FROM analytics.events WHERE throwIf(1, url) = 0",
+				"SELECT count() FROM analytics.events WHERE session_id IN analytics.revenue",
+				"SELECT JSONExtractString(properties, 'email') AS email FROM analytics.custom_events",
+				"SELECT * FROM analytics.events",
+			]) {
+				await expect(
+					queryDql({ sql, websiteId: websiteA }, dqlClient)
+				).rejects.toThrow("Not enough privileges");
+			}
+
 			await expect(
 				executeDqlQuery(
 					{
@@ -481,7 +528,7 @@ describeIntegration("DQL database boundary", () => {
 				dqlClient.query({
 					clickhouse_settings: dqlSettingsForWebsite(websiteA),
 					format: "JSON",
-					query: "SELECT client_id FROM analytics.events LIMIT 1",
+					query: "SELECT ip FROM analytics.events LIMIT 1",
 				})
 			).rejects.toThrow();
 			await expect(
@@ -525,9 +572,11 @@ describeIntegration("DQL database boundary", () => {
 				})
 			).rejects.toThrow();
 		} finally {
-			await admin.command({
-				query: `DROP ROW POLICY IF EXISTS \`${policy}\` ON analytics.events`,
-			});
+			for (const table of Object.keys(AGENT_TABLE_COLUMNS)) {
+				await admin.command({
+					query: `DROP ROW POLICY IF EXISTS \`${dqlPolicyName(policyPrefix, table)}\` ON ${table}`,
+				});
+			}
 			await admin.command({ query: `DROP USER IF EXISTS \`${user}\`` });
 			await admin.command({ query: `DROP ROLE IF EXISTS \`${role}\`` });
 			await admin.command({
@@ -536,6 +585,11 @@ describeIntegration("DQL database boundary", () => {
 			await admin.command({
 				query:
 					"ALTER TABLE analytics.events DELETE WHERE client_id IN ({websiteA:String}, {websiteB:String}) SETTINGS mutations_sync = 1",
+				query_params: { websiteA, websiteB },
+			});
+			await admin.command({
+				query:
+					"ALTER TABLE analytics.custom_events DELETE WHERE website_id IN ({websiteA:String}, {websiteB:String}) SETTINGS mutations_sync = 1",
 				query_params: { websiteA, websiteB },
 			});
 			await rawDqlClient.close();

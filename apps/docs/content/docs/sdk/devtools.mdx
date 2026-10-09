@@ -61,7 +61,7 @@ Manual mount:
 const unmount = mountDevtools();`}
 </CodeBlock>
 
-## What It Shows
+## What it shows
 
 - Runtime status and diagnostics
 - Client, anonymous, and session IDs
@@ -72,7 +72,7 @@ const unmount = mountDevtools();`}
 - Feature flag readiness, config, values, variants, reasons, and sources
 - Local feature flag overrides
 
-## Feature Flags
+## Feature flags
 
 DevTools reads the browser flag manager created by `FlagsProvider` or Vue `createFlagsPlugin`. If no flag manager is mounted, the flag panel will show flags as unavailable.
 
@@ -88,7 +88,7 @@ Flag sources:
 
 Overrides are local only. Clear overrides before validating real flag behavior.
 
-### Flag Debugging Workflow
+### Flag debugging workflow
 
 1. Open DevTools with Cmd/Ctrl + Shift + D.
 2. Confirm the flag manager is ready and using the expected `clientId`, API host, and environment.
@@ -97,7 +97,7 @@ Overrides are local only. Clear overrides before validating real flag behavior.
 5. Test each UI branch with a local override, then clear the override and refresh to validate real behavior.
 6. Trigger the outcome event and verify it includes `flag_key`, `variant`, and any useful status field.
 
-## Managing Flags
+## Managing flags
 
 DevTools can create, update, and delete flag definitions when you paste an API key with `manage:flags` scope at runtime.
 
@@ -117,13 +117,13 @@ The default API host is the active flag manager API URL, falling back to `https:
 ## Related
 
 <Cards>
-  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+  <Card title="Feature flags" href="/docs/sdk/feature-flags">
     React and Vue feature flag hooks
   </Card>
-  <Card title="Server Flags" href="/docs/sdk/server-flags">
+  <Card title="Server-side flags" href="/docs/sdk/server-flags">
     Server-side feature flag evaluation
   </Card>
-  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+  <Card title="Tracker helpers" href="/docs/sdk/tracker">
     Event helpers, IDs, and attribution utilities
   </Card>
 </Cards>

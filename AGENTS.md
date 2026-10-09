@@ -32,7 +32,7 @@ bun run test:watch
 bun run db:push          # Apply schema changes (no migration files)
 bun run db:migrate       # Run migration files
 bun run db:studio        # Open Drizzle Studio GUI
-bun run db:seed <WEBSITE_ID> [EVENT_COUNT]  # Seed sample analytics data
+bun run workspace [--reset] [--anomaly] [--events N] [--website <ID>]  # Local login, website and seeded analytics
 
 # SDK (must build before dev if SDK changed)
 bun run sdk:build
@@ -144,6 +144,7 @@ For picker controls, use the component that matches the interaction:
 - **Linter/Formatter**: Ultracite (Biome-based). Run `bun run lint` / `bun run format`.
 - **TypeScript**: Strict mode. Always use proper types — avoid `any`.
 - **Dashboard UI**: Feature code should consume `@databuddy/ui`; `apps/dashboard/components/ds` is the local implementation layer. Do not hand-roll controls in feature components; extend the shared UI layer first when the current API is missing something.
+- **Marketing copy**: Never write staccato sentences on landing pages, docs, or any marketing copy. No runs of clipped fragments like "Fast. Private. Simple." or "No cookies. No banners. No guesswork." Write full sentences that connect the idea to what the reader gets.
 - **Commit format**: `<type>(<scope>): <description>` (e.g., `feat(dashboard): add export button`, `fix(api): handle null session`)
 - **Commit slicing rule**: Prefer one commit per coherent product or technical slice, not one giant snapshot and not ultra-fragmented file-by-file commits.
   - Split commits by intent: feature, bug fix, refactor, style/copy pass, or migration slice.
@@ -155,6 +156,8 @@ For picker controls, use the component that matches the interaction:
   - Only make a single snapshot commit for the whole worktree when the user explicitly asks to include everything as-is.
 
 ## Branch and PR Lifecycle
+
+**Local default for Codex:** Work directly in this repository's local `staging` checkout and preserve existing edits. Create a task branch, worktree, or PR only when the user explicitly requests that workflow. The lifecycle below applies to those requested branch/PR workflows.
 
 - **One task, one branch, one PR**: Keep a branch to one independently reviewable and reversible slice. If work can land separately, split it before it becomes a mixed PR.
 - **Start fresh**: Check for an existing PR that owns the same surface, public contract, schema, or deployment configuration, then create the branch from an up-to-date `origin/staging`. Do not use an unmerged feature branch as a base unless the dependency is explicit, approved, and named as `Depends on #…` in both PRs.

@@ -13,9 +13,10 @@ export function getDocumentationSections() {
 	return Object.entries({
 		"": "Core",
 		sdk: "SDK",
-		api: "API Reference",
+		api: "API reference",
+		"infrastructure-as-code": "Infrastructure as code",
 		Integrations: "Integrations",
-		hooks: "React Hooks",
+		hooks: "React hooks",
 		performance: "Performance",
 		privacy: "Privacy",
 		compliance: "Compliance",

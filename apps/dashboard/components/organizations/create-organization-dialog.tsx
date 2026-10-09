@@ -108,9 +108,7 @@ export function CreateOrganizationDialog({
 							<BuildingsIcon className="size-[22px] text-accent-foreground" />
 						</div>
 						<div>
-							<Sheet.Title className="text-lg">
-								Create New Organization
-							</Sheet.Title>
+							<Sheet.Title className="text-lg">Create organization</Sheet.Title>
 							<Sheet.Description>
 								Set up a new organization to collaborate with your team
 							</Sheet.Description>
@@ -122,7 +120,7 @@ export function CreateOrganizationDialog({
 
 				<Sheet.Body className="space-y-6">
 					<div className="space-y-2">
-						<Field.Label htmlFor="org-name">Organization Name</Field.Label>
+						<Field.Label htmlFor="org-name">Organization name</Field.Label>
 						{(() => {
 							const isNameValid = name.trim().length >= 2;
 							const hasUserTyped = name.length > 0;
@@ -137,7 +135,7 @@ export function CreateOrganizationDialog({
 										setTouchedFields((prev) => ({ ...prev, name: true }))
 									}
 									onChange={(e) => setName(e.target.value)}
-									placeholder="e.g., Acme Corporation"
+									placeholder="e.g. Acme Corporation"
 									value={name}
 								/>
 							);
@@ -145,7 +143,7 @@ export function CreateOrganizationDialog({
 					</div>
 
 					<div className="space-y-2">
-						<Field.Label htmlFor="org-slug">Organization Slug</Field.Label>
+						<Field.Label htmlFor="org-slug">Organization slug</Field.Label>
 						{(() => {
 							const isSlugValid =
 								SLUG_ALLOWED_REGEX.test(slug) && slug.trim().length >= 2;
@@ -163,7 +161,7 @@ export function CreateOrganizationDialog({
 											setTouchedFields((prev) => ({ ...prev, slug: true }))
 										}
 										onChange={(e) => handleSlugChange(e.target.value)}
-										placeholder="e.g., acme-corp"
+										placeholder="e.g. acme-corp"
 										value={slug}
 									/>
 									<p
@@ -190,7 +188,7 @@ export function CreateOrganizationDialog({
 						type="button"
 					>
 						<BuildingsIcon className="size-4" />
-						Create Organization
+						Create organization
 					</Button>
 				</Sheet.Footer>
 			</Sheet.Content>

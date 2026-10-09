@@ -3,9 +3,10 @@
 import { EmailUnavailable, useAuthCapabilities } from "../../auth-capabilities";
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
+import { useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { ArrowLeftIcon, EnvelopeIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
 import { safeCallbackPath } from "@/lib/safe-callback";
@@ -14,10 +15,7 @@ const MAGIC_EMAIL_KEY = "databuddy:magic-email";
 
 function MagicSentPage() {
 	const capabilities = useAuthCapabilities();
-	const [callback] = useQueryState(
-		"callback",
-		parseAsString.withDefault("/websites")
-	);
+	const [callback] = useQueryState("callback");
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isReady, setIsReady] = useState(false);
@@ -51,7 +49,9 @@ function MagicSentPage() {
 	const handleResend = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		if (!email) {
-			toast.error("No email found");
+			toast.error("Failed to resend magic link", {
+				description: "Go back and enter your email address again.",
+			});
 			return;
 		}
 		setIsLoading(true);
@@ -63,12 +63,12 @@ function MagicSentPage() {
 				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(safeCallback)}`,
 			});
 			if (error) {
-				toast.error("We couldn't send the magic link. Try again in a moment.");
+				showErrorToast(error, "Failed to send magic link");
 			} else {
-				toast.success("Magic link sent. Check your email.");
+				toast.success("Magic link sent. Check your email");
 			}
-		} catch {
-			toast.error("We couldn't send the magic link. Try again in a moment.");
+		} catch (error) {
+			showErrorToast(error, "Failed to send magic link");
 		}
 		setIsLoading(false);
 	};
@@ -93,7 +93,7 @@ function MagicSentPage() {
 						Request a new magic link
 					</Text>
 					<Text tone="muted">
-						We couldn&apos;t recover the email address for this request.
+						Failed to recover the email address for this request.
 					</Text>
 				</div>
 				<div className="px-6">
@@ -122,8 +122,8 @@ function MagicSentPage() {
 					<EnvelopeIcon className="size-5 shrink-0 text-primary" />
 					<Text tone="muted">
 						We&apos;ve sent a magic link to{" "}
-						<strong className="text-foreground">{email}</strong>. Please check
-						your inbox and click the link to sign in instantly.
+						<strong className="text-foreground">{email}</strong>. Check your
+						inbox and click the link to sign in instantly.
 					</Text>
 				</div>
 				<Button className="w-full" loading={isLoading} onClick={handleResend}>
@@ -137,7 +137,7 @@ function MagicSentPage() {
 					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
-					Back to login
+					Back to sign in
 				</Link>
 			</div>
 		</>

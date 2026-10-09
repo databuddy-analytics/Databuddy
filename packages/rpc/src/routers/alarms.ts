@@ -39,12 +39,14 @@ const webhookHeadersSchema = z
 			.min(1)
 			.max(128)
 			.refine((name) => !FORBIDDEN_HEADER_NAMES.has(name.toLowerCase()), {
-				message: "Header name is not allowed.",
+				message:
+					"This header cannot be set on a webhook. Use a different header name.",
 			}),
 		z.string().max(2048)
 	)
 	.refine((rec) => Object.keys(rec).length <= 20, {
-		message: "At most 20 custom webhook headers are allowed.",
+		message:
+			"A webhook can have at most 20 custom headers. Remove some and try again.",
 	});
 
 const slackDestinationSchema = z.object({
@@ -53,7 +55,7 @@ const slackDestinationSchema = z.object({
 		.string()
 		.regex(
 			SLACK_WEBHOOK_PATTERN,
-			"Slack destination must be a hooks.slack.com webhook URL"
+			"Enter a Slack webhook URL that starts with https://hooks.slack.com."
 		),
 	config: z.record(z.string(), z.unknown()).default({}),
 });
@@ -62,10 +64,10 @@ const webhookDestinationSchema = z.object({
 	type: z.literal("webhook"),
 	identifier: z
 		.string()
-		.url("Webhook destination must be a valid URL")
+		.url("Enter a valid webhook URL.")
 		.refine(
 			(url) => url.startsWith("http://") || url.startsWith("https://"),
-			"Webhook destination must use http(s)"
+			"Webhook URLs must start with http:// or https://."
 		),
 	config: z
 		.object({
@@ -169,7 +171,7 @@ export const alarmsRouter = {
 		.handler(async ({ context, input }) => {
 			const orgId = input.organizationId ?? context.organizationId;
 			if (!orgId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -203,14 +205,14 @@ export const alarmsRouter = {
 			z.object({
 				organizationId: z.string(),
 				websiteId: z.string().optional(),
-				name: z.string().min(1, "Name is required"),
+				name: z.string().min(1, "Enter a name for this alert."),
 				description: z.string().optional(),
 				enabled: z.boolean().default(true),
 				triggerType: z.enum(alarmTriggerTypeValues),
 				triggerConditions: z.record(z.string(), z.unknown()).default({}),
 				destinations: z
 					.array(destinationSchema)
-					.min(1, "At least one destination is required")
+					.min(1, "Add at least one place to send this alert.")
 					.max(MAX_ALARM_DESTINATIONS),
 			})
 		)
@@ -400,7 +402,9 @@ export const alarmsRouter = {
 			}
 
 			if (!alarm.destinations || alarm.destinations.length === 0) {
-				throw rpcError.badRequest("Alarm has no destinations configured");
+				throw rpcError.badRequest(
+					"This alert has nowhere to send notifications. Add a destination and try again."
+				);
 			}
 
 			const targets = toNotificationTargets(alarm.destinations);

@@ -3,7 +3,7 @@ import type { DatabuddyAgentToolTrace } from "@databuddy/ai/agent";
 import { queryEvidenceBlocks } from "./query-evidence";
 
 const summary =
-	"summary_metrics | 2026-09-01 to 2026-09-07 | timezone=UTC | filters=none | groupBy=default | timeUnit=default | orderBy=default | limit=default";
+	"summary_metrics | 2026-09-01 to 2026-09-07 | timezone=UTC | filters=none | timeUnit=default | orderBy=default | limit=default";
 const result = { summary, returnedRows: 1, rowCount: 1, truncated: false };
 const website = { id: "site-synthetic", domain: "reports.example.com" };
 

@@ -1,14 +1,12 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-interface ScopedSession {
-	userId: string;
-}
-
 const SAFE_SCOPE_CHARS_RE = /[^a-z0-9]/gi;
-const SHORT_LINK_LABEL_RE = /Short Link/;
-const CREATE_API_KEY_BUTTON_RE = /Create (your first )?key/i;
+const CREATE_API_KEY_BUTTON_RE = /Create API key/i;
+export const SHORT_LINK_LABEL_RE = /Short link/i;
+export const WEBSITE_PATH_RE = /\/websites\/[A-Za-z0-9_-]+/;
+export const LINK_PATH_RE = /\/links\/[A-Za-z0-9_-]+/;
 const ORGANIZATION_TRIGGER_RE = /^Organization:/;
-export function scopeSuffix(session: ScopedSession): string {
+export function scopeSuffix(session: { userId: string }): string {
 	return session.userId
 		.replaceAll(SAFE_SCOPE_CHARS_RE, "")
 		.slice(0, 8)
@@ -83,15 +81,18 @@ export async function createWebsite(
 	page: Page,
 	input: { domain: string; name: string }
 ): Promise<Locator> {
-	await page.getByRole("button", { name: "New Website" }).click();
-	const dialog = page.getByRole("dialog", { name: "Create a new website" });
+	await page.getByRole("button", { exact: true, name: "Add website" }).click();
+	const dialog = page.getByRole("dialog", { name: "Add your website" });
 	await dialog.waitFor();
 	await dialog.getByRole("textbox", { name: "Name" }).fill(input.name);
 	await dialog.getByRole("textbox", { name: "Domain" }).fill(input.domain);
-	const submitButton = dialog.getByRole("button", { name: "Create website" });
+	const submitButton = dialog.getByRole("button", { name: "Add website" });
 	await expect(submitButton).toBeEnabled();
 	await submitButton.click();
 	await expect(dialog).toBeHidden({ timeout: 15_000 });
+	await expect(page).toHaveURL(WEBSITE_PATH_RE, { timeout: 15_000 });
+	await page.goto("/websites");
+	await expectDashboardReady(page);
 	return websiteCard(page, input.name);
 }
 
@@ -100,19 +101,19 @@ export async function createApiKey(
 	keyName: string
 ): Promise<Locator> {
 	await expect(
-		page.getByRole("heading", { exact: true, name: "API Keys" })
+		page.getByRole("heading", { exact: true, name: "API keys" })
 	).toBeVisible({ timeout: 15_000 });
 	await page
 		.getByRole("button", { name: CREATE_API_KEY_BUTTON_RE })
 		.first()
 		.click();
 
-	const dialog = page.getByRole("dialog", { name: "Create API Key" });
+	const dialog = page.getByRole("dialog", { name: "Create API key" });
 	await dialog.waitFor();
 	await dialog
 		.getByRole("textbox", { exact: true, name: "Name" })
 		.fill(keyName);
-	await dialog.getByRole("button", { name: "Create Key" }).click();
+	await dialog.getByRole("button", { name: "Create API key" }).click();
 	await expect(page.getByText("Secret key", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Done" }).click();
 	await expect(dialog).toBeHidden();

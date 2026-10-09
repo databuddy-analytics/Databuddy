@@ -1,5 +1,5 @@
 ---
-title: AI Agents
+title: AI agents
 description: See which AI products read your site, which pages and formats they fetch, and how many visitors they send
 ---
 
@@ -10,12 +10,12 @@ The AI Agents page shows ChatGPT, Claude, Perplexity, Gemini, Meta AI, Claude Co
 Agents that run JavaScript and visitors referred by AI assistants show up automatically through the Databuddy script. Crawlers and coding agents like GPTBot, ClaudeBot and Claude Code don't run JavaScript, so they only show up once `@databuddy/sdk/agents` runs on your server.
 
 <Callout type="info">
-  **Package**: `@databuddy/sdk` 3.0.0+ | **Import**: `@databuddy/sdk/agents`
+  **Package**: `@databuddy/sdk` 3.0.1+ | **Import**: `@databuddy/sdk/agents`
 </Callout>
 
 ## Setup
 
-Install the SDK, or upgrade it if you're on 2.x, which doesn't include `@databuddy/sdk/agents`:
+Install the SDK, or upgrade it if you're on 2.x, which doesn't include `@databuddy/sdk/agents`, or 3.0.0, which misses signed agent browsers and markdown-first clients:
 
 <CodeBlock language="bash">
   {`bun add @databuddy/sdk@latest`}
@@ -69,7 +69,19 @@ For Vite, Astro or any other site on Vercel, add `middleware.ts` at the project 
   {`export { proxy as default } from "@databuddy/sdk/agents";`}
 </CodeBlock>
 
-### Cloudflare Workers, Hono and other fetch handlers
+### Vercel log drain (no code)
+
+On a Vercel Pro or Enterprise plan you can send your request logs instead of adding code. In Vercel, open **Team Settings → Drains → Add Drain**, choose **Logs** and **Custom Endpoint**, and paste:
+
+<CodeBlock language="bash">
+  {`https://basket.databuddy.cc/vercel/your_website_id`}
+</CodeBlock>
+
+Select the **Static Files**, **Functions**, **Edge Functions** and **Rewrites** sources and the **Production** environment, choose JSON or NDJSON, and leave sampling off. Databuddy keeps only requests from AI agents, from hosts that belong to your website. Vercel bills drains by volume.
+
+Logs don't include the `Accept` header, so markdown is recognized from `.md` and `.mdx` paths only, and signed agent browsers look like regular Chrome. In exchange, drains also store the HTTP status each agent got, so you can ask the assistant which pages return 404 to AI crawlers.
+
+### Cloudflare Workers, Hono, and other fetch handlers
 
 <CodeBlock language="ts">
   {`import { trackAgents } from "@databuddy/sdk/agents";
@@ -89,6 +101,23 @@ Workers don't have `process.env`, so set the website ID as a variable in `wrangl
   {`[vars]
 DATABUDDY_WEBSITE_ID = "your_website_id"`}
 </CodeBlock>
+
+### Netlify
+
+Add an edge function at `netlify/edge-functions/databuddy.ts`. It runs in front of every request, including static `llms.txt` and markdown files:
+
+<CodeBlock language="ts">
+  {`import { trackAgents } from "@databuddy/sdk/agents";
+
+export default (request, context) => {
+  const websiteId = Netlify.env.get("DATABUDDY_WEBSITE_ID");
+  context.waitUntil(trackAgents(request, { websiteId }));
+};
+
+export const config = { path: "/*" };`}
+</CodeBlock>
+
+Set `DATABUDDY_WEBSITE_ID` under **Site configuration → Environment variables**. Returning nothing passes the request through, so your site keeps serving as before.
 
 ### Express and Node
 
@@ -113,8 +142,20 @@ app.use((req, _res, next) => {
 
 It never throws and never delays your response: requests to Databuddy run in the background and time out after 3 seconds.
 
+### Limits to keep in mind
+
+- **A read is not a citation.** An AI product fetching a page means it can use it, not that an answer quoted it. Visitors sent from AI are the signal that an answer linked to you.
+- **User agents can be copied.** Anyone can send a request that claims to be GPTBot, so treat a sudden burst from one crawler with care.
+- **Requests made for a user may ignore robots.txt.** Crawlers such as GPTBot follow it; fetches a person triggers inside ChatGPT or Claude often don't.
+- **Visitors from AI depend on what the AI product passes along.** Visits count when the referrer or `utm_source` names an AI product, or the visitor uses an AI app browser. Apps that strip both show up as direct traffic.
+- **Failed requests aren't reads.** With a Vercel log drain, requests that got an error are listed separately, and neither errors nor redirects count as pages read.
+
 ## Test your setup
 
 Deploy, then open the AI Agents page in your dashboard and click **Test setup**. Databuddy requests your homepage and `/llms.txt` as GPTBot and tells you whether each request was recorded. Test requests never show up in your data.
 
-Static hosts without middleware (GitHub Pages, S3) and hosted docs platforms that don't let you run code can't report crawler requests.
+Static hosts without middleware (GitHub Pages, S3) and hosted docs platforms that don't let you run code can't report crawler requests. Sites on Vercel can use a log drain, and sites on Netlify an edge function.
+
+## Weekly AI digest
+
+Every Monday at 9:00 UTC, the owners of each organization get an email for every site that got at least one visitor from AI, or at least ten AI reads, in the previous week (Monday to Sunday, UTC). It shows the visitors AI sent compared with the week before, how many times AI read the site, how many pages AI hadn't read in the previous 90 days, each AI product's reads and visitors, where AI visitors landed, and the most read pages. Turn it off under **Settings → Notifications → Weekly AI digest**, or with your email app's Unsubscribe button.

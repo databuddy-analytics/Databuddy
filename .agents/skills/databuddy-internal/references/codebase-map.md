@@ -188,7 +188,7 @@ cd apps/api && bun test
 cd apps/basket && bun test
 cd packages/sdk && bun test
 cd packages/tracker && bun run test:unit
-cd packages/db && bun run db:seed
+bun run workspace --reset
 ```
 
 ## Search Patterns

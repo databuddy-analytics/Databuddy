@@ -27,9 +27,11 @@ import { rankInvestigationBusinessContext } from "./business-context-ranking";
 import { createEvidenceSnapshot } from "./evidence-snapshot";
 import { resumeInsightReply, recordInsightReplyFailure } from "./resume";
 import * as billing from "./investigation-billing";
+import { createAutumnClient } from "@databuddy/rpc/autumn";
 
 const integration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" ? describe : describe.skip;
+const originalSecret = process.env.AUTUMN_SECRET_KEY;
 const ids: string[] = [];
 const signal: InvestigationSignal = {
 	signalKey: "goal:workspace",
@@ -109,9 +111,6 @@ async function fixture(
 				output: { total_users_entered: 200, total_users_completed: 20 },
 			},
 		],
-		descriptions: {
-			get_goal_analytics: "Counts eligible website visitors, not attempts.",
-		},
 	});
 	await db.insert(insightObservations).values({
 		id: observationId,
@@ -188,7 +187,7 @@ function nativeProvider(
 		released = 0;
 	let loseConfirmation = options.loseConfirmation === true;
 	let failConfirmation = options.failConfirmation === true;
-	const client = billing.createInvestigationBillingClient({
+	const client = createAutumnClient({
 		secretKey: "synthetic-local-only",
 		fetcher: async (request) => {
 			if (!(request instanceof Request)) {
@@ -288,6 +287,7 @@ function wireProvider(remote: ReturnType<typeof nativeProvider>) {
 	const nativeReserve = billing.reserveInvestigationCharge;
 	const nativeSettle = billing.settleInvestigationCharge;
 	const nativeRelease = billing.releaseInvestigationCharge;
+	process.env.AUTUMN_SECRET_KEY = "synthetic-local-only";
 	spyOn(billing, "resolveInvestigationBilling").mockResolvedValue({
 		mode: "fixed",
 		customerId: "synthetic-customer",
@@ -306,7 +306,14 @@ function wireProvider(remote: ReturnType<typeof nativeProvider>) {
 }
 
 integration("included saved-evidence replies", () => {
-	afterEach(() => mock.restore());
+	afterEach(() => {
+		mock.restore();
+		if (originalSecret === undefined) {
+			Reflect.deleteProperty(process.env, "AUTUMN_SECRET_KEY");
+		} else {
+			process.env.AUTUMN_SECRET_KEY = originalSecret;
+		}
+	});
 	afterAll(async () => {
 		if (ids.length) {
 			await db.delete(organization).where(inArray(organization.id, ids));

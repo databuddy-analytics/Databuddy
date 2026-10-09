@@ -5,16 +5,16 @@ import { StructuredData } from "@/components/structured-data";
 import StartupsForm from "./startups-form";
 
 export const metadata: Metadata = {
-	title: "Databuddy for startups",
+	title: { absolute: "Databuddy startup program: 30% off any plan for a year" },
 	description:
-		"30% off any Databuddy plan for a full year, for early-stage startups.",
+		"Startups founded in the last 5 years that raised less than $5M get 30% off any Databuddy plan for a year, from product analytics to Databunny.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/startups",
 	},
 	openGraph: {
-		title: "Databuddy for startups",
+		title: "Databuddy startup program: 30% off any plan for a year",
 		description:
-			"30% off any Databuddy plan for a full year, for early-stage startups.",
+			"Startups founded in the last 5 years that raised less than $5M get 30% off any Databuddy plan for a year, from product analytics to Databunny.",
 		url: "https://www.databuddy.cc/startups",
 		images: ["/og-image.png"],
 	},
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default function StartupsPage() {
 	const title = "Databuddy for startups";
 	const description =
-		"30% off any Databuddy plan for a full year, for early-stage startups.";
+		"Startups founded in the last 5 years that raised less than $5M get 30% off any Databuddy plan for a year, from product analytics to Databunny.";
 	const url = "https://www.databuddy.cc/startups";
 
 	return (

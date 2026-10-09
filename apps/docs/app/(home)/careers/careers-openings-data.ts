@@ -14,11 +14,11 @@ export interface CareerOpening {
 export const careerOpenings: CareerOpening[] = [
 	{
 		id: "founding-engineer",
-		title: "Founding Engineer",
+		title: "Founding engineer",
 		type: "Full-time",
 		location: "Remote",
 		summary:
-			"Help own the core product with the founders. You'll ship across the TypeScript monorepo — dashboard, API, ingestion, and analytics warehouse — and make real architecture calls while the company is still small.",
+			"Help own the core product with the founders. You'll ship across the TypeScript monorepo (dashboard, API, ingestion, and analytics warehouse) and make real architecture calls while the company is still small.",
 		responsibilities: [
 			"Ship end-to-end features across Next.js, Elysia, Drizzle, ClickHouse, and Redis",
 			"Own problems from product question to production: schema, API, UI, and observability",
@@ -29,7 +29,7 @@ export const careerOpenings: CareerOpening[] = [
 		requirements: [
 			"Strong TypeScript and comfort across full-stack web systems",
 			"Experience shipping production SaaS, developer tools, or data products",
-			"Solid judgment on SQL, APIs, and performance — not just framework familiarity",
+			"Solid judgment on SQL, APIs, and performance, not just framework familiarity",
 			"Bias toward small PRs, clear writing, and deleting complexity",
 			"Happy working async and remote with a tiny team",
 		],
@@ -41,11 +41,11 @@ export const careerOpenings: CareerOpening[] = [
 		],
 		applyHref:
 			"mailto:support@databuddy.cc?subject=Founding%20Engineer%20Application%20%E2%80%94%20Databuddy",
-		applyLabel: "Apply for Founding Engineer",
+		applyLabel: "Apply for founding engineer",
 	},
 	{
 		id: "sdr",
-		title: "Sales Development Representative",
+		title: "Sales development representative",
 		type: "Full-time",
 		location: "Remote",
 		summary:

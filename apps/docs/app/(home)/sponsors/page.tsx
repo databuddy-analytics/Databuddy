@@ -11,14 +11,14 @@ import SponsorsHero from "./sponsors-hero";
 export const metadata: Metadata = {
 	title: "Sponsors",
 	description:
-		"Support Databuddy and help us build the future of privacy-first analytics",
+		"Sponsor Databuddy, open-source product analytics for startups. Sponsorships fund the maintainers, infrastructure, and features the community relies on.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/sponsors",
 	},
 	openGraph: {
 		title: "Sponsors",
 		description:
-			"Support Databuddy and help us build the future of privacy-first analytics",
+			"Sponsor Databuddy, open-source product analytics for startups. Sponsorships fund the maintainers, infrastructure, and features the community relies on.",
 		url: "https://www.databuddy.cc/sponsors",
 		images: ["/og-image.png"],
 	},
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 export default function SponsorsPage() {
 	const title = "Sponsors";
 	const description =
-		"Support Databuddy and help us build the future of privacy-first analytics";
+		"Sponsor Databuddy, open-source product analytics for startups. Sponsorships fund the maintainers, infrastructure, and features the community relies on.";
 	const url = "https://www.databuddy.cc/sponsors";
 
 	return (
@@ -67,7 +67,7 @@ export default function SponsorsPage() {
 			<Section className="bg-background/50" id="sponsor-cta">
 				<div className="mx-auto w-full max-w-4xl px-4 text-center sm:px-6 lg:px-8">
 					<h2 className="mb-6 font-semibold text-2xl sm:text-3xl lg:text-4xl">
-						Ready to Support Databuddy?
+						Ready to support Databuddy?
 					</h2>
 					<p className="mx-auto mb-8 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Join our community of sponsors and help us build the future of
@@ -80,13 +80,13 @@ export default function SponsorsPage() {
 							className="inline-flex items-center justify-center rounded bg-primary px-8 py-3 font-medium text-primary-foreground hover:bg-primary/90"
 							href="mailto:sponsors@databuddy.cc?subject=Sponsorship%20Inquiry"
 						>
-							Become a Sponsor
+							Become a sponsor
 						</a>
 						<a
 							className="inline-flex items-center justify-center rounded border border-border bg-background px-8 py-3 font-medium hover:bg-accent hover:text-accent-foreground"
 							href="mailto:sponsors@databuddy.cc?subject=Sponsorship%20Questions"
 						>
-							Ask Questions
+							Ask questions
 						</a>
 					</div>
 				</div>

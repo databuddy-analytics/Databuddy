@@ -17,6 +17,7 @@ sources:
       - analytics-engagement-spans
       - analytics-custom-events
       - analytics-ai-traffic-spans
+      - analytics-mcp-spans
       - analytics-outgoing-links
       - analytics-blocked-traffic
       - analytics-uptime-checks
@@ -29,6 +30,12 @@ sources:
       password: "${VECTOR_KAFKA_PASSWORD}"
     tls:
       enabled: ${VECTOR_KAFKA_TLS_ENABLED:-true}
+    # Vector and Vector Staging share this group, and the range assignor hands
+    # every single-partition topic to the member whose id sorts first. Staging
+    # sets VECTOR_KAFKA_CLIENT_ID=vector-standby, which sorts after the default,
+    # so it only consumes while prod Vector is down.
+    librdkafka_options:
+      client.id: "${VECTOR_KAFKA_CLIENT_ID:-vector}"
     decoding:
       codec: json
 
@@ -39,258 +46,352 @@ transforms:
       - redpanda
     route:
       events: '.topic == "analytics-events"'
-      errors: '.topic == "analytics-errors"'
       error_spans: '.topic == "analytics-error-spans"'
-      web_vitals: '.topic == "analytics-web-vitals"'
       vitals_spans: '.topic == "analytics-vitals-spans"'
       engagement_spans: '.topic == "analytics-engagement-spans"'
       custom_events: '.topic == "analytics-custom-events"'
       ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
+      mcp_spans: '.topic == "analytics-mcp-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
       uptime_checks: '.topic == "analytics-uptime-checks"'
       link_visits: '.topic == "analytics-link-visits"'
 
+# Every sink URI: a batch spanning more than 100 daily partitions would return a
+# 500 that is retried forever and stalls the topic, so it only logs a warning.
+# Rows ClickHouse cannot parse are skipped instead of failing the whole batch
+# with a 400 that Vector drops; a batch still fails once more than 100 rows and
+# more than half of the rows read so far are bad, so a schema break stays loud.
 sinks:
   clickhouse_events:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.events
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: events
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.events+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_errors:
-    type: clickhouse
-    inputs:
-      - route_analytics.errors
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: errors
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_error_spans:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.error_spans
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: error_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.error_spans+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_web_vitals:
-    type: clickhouse
-    inputs:
-      - route_analytics.web_vitals
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: web_vitals
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_vitals_spans:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.vitals_spans
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: web_vitals_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.web_vitals_spans+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_engagement_spans:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.engagement_spans
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: engagement_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.engagement_spans+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_custom_events:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.custom_events
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: custom_events
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.custom_events+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_ai_traffic_spans:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.ai_traffic_spans
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: ai_traffic_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.ai_traffic_spans+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
+
+  clickhouse_mcp_spans:
+    type: http
+    inputs:
+      - route_analytics.mcp_spans
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.mcp_spans+FORMAT+JSONEachRow"
+    method: post
+    auth:
+      strategy: basic
+      user: "${CLICKHOUSE_USER}"
+      password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
     encoding:
+      codec: json
       timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
+    batch:
+      max_events: 5000
+      max_bytes: 5000000
+      timeout_secs: 5
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_outgoing_links:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.outgoing_links
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: outgoing_links
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.outgoing_links+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_blocked_traffic:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.blocked_traffic
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: blocked_traffic
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.blocked_traffic+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 50000
       max_bytes: 5000000
       timeout_secs: 60
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_uptime_checks:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.uptime_checks
-    endpoint: "${CLICKHOUSE_URL}"
-    database: uptime
-    table: uptime_monitor
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+uptime.uptime_monitor+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   clickhouse_link_visits:
-    type: clickhouse
+    type: http
     inputs:
       - route_analytics.link_visits
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: link_visits
+    uri: "${CLICKHOUSE_URL}/?input_format_import_nested_json=1&input_format_skip_unknown_fields=1&date_time_input_format=best_effort&throw_on_max_partitions_per_insert_block=0&input_format_allow_errors_num=100&input_format_allow_errors_ratio=0.5&query=INSERT+INTO+analytics.link_visits+FORMAT+JSONEachRow"
+    method: post
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
       password: "${CLICKHOUSE_PASSWORD}"
+    compression: gzip
+    encoding:
+      codec: json
+      timestamp_format: unix_ms
+    framing:
+      method: newline_delimited
     batch:
       max_events: 5000
       max_bytes: 5000000
       timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
+    request:
+      headers:
+        CF-Access-Client-Id: "${CLICKHOUSE_ACCESS_CLIENT_ID:-}"
+        CF-Access-Client-Secret: "${CLICKHOUSE_ACCESS_CLIENT_SECRET:-}"
+    retry_strategy:
+      type: custom
+      status_codes: [302, 401, 403, 408, 429, 500, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 520, 521, 522, 523, 524, 525, 526, 527, 530]
+    healthcheck:
+      enabled: false
 
   dead_letters:
     type: file

@@ -1,66 +1,40 @@
 "use client";
 
+import {
+	type CountryRow,
+	GlobeMap,
+	toGlobeCountries,
+} from "@/components/analytics/globe-map";
+import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CountryFlag } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 import { formatNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
-import type { CountryData } from "@/types/website";
 import { SegmentedControl, Skeleton } from "@databuddy/ui";
 import { useAtomValue } from "jotai";
-import dynamic from "next/dynamic";
 import { useParams, usePathname } from "next/navigation";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 
 const MAP_VIEWS = ["realtime", "historical"] as const;
 
-interface GeoRow {
-	country_code?: string;
-	country_name?: string;
-	name: string;
-	pageviews?: number;
-	visitors: number;
-}
-
 interface RealtimeData extends Record<string, unknown[] | undefined> {
 	active_stats?: { active_users: number }[];
-	realtime_countries?: GeoRow[];
+	realtime_countries?: CountryRow[];
 	realtime_velocity?: { events: number; pageviews: number }[];
 }
 
 interface HistoricalData extends Record<string, unknown[] | undefined> {
-	country?: GeoRow[];
+	country?: CountryRow[];
+	summary_metrics?: { unique_visitors: number }[];
 }
 
 const REALTIME_QUERY = {
 	id: "realtime-all",
 	parameters: ["realtime_countries", "active_stats", "realtime_velocity"],
 };
-
-const MapComponent = dynamic(
-	() =>
-		import("@/components/analytics/map-component").then((mod) => ({
-			default: mod.MapComponent,
-		})),
-	{
-		loading: () => (
-			<div className="flex h-full items-center justify-center">
-				<Skeleton className="size-6 rounded-full" />
-			</div>
-		),
-		ssr: false,
-	}
-);
-
-function toCountries(rows: GeoRow[] = []): CountryData[] {
-	return rows.map((row) => ({
-		country: row.country_name || row.name,
-		country_code: row.country_code || row.name,
-		visitors: row.visitors,
-		pageviews: row.pageviews ?? 0,
-	}));
-}
 
 function Stat({ label, value }: { label: string; value: number }) {
 	return (
@@ -83,13 +57,21 @@ function WebsiteMapPage() {
 	const view = isDemo ? "historical" : selectedView;
 	const isRealtime = view === "realtime";
 
+	const [focused, setFocused] = useState<string | null>(null);
+	const [hovered, setHovered] = useState<string | null>(null);
+
 	const { dateRange } = useDateFilters();
 	const filters = useAtomValue(dynamicQueryFiltersAtom);
 
 	const historical = useDynamicQuery<HistoricalData>(
 		id,
 		dateRange,
-		{ id: "map-countries", parameters: ["country"], limit: 200, filters },
+		{
+			id: "map-countries",
+			parameters: ["country", "summary_metrics"],
+			limit: 200,
+			filters,
+		},
 		{ enabled: !isRealtime }
 	);
 
@@ -115,18 +97,20 @@ function WebsiteMapPage() {
 
 	const countries = useMemo(
 		() =>
-			toCountries(
-				isRealtime ? realtime.data.realtime_countries : historical.data.country
+			toGlobeCountries(
+				(isRealtime
+					? realtime.data.realtime_countries
+					: historical.data.country) ?? []
 			),
 		[isRealtime, realtime.data, historical.data]
 	);
 
+	const isLoading = isRealtime
+		? realtime.isLoading && !realtime.data.active_stats
+		: historical.isLoading && !historical.data.country;
+	const focusCode = countries.some((c) => c.code === focused) ? focused : null;
 	const lastMinute = realtime.data.realtime_velocity?.at(-1);
-	const totalVisitors = countries.reduce(
-		(sum, country) => sum + country.visitors,
-		0
-	);
-	const topVisitors = Math.max(0, ...countries.map((c) => c.visitors));
+	const topVisitors = Math.max(0, ...countries.map((c) => c.value));
 
 	return (
 		<div className="flex h-full w-full flex-col">
@@ -172,7 +156,12 @@ function WebsiteMapPage() {
 						</>
 					) : (
 						<>
-							<Stat label="visitors" value={totalVisitors} />
+							<Stat
+								label="visitors"
+								value={
+									historical.data.summary_metrics?.[0]?.unique_visitors ?? 0
+								}
+							/>
 							<Stat label="countries" value={countries.length} />
 						</>
 					)}
@@ -180,17 +169,16 @@ function WebsiteMapPage() {
 			</div>
 
 			<div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-				<div className="shrink-0 max-lg:aspect-video lg:min-h-0 lg:flex-1">
-					<MapComponent
-						height="100%"
-						isLoading={
-							isRealtime
-								? realtime.isLoading && !realtime.data.active_stats
-								: historical.isLoading
-						}
-						locationData={{ countries, regions: [] }}
-						showEmptyState={!isRealtime}
-					/>
+				<div className="flex shrink-0 items-center justify-center p-6 [container-type:size] max-lg:aspect-square max-lg:max-h-[60svh] lg:min-h-0 lg:flex-1">
+					<ChartErrorBoundary fallbackClassName="aspect-square w-[min(100cqw,100cqh)]">
+						<GlobeMap
+							className="w-[min(100cqw,100cqh)]"
+							countries={countries}
+							focusCode={focusCode}
+							isLive={isRealtime && !isLoading}
+							onHoverChange={setHovered}
+						/>
+					</ChartErrorBoundary>
 				</div>
 
 				<aside className="flex min-h-0 flex-col border-t lg:w-72 lg:border-t-0 lg:border-l">
@@ -198,33 +186,54 @@ function WebsiteMapPage() {
 						<span>Country</span>
 						<span>{isRealtime ? "Active" : "Visitors"}</span>
 					</div>
-					{countries.length > 0 ? (
-						<ul className="min-h-0 flex-1 overflow-y-auto">
-							{countries.map((country) => (
-								<li
-									className="relative flex items-center gap-2.5 px-4 py-2 text-sm"
-									key={country.country_code}
-								>
-									<span
-										className="absolute inset-y-1 left-0 rounded-r bg-accent"
-										style={{
-											width: `${(country.visitors / topVisitors) * 100}%`,
-										}}
-									/>
-									<CountryFlag
-										country={country.country_code ?? country.country}
-										size="sm"
-									/>
-									<span className="relative min-w-0 flex-1 truncate text-foreground">
-										{country.country}
-									</span>
-									<span className="relative font-medium text-foreground tabular-nums">
-										{formatNumber(country.visitors)}
-									</span>
-								</li>
+					{isLoading && (
+						<div className="flex flex-col gap-1 p-2" role="status">
+							{Array.from({ length: 8 }, (_, index) => (
+								<Skeleton
+									className="h-8 w-full rounded"
+									key={`country-${index + 1}`}
+								/>
 							))}
+						</div>
+					)}
+					{!isLoading && countries.length > 0 && (
+						<ul className="min-h-0 flex-1 overflow-y-auto">
+							{countries.map((country) => {
+								const isActive =
+									country.code === hovered || country.code === focusCode;
+								return (
+									// biome-ignore lint/a11y/noNoninteractiveElementInteractions: hover only turns the globe; the row stays plain data
+									<li
+										className={cn(
+											"relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors",
+											isActive && "bg-muted"
+										)}
+										key={country.code}
+										onMouseEnter={() => setFocused(country.code)}
+										onMouseLeave={() => setFocused(null)}
+									>
+										<span
+											className={cn(
+												"absolute inset-y-1 left-0 rounded-r transition-colors",
+												isActive ? "bg-interactive-hover" : "bg-accent"
+											)}
+											style={{
+												width: `${(country.value / topVisitors) * 100}%`,
+											}}
+										/>
+										<CountryFlag country={country.code} size="sm" />
+										<span className="relative min-w-0 flex-1 truncate text-foreground">
+											{country.name}
+										</span>
+										<span className="relative font-medium text-foreground tabular-nums">
+											{formatNumber(country.value)}
+										</span>
+									</li>
+								);
+							})}
 						</ul>
-					) : (
+					)}
+					{!isLoading && countries.length === 0 && (
 						<p className="px-4 py-6 text-center text-muted-foreground text-xs">
 							{isRealtime
 								? "Nobody is on the site right now"

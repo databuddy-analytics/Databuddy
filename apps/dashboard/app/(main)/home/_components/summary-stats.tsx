@@ -94,7 +94,7 @@ export function SummaryStats({
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-foreground text-sm">
-								Active Now
+								Active now
 							</p>
 							<p className="truncate text-muted-foreground text-xs">
 								across {websiteCount} site{websiteCount === 1 ? "" : "s"}
@@ -122,7 +122,7 @@ export function SummaryStats({
 						</div>
 						<div className="min-w-0 flex-1">
 							<p className="truncate font-medium text-foreground text-sm">
-								Total Views
+								Total views
 							</p>
 							<p className="truncate text-muted-foreground text-xs">
 								last 7 days

@@ -1,4 +1,6 @@
-import type { SimpleQueryConfig } from "../types";
+import { normalizeGranularity } from "../expressions";
+import type { Granularity, SimpleQueryConfig } from "../types";
+import { TimeGranularity } from "../types";
 
 /**
  * Uptime monitoring query builders
@@ -19,33 +21,47 @@ import type { SimpleQueryConfig } from "../types";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
+const UPTIME_RANGE_START =
+	"parseDateTimeBestEffort({startDate:String}, {timezone:String})";
+const UPTIME_RANGE_END =
+	"parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})";
+
+function clippedBucketSeconds(interval: "WEEK" | "MONTH"): string {
+	return `greatest(1, dateDiff('second', greatest(toDateTime(date, {timezone:String}), ${UPTIME_RANGE_START}), least(toDateTime(date + INTERVAL 1 ${interval}, {timezone:String}), ${UPTIME_RANGE_END} + 1)))`;
+}
+
+const UPTIME_BUCKET_SECONDS: Record<Exclude<Granularity, "minute">, string> = {
+	hour: "3600",
+	day: "86400",
+	week: clippedBucketSeconds("WEEK"),
+	month: clippedBucketSeconds("MONTH"),
+};
+
+function uptimeTimeGroup(granularity: Granularity, field: string): string {
+	const localTime = `toTimeZone(${field}, {timezone:String})`;
+	return granularity === "day"
+		? `toDate(${localTime})`
+		: `${TimeGranularity[granularity]}(${localTime})`;
+}
+
 export const UptimeBuilders = {
 	uptime_time_series: {
 		meta: {
 			description: "Uptime check results plotted over time.",
 			category: "Uptime",
 			tags: ["uptime", "time-series"],
+			supports_granularity: ["hour", "day", "week", "month"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, timezone } = ctx;
-			const granularity = ctx.granularity ?? "hour";
+			const granularity = normalizeGranularity(ctx.granularity) ?? "hour";
 			const tz = timezone || "UTC";
-			const timeGroup =
-				granularity === "minute"
-					? "toStartOfMinute(ts)"
-					: granularity === "hour"
-						? "toStartOfHour(ts)"
-						: granularity === "day"
-							? "toDate(toTimeZone(ts, {timezone:String}))"
-							: "toStartOfHour(ts)";
-
-			const windowSec =
-				granularity === "day" ? 86_400 : granularity === "hour" ? 3600 : 60;
+			const timeGroup = uptimeTimeGroup(granularity, "ts");
 
 			const uptimePercentageExpr =
 				granularity === "minute"
 					? "if(total_checks = 0, 0, round(100 * successful_checks / total_checks, 2))"
-					: `round(100 * (1 - least(downtime_seconds, ${windowSec}) / ${windowSec}), 2)`;
+					: `round(100 * (1 - least(downtime_seconds, ${UPTIME_BUCKET_SECONDS[granularity]}) / ${UPTIME_BUCKET_SECONDS[granularity]}), 2)`;
 
 			return {
 				sql: `
@@ -68,7 +84,7 @@ export const UptimeBuilders = {
 							toUInt32(countIf(status = 1) + countIf(status = 0)) as total_checks,
 							toUInt32(countIf(status = 1)) as successful_checks,
 							toUInt32(sumIf(
-								least(dateDiff('second', ts, next_ts), 86400),
+								least(dateDiff('second', ts, least(next_ts, ${UPTIME_RANGE_END} + 1)), 86400),
 								status = 0
 							)) as downtime_seconds,
 							avg(total_ms) as avg_response_time,
@@ -91,8 +107,8 @@ export const UptimeBuilders = {
 							FROM ${UPTIME_TABLE}
 							WHERE
 								site_id = {websiteId:String}
-								AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
-								AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
+								AND timestamp >= ${UPTIME_RANGE_START}
+								AND timestamp <= ${UPTIME_RANGE_END}
 						)
 						GROUP BY date
 					)
@@ -101,6 +117,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -142,6 +159,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, limit, offset, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},
@@ -151,19 +169,15 @@ export const UptimeBuilders = {
 			description: "Response time trends from uptime monitoring.",
 			category: "Uptime",
 			tags: ["uptime", "response-time", "trends"],
+			supports_granularity: ["hour", "day", "week", "month"],
 		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			const tz = ctx.timezone || "UTC";
-			const granularity = ctx.granularity ?? "hour";
-			const timeGroup =
-				granularity === "minute"
-					? "toStartOfMinute(timestamp)"
-					: granularity === "hour"
-						? "toStartOfHour(timestamp)"
-						: granularity === "day"
-							? "toDate(toTimeZone(timestamp, {timezone:String}))"
-							: "toStartOfHour(timestamp)";
+			const timeGroup = uptimeTimeGroup(
+				normalizeGranularity(ctx.granularity) ?? "hour",
+				"timestamp"
+			);
 
 			return {
 				sql: `
@@ -190,6 +204,7 @@ export const UptimeBuilders = {
 				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
+		commonFilters: false,
 		timeField: "timestamp",
 		customizable: true,
 	},

@@ -1,19 +1,26 @@
+import type {
+	AgentComponentType,
+	ComponentSpec,
+} from "@databuddy/ai/agent/render";
 import type { Button, KnownBlock } from "@slack/web-api";
 
-const COMPONENT_START = '{"type":"';
-
 const DASHBOARD_BASE_URL = "https://app.databuddy.cc";
+const DASHBOARD_ORIGIN = new URL(DASHBOARD_BASE_URL).origin;
+const LINKABLE_HOSTS = new Set([
+	new URL(DASHBOARD_BASE_URL).hostname,
+	"databuddy.cc",
+	"www.databuddy.cc",
+]);
+const HTTP_URL = /https?:\/\/[^\s<>|`]+/gi;
+const URL_TRAILING_PUNCTUATION = /[.,;:!?)\]}'"*_~]+$/;
+const URL_SCHEME_AND_SUFFIX = /^https?:\/\/|[?#].*$/gi;
+const SLACK_SYNTAX_OPENER = /<(?=[!@#`]|https?:)/gi;
 const DATA_TABLE_MAX_COLUMNS = 20;
 const DATA_TABLE_MAX_ROWS = 100;
 const MAX_ACTION_BUTTONS = 5;
 const DRILLDOWN_PROMPT_MAX = 1900;
 
 export const DRILLDOWN_ACTION_ID = "agent_drilldown";
-
-export interface ComponentSpec {
-	type: string;
-	[key: string]: unknown;
-}
 
 export type Block =
 	| KnownBlock
@@ -32,11 +39,6 @@ export type Block =
 						axis_config: { categories: string[] };
 				  };
 	  };
-
-interface SplitResult {
-	components: ComponentSpec[];
-	text: string;
-}
 
 type Row = unknown[];
 
@@ -72,12 +74,56 @@ function toTableCell(value: unknown): TableCell {
 	return { type: "raw_text", text: text.length > 0 ? text : "-" };
 }
 
+function escapeMrkdwn(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+function neutralizeUrls(value: string): string {
+	return value.replace(HTTP_URL, (match) => {
+		const trailing = URL_TRAILING_PUNCTUATION.exec(match)?.[0] ?? "";
+		const href = match.slice(0, match.length - trailing.length);
+		const url = URL.parse(href);
+		if (
+			url &&
+			LINKABLE_HOSTS.has(url.hostname) &&
+			href.split("://").length === 2
+		) {
+			return `${url.href}${trailing}`;
+		}
+		const label = url
+			? hostAndPath(url)
+			: href.replace(URL_SCHEME_AND_SUFFIX, "");
+		return label ? `\`${label}\`${trailing}` : match;
+	});
+}
+
+export function safeMrkdwn(value: string): string {
+	return escapeMrkdwn(neutralizeUrls(value));
+}
+
+export function safeMarkdown(value: string): string {
+	return neutralizeUrls(value).replace(SLACK_SYNTAX_OPENER, "");
+}
+
+function hostAndPath(url: URL): string {
+	return url.pathname === "/" ? url.host : `${url.host}${url.pathname}`;
+}
+
 function section(text: string): Block {
-	return { type: "section", text: { type: "mrkdwn", text } };
+	return {
+		type: "section",
+		text: { type: "mrkdwn", text: safeMrkdwn(text) },
+	};
 }
 
 function context(text: string): Block {
-	return { type: "context", elements: [{ type: "mrkdwn", text }] };
+	return {
+		type: "context",
+		elements: [{ type: "mrkdwn", text: safeMrkdwn(text) }],
+	};
 }
 
 function dataTable(
@@ -111,14 +157,12 @@ function dataTable(
 	};
 }
 
-function absoluteUrl(href: string): string | null {
-	if (href.startsWith("http://") || href.startsWith("https://")) {
-		return href;
-	}
-	if (href.startsWith("/")) {
-		return `${DASHBOARD_BASE_URL}${href}`;
-	}
-	return null;
+function dashboardUrl(href: string): string | null {
+	const url = URL.parse(
+		href,
+		href.startsWith("/") ? DASHBOARD_BASE_URL : undefined
+	);
+	return url?.origin === DASHBOARD_ORIGIN ? url.href : null;
 }
 
 function title(spec: ComponentSpec, fallback: string): string {
@@ -299,7 +343,7 @@ function renderDashboardActions(spec: ComponentSpec): Block[] {
 	const elements = asArray(spec.actions)
 		.map((item): Button | null => {
 			const action = item as Record<string, unknown>;
-			const url = absoluteUrl(asString(action.href));
+			const url = dashboardUrl(asString(action.href));
 			const label = asString(action.label).trim();
 			if (!(url && label)) {
 				return null;
@@ -413,7 +457,9 @@ function renderAnnotationPreview(spec: ComponentSpec): Block[] {
 	);
 }
 
-const RENDERERS: Record<string, (spec: ComponentSpec) => Block[]> = {
+type Renderer = (spec: ComponentSpec) => Block[];
+
+const RENDERERS: Record<string, Renderer> = {
 	"data-table": renderDataTable,
 	"area-chart": renderTimeSeries,
 	"line-chart": renderTimeSeries,
@@ -434,143 +480,7 @@ const RENDERERS: Record<string, (spec: ComponentSpec) => Block[]> = {
 	"funnel-preview": renderFunnelPreview,
 	"goal-preview": renderGoalPreview,
 	"annotation-preview": renderAnnotationPreview,
-};
-
-const KNOWN_COMPONENT_TYPES = new Set(Object.keys(RENDERERS));
-
-function isPrefixOfMarker(value: string): boolean {
-	return (
-		COMPONENT_START.startsWith(value) && value.length < COMPONENT_START.length
-	);
-}
-
-function findCloseBrace(text: string, start: number): number {
-	let depth = 0;
-	let inString = false;
-	let escaped = false;
-	for (let i = start; i < text.length; i++) {
-		const ch = text[i];
-		if (escaped) {
-			escaped = false;
-			continue;
-		}
-		if (ch === "\\") {
-			escaped = true;
-			continue;
-		}
-		if (ch === '"') {
-			inString = !inString;
-			continue;
-		}
-		if (inString) {
-			continue;
-		}
-		if (ch === "{") {
-			depth++;
-		} else if (ch === "}") {
-			depth--;
-			if (depth === 0) {
-				return i;
-			}
-		}
-	}
-	return -1;
-}
-
-function parseComponent(json: string): ComponentSpec | null {
-	try {
-		const parsed = JSON.parse(json) as unknown;
-		if (
-			parsed &&
-			typeof parsed === "object" &&
-			!Array.isArray(parsed) &&
-			typeof (parsed as Record<string, unknown>).type === "string" &&
-			KNOWN_COMPONENT_TYPES.has(
-				(parsed as Record<string, unknown>).type as string
-			)
-		) {
-			return parsed as ComponentSpec;
-		}
-	} catch {}
-	return null;
-}
-
-export class ComponentStreamSplitter {
-	#buffer = "";
-	readonly #components: ComponentSpec[] = [];
-
-	push(chunk: string): string {
-		this.#buffer += chunk;
-		return this.#drain(false);
-	}
-
-	flush(): SplitResult {
-		const text = this.#drain(true) + this.#buffer;
-		this.#buffer = "";
-		return { components: [...this.#components], text };
-	}
-
-	#drain(final: boolean): string {
-		let emitted = "";
-		while (this.#buffer.length > 0) {
-			const markerIndex = this.#buffer.indexOf(COMPONENT_START);
-
-			if (markerIndex === -1) {
-				if (final) {
-					break;
-				}
-				const held = this.#heldPartialMarkerIndex();
-				emitted += this.#buffer.slice(0, held);
-				this.#buffer = this.#buffer.slice(held);
-				return emitted;
-			}
-
-			emitted += this.#buffer.slice(0, markerIndex);
-			const rest = this.#buffer.slice(markerIndex);
-			const closeIndex = findCloseBrace(rest, 0);
-
-			if (closeIndex === -1) {
-				if (final) {
-					break;
-				}
-				this.#buffer = rest;
-				return emitted;
-			}
-
-			const json = rest.slice(0, closeIndex + 1);
-			const component = parseComponent(json);
-			if (component) {
-				this.#components.push(component);
-				this.#buffer = rest.slice(closeIndex + 1);
-			} else {
-				emitted += rest.slice(0, 1);
-				this.#buffer = rest.slice(1);
-			}
-		}
-
-		if (final) {
-			return emitted;
-		}
-		this.#buffer = "";
-		return emitted;
-	}
-
-	#heldPartialMarkerIndex(): number {
-		const lastBrace = this.#buffer.lastIndexOf("{");
-		if (lastBrace === -1) {
-			return this.#buffer.length;
-		}
-		const tail = this.#buffer.slice(lastBrace);
-		return isPrefixOfMarker(tail) ? lastBrace : this.#buffer.length;
-	}
-}
-
-export function splitAgentText(text: string): SplitResult {
-	const splitter = new ComponentStreamSplitter();
-	const head = splitter.push(text);
-	const rest = splitter.flush();
-	return { components: rest.components, text: head + rest.text };
-}
+} satisfies Record<AgentComponentType, Renderer>;
 
 export function componentToBlocks(spec: ComponentSpec, charts = true): Block[] {
 	const chart = charts ? nativeChart(spec) : null;

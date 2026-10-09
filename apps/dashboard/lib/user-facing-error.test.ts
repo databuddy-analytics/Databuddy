@@ -20,6 +20,14 @@ describe("getUserFacingErrorMessage", () => {
 		).toBe(DEFAULT_USER_ERROR_MESSAGE);
 	});
 
+	it("explains browser network failures as a connection problem", () => {
+		for (const message of ["Failed to fetch", "Load failed"]) {
+			expect(getUserFacingErrorMessage(new TypeError(message))).toBe(
+				"We could not reach Databuddy. Check your connection and try again."
+			);
+		}
+	});
+
 	it("shows the server-authored message for plan limit errors", () => {
 		expect(
 			getUserFacingErrorMessage({

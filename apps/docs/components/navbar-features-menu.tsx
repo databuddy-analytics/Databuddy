@@ -29,14 +29,14 @@ interface FeatureItem {
 
 const FEATURE_ITEMS: FeatureItem[] = [
 	{
-		title: "Uptime Monitoring",
+		title: "Uptime monitoring",
 		description: "Know the minute your site goes down",
 		href: "/uptime",
 		icon: HeartbeatIcon,
 		trackId: "uptime",
 	},
 	{
-		title: "Error Tracking",
+		title: "Error tracking",
 		description: "See which bugs hit the most people",
 		href: "/errors",
 		icon: BugIcon,
@@ -50,14 +50,14 @@ const FEATURE_ITEMS: FeatureItem[] = [
 		trackId: "vitals",
 	},
 	{
-		title: "Feature Flags",
+		title: "Feature flags",
 		description: "Release to a few people first",
 		href: "/feature-flags",
 		icon: FlagIcon,
 		trackId: "flags",
 	},
 	{
-		title: "Short Links",
+		title: "Short links",
 		description: "See where every click came from",
 		href: "/links",
 		icon: LinkIcon,

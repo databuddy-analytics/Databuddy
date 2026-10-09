@@ -188,7 +188,9 @@ export const autocompleteRouter = {
 						logger.error(
 							`Failed to fetch autocomplete data for website ${input.websiteId}: ${error instanceof Error ? error.message : String(error)}`
 						);
-						throw rpcError.internal("Failed to fetch autocomplete data");
+						throw rpcError.internal(
+							"Suggestions could not be loaded. Try again in a moment."
+						);
 					}
 				},
 			});

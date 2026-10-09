@@ -11,6 +11,7 @@ import {
 	FlagIcon,
 	GearIcon,
 	GaugeIcon,
+	GitBranchIcon,
 	GlobeSimpleIcon,
 	Grid2x2Icon,
 	IdBadgeIcon,
@@ -59,7 +60,7 @@ export const contents: SidebarSection[] = [
 				icon: FileTextIcon,
 			},
 			{
-				title: "Getting Started",
+				title: "Getting started",
 				href: "/docs/getting-started",
 				icon: MediaPlayIcon,
 			},
@@ -100,7 +101,7 @@ export const contents: SidebarSection[] = [
 				],
 			},
 			{
-				title: "CMS & Builders",
+				title: "CMS and builders",
 				icon: PlugIcon,
 				children: [
 					{
@@ -124,7 +125,7 @@ export const contents: SidebarSection[] = [
 						href: "/docs/Integrations/framer",
 					},
 					{
-						title: "Bubble.io",
+						title: "Bubble",
 						href: "/docs/Integrations/bubble",
 					},
 					{
@@ -134,7 +135,7 @@ export const contents: SidebarSection[] = [
 				],
 			},
 			{
-				title: "Stores & Scheduling",
+				title: "Stores and scheduling",
 				icon: CalendarIcon,
 				children: [
 					{
@@ -153,7 +154,7 @@ export const contents: SidebarSection[] = [
 				icon: CreditCardIcon,
 			},
 			{
-				title: "Static Sites & Tools",
+				title: "Static sites and tools",
 				icon: GlobeSimpleIcon,
 				children: [
 					{
@@ -171,14 +172,14 @@ export const contents: SidebarSection[] = [
 				],
 			},
 			{
-				title: "All Integrations",
+				title: "All integrations",
 				href: "/docs/Integrations",
 				icon: Grid2x2Icon,
 			},
 		],
 	},
 	{
-		title: "SDK & API",
+		title: "SDK and API",
 		Icon: CodeIcon,
 		list: [
 			{
@@ -196,7 +197,7 @@ export const contents: SidebarSection[] = [
 				icon: GearIcon,
 			},
 			{
-				title: "Identify Users",
+				title: "Identify users",
 				href: "/docs/sdk/identify-users",
 				icon: IdBadgeIcon,
 			},
@@ -205,7 +206,7 @@ export const contents: SidebarSection[] = [
 				icon: GlobeSimpleIcon,
 				children: [
 					{
-						title: "React / Next.js",
+						title: "React SDK",
 						href: "/docs/sdk/react",
 					},
 					{
@@ -233,30 +234,34 @@ export const contents: SidebarSection[] = [
 				],
 			},
 			{
-				title: "Feature Flags",
+				title: "Feature flags",
 				icon: FlagIcon,
 				children: [
 					{
-						title: "Client Flags",
+						title: "Client flags",
 						href: "/docs/sdk/feature-flags",
 					},
 					{
-						title: "Server Flags",
+						title: "Server flags",
 						href: "/docs/sdk/server-flags",
 					},
 				],
 			},
 			{
-				title: "SDK Utilities",
+				title: "SDK utilities",
 				icon: WrenchIcon,
 				children: [
 					{
-						title: "Tracker Helpers",
+						title: "Tracker helpers",
 						href: "/docs/sdk/tracker",
 					},
 					{
-						title: "AI Agents",
+						title: "AI agents",
 						href: "/docs/sdk/ai-agents",
+					},
+					{
+						title: "MCP server analytics",
+						href: "/docs/sdk/mcp",
 					},
 					{
 						title: "DevTools",
@@ -269,11 +274,11 @@ export const contents: SidebarSection[] = [
 				group: true,
 			},
 			{
-				title: "API Reference",
+				title: "API reference",
 				icon: StackIcon,
 				children: [
 					{
-						title: "API Playground",
+						title: "API playground",
 						href: "https://api.databuddy.cc/",
 						icon: ArrowSquareOutIcon,
 					},
@@ -286,35 +291,50 @@ export const contents: SidebarSection[] = [
 						href: "/docs/api/authentication",
 					},
 					{
-						title: "MCP Server",
+						title: "Databuddy MCP server",
 						href: "/docs/api/mcp",
 						isNew: true,
 					},
 					{
-						title: "API Keys",
+						title: "API keys",
 						href: "/docs/api-keys",
 					},
 					{
-						title: "Analytics Queries",
+						title: "Analytics queries",
 						href: "/docs/api/query",
 					},
 					{
-						title: "Event Tracking",
+						title: "Event tracking",
 						href: "/docs/api/events",
 					},
 					{
-						title: "Link Analytics",
+						title: "Link analytics",
 						href: "/docs/api/links",
 					},
 					{
-						title: "Error Handling",
+						title: "Error handling",
 						href: "/docs/api/errors",
 					},
 					{
-						title: "Rate Limits",
+						title: "Rate limits",
 						href: "/docs/api/rate-limits",
 					},
 				],
+			},
+			{
+				title: "Infrastructure as code",
+				group: true,
+			},
+			{
+				title: "Overview",
+				href: "/docs/infrastructure-as-code",
+				icon: GitBranchIcon,
+			},
+			{
+				title: "Pulumi",
+				href: "/docs/infrastructure-as-code/pulumi",
+				icon: BracketsSquareIcon,
+				isNew: true,
 			},
 		],
 	},
@@ -327,23 +347,23 @@ export const contents: SidebarSection[] = [
 				href: "/docs/hooks",
 			},
 			{
-				title: "Toast Tracking",
+				title: "Toast tracking",
 				href: "/docs/hooks/toast-tracking",
 			},
 			{
-				title: "Form Tracking",
+				title: "Form tracking",
 				href: "/docs/hooks/form-tracking",
 			},
 			{
-				title: "Modal Tracking",
+				title: "Modal tracking",
 				href: "/docs/hooks/modal-tracking",
 			},
 			{
-				title: "Feature Usage",
+				title: "Feature usage",
 				href: "/docs/hooks/feature-usage",
 			},
 			{
-				title: "Feedback Tracking",
+				title: "Feedback tracking",
 				href: "/docs/hooks/feedback-tracking",
 			},
 		],
@@ -374,11 +394,11 @@ export const contents: SidebarSection[] = [
 				children: [
 					{ title: "Overview", href: "/docs/privacy" },
 					{
-						title: "Cookieless Analytics",
+						title: "Cookieless analytics",
 						href: "/docs/privacy/cookieless-analytics-guide",
 					},
 					{
-						title: "Event Scanner Data",
+						title: "Event scanner data",
 						href: "/docs/privacy/event-scanner",
 					},
 				],
@@ -389,14 +409,18 @@ export const contents: SidebarSection[] = [
 				children: [
 					{ title: "Overview", href: "/docs/compliance" },
 					{
-						title: "GDPR Compliance",
+						title: "GDPR compliance",
 						href: "/docs/compliance/gdpr-compliance-guide",
 					},
 				],
 			},
-			{ title: "Uptime", href: "/docs/uptime", icon: GlobeSimpleIcon },
 			{
-				title: "Security Guide",
+				title: "Uptime monitoring",
+				href: "/docs/uptime",
+				icon: GlobeSimpleIcon,
+			},
+			{
+				title: "Security guide",
 				href: "/docs/security",
 				icon: LockIcon,
 			},

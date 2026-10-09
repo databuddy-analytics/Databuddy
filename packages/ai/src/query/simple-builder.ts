@@ -16,7 +16,6 @@ import {
 import type {
 	CompiledQuery,
 	ConfigField,
-	CTEDefinition,
 	CustomSqlContext,
 	Filter,
 	Granularity,
@@ -52,7 +51,6 @@ const SIMPLE_FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_.]*$/;
 // Filters that are always allowed regardless of per-builder allowedFilters
 const GLOBAL_ALLOWED_FILTERS = new Set([
 	"path",
-	"query_string",
 	"country",
 	"region",
 	"city",
@@ -86,34 +84,6 @@ export function allowedFilterFields(config: SimpleQueryConfig): string[] {
 	];
 }
 
-const ALLOWED_GROUPBY_FIELDS = new Set([
-	"country",
-	"region",
-	"city",
-	"timezone",
-	"language",
-	"browser_name",
-	"browser_version",
-	"os_name",
-	"os_version",
-	"viewport_size",
-	"device_type",
-	"path",
-	"date",
-	"name",
-	"referrer",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-	"utm_term",
-	"utm_content",
-	"source",
-	"message",
-	"error_type",
-	"duration_range",
-	"depth_range",
-]);
-
 const ALLOWED_ORDERBY_FIELDS = new Set([
 	"visitors",
 	"sessions",
@@ -132,11 +102,9 @@ const ALLOWED_ORDERBY_FIELDS = new Set([
 	"unique_users",
 ]);
 
-const SQL_EXPRESSIONS = {
-	normalizedPath: Expressions.path.normalized,
-	normalizedReferrer: Expressions.referrer.normalized,
-	queryString: "queryString(url)",
-};
+export function isOrderByFieldAllowed(field: string): boolean {
+	return ALLOWED_ORDERBY_FIELDS.has(field);
+}
 
 const REFERRER_MAPPINGS: Record<string, string> = {
 	direct: "direct",
@@ -164,7 +132,7 @@ const REFERRER_MAPPINGS: Record<string, string> = {
 };
 
 const DATE_PARAM_NAMES = new Set(["from", "to", "startDate", "endDate"]);
-const DATE_PARAM_PATTERN = "from|to|startDate|endDate";
+const DATE_PARAM_PATTERN = [...DATE_PARAM_NAMES].join("|");
 
 const END_OF_DAY_WITH_TZ_REGEX = new RegExp(
 	`parseDateTimeBestEffort\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\), \\{timezone:String\\}\\)`,
@@ -213,9 +181,7 @@ function normalizeReferrerValue(value: string, forLikeSearch = false): string {
 	const mapped = REFERRER_MAPPINGS[lower];
 
 	if (mapped) {
-		return forLikeSearch && lower !== "direct"
-			? lower.replace("https://", "")
-			: mapped;
+		return forLikeSearch ? lower : mapped;
 	}
 	if (value.startsWith("http://") || value.startsWith("https://")) {
 		return value;
@@ -237,46 +203,69 @@ function listAllowed(values: Iterable<string>): string {
 	return Array.from(values).sort().join(", ");
 }
 
-function validateGroupByField(field: string): void {
-	if (!ALLOWED_GROUPBY_FIELDS.has(field)) {
-		throw new Error(
-			`Grouping by '${field}' is not permitted. Allowed groupBy fields: ${listAllowed(ALLOWED_GROUPBY_FIELDS)}.`
-		);
-	}
-}
-
 const ORDER_BY_REGEX = /^(\w+)(?:\s+(ASC|DESC))?$/i;
 
-function normalizeOrderBy(orderBy: string): string {
+export function normalizeOrderBy(
+	orderBy: string,
+	allowedFields: ReadonlySet<string> = ALLOWED_ORDERBY_FIELDS
+): string {
 	const match = orderBy.trim().match(ORDER_BY_REGEX);
 	const field = match?.[1];
-	if (!(match && field && ALLOWED_ORDERBY_FIELDS.has(field))) {
+	if (!(match && field && allowedFields.has(field))) {
 		throw new Error(
-			`Ordering by '${orderBy}' is not permitted. Use '<field>' or '<field> ASC|DESC' where field is one of: ${listAllowed(ALLOWED_ORDERBY_FIELDS)}.`
+			`Ordering by '${orderBy}' is not permitted. Use '<field>' or '<field> ASC|DESC' where field is one of: ${listAllowed(allowedFields)}.`
 		);
 	}
 	const direction = match[2]?.toUpperCase() ?? "DESC";
 	return `${field} ${direction}`;
 }
 
-function buildDeviceTypeSQL(
-	value: string,
-	isNegative: boolean,
-	key: string
+const DESKTOP_DEVICE_TYPE = "desktop";
+
+function buildDeviceTypeFilter(
+	filter: Filter,
+	key: string,
+	fieldExpr: string
 ): FilterResult {
-	const lower = value.toLowerCase();
-	if (lower === "desktop") {
-		const clause = `(device_type = '' OR lower(device_type) = {${key}:String})`;
+	const normalizedExpr = `lower(ifNull(${fieldExpr}, ''))`;
+	const isNegative =
+		filter.op === "ne" ||
+		filter.op === "not_in" ||
+		filter.op === "not_contains";
+
+	if (
+		filter.op === "contains" ||
+		filter.op === "not_contains" ||
+		filter.op === "starts_with"
+	) {
+		const value = String(filter.value).toLowerCase();
+		const matchesDesktop =
+			filter.op === "starts_with"
+				? DESKTOP_DEVICE_TYPE.startsWith(value)
+				: DESKTOP_DEVICE_TYPE.includes(value);
+		const pattern =
+			filter.op === "starts_with"
+				? `${escapeLikePattern(value)}%`
+				: `%${escapeLikePattern(value)}%`;
+		const likeClause = `${normalizedExpr} LIKE {${key}:String}`;
+		const clause = matchesDesktop
+			? `(${normalizedExpr} = '' OR ${likeClause})`
+			: likeClause;
 		return {
 			clause: isNegative ? `NOT ${clause}` : clause,
-			params: { [key]: "desktop" },
+			params: { [key]: pattern },
 		};
 	}
+
+	const values = (
+		Array.isArray(filter.value) ? filter.value : [filter.value]
+	).flatMap((value) => {
+		const lower = String(value).toLowerCase();
+		return lower === DESKTOP_DEVICE_TYPE ? ["", DESKTOP_DEVICE_TYPE] : [lower];
+	});
 	return {
-		clause: isNegative
-			? `lower(device_type) != {${key}:String}`
-			: `lower(device_type) = {${key}:String}`,
-		params: { [key]: lower },
+		clause: `${normalizedExpr} ${isNegative ? "NOT IN" : "IN"} {${key}:Array(String)}`,
+		params: { [key]: values },
 	};
 }
 
@@ -298,25 +287,19 @@ function buildGenericFilter(
 	key: string,
 	operator: string,
 	fieldExpr: string,
-	valueTransform?: (v: string) => string
+	transform: (v: string) => string = (v) => v
 ): FilterResult {
-	const transform = valueTransform || ((v: string) => v);
-
-	if (filter.op === "contains" || filter.op === "not_contains") {
-		const value = transform(String(filter.value));
-		const escaped = escapeLikePattern(value);
+	if (
+		filter.op === "contains" ||
+		filter.op === "not_contains" ||
+		filter.op === "starts_with"
+	) {
+		const escaped = escapeLikePattern(transform(String(filter.value)));
 		return {
 			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `%${escaped}%` },
-		};
-	}
-
-	if (filter.op === "starts_with") {
-		const value = transform(String(filter.value));
-		const escaped = escapeLikePattern(value);
-		return {
-			clause: `${fieldExpr} ${operator} {${key}:String}`,
-			params: { [key]: `${escaped}%` },
+			params: {
+				[key]: filter.op === "starts_with" ? `${escaped}%` : `%${escaped}%`,
+			},
 		};
 	}
 
@@ -372,32 +355,15 @@ export class SimpleQueryBuilder {
 
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
-		const sessionAttributionAlias = options?.sessionAttributionAlias;
-
-		if (sessionAttributionAlias && isSessionAttributionField(filter.field)) {
-			return this.buildSessionAttributionFilter(
-				filter,
-				key,
-				operator,
-				sessionAttributionAlias
-			);
-		}
+		const alias = options?.sessionAttributionAlias;
+		const attributed = alias && isSessionAttributionField(filter.field);
 
 		if (filter.field === "path") {
 			return buildGenericFilter(
 				filter,
 				key,
 				operator,
-				SQL_EXPRESSIONS.normalizedPath
-			);
-		}
-
-		if (filter.field === "query_string") {
-			return buildGenericFilter(
-				filter,
-				key,
-				operator,
-				SQL_EXPRESSIONS.queryString
+				Expressions.path.normalized
 			);
 		}
 
@@ -406,7 +372,12 @@ export class SimpleQueryBuilder {
 				filter,
 				key,
 				operator,
-				SQL_EXPRESSIONS.normalizedReferrer,
+				attributed
+					? Expressions.referrer.normalized.replace(
+							/\breferrer\b/g,
+							`${alias}.session_referrer`
+						)
+					: Expressions.referrer.normalized,
 				(v) =>
 					normalizeReferrerValue(
 						v,
@@ -415,12 +386,21 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === "device_type" && typeof filter.value === "string") {
-			const isNegative =
-				filter.op === "ne" ||
-				filter.op === "not_in" ||
-				filter.op === "not_contains";
-			return buildDeviceTypeSQL(filter.value, isNegative, key);
+		if (filter.field === "device_type") {
+			return buildDeviceTypeFilter(
+				filter,
+				key,
+				attributed ? `${alias}.session_device_type` : "device_type"
+			);
+		}
+
+		if (attributed) {
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				`${alias}.session_${filter.field}`
+			);
 		}
 
 		if (
@@ -435,59 +415,6 @@ export class SimpleQueryBuilder {
 		}
 
 		return buildGenericFilter(filter, key, operator, filter.field);
-	}
-
-	private buildSessionAttributionFilter(
-		filter: Filter,
-		key: string,
-		operator: string,
-		alias: string
-	): FilterResult {
-		if (filter.field === "referrer") {
-			return buildGenericFilter(
-				filter,
-				key,
-				operator,
-				String(SQL_EXPRESSIONS.normalizedReferrer).replace(
-					/\breferrer\b/g,
-					`${alias}.session_referrer`
-				),
-				(v) =>
-					normalizeReferrerValue(
-						v,
-						filter.op === "contains" || filter.op === "not_contains"
-					)
-			);
-		}
-
-		if (filter.field === "device_type" && typeof filter.value === "string") {
-			const fieldExpr = `${alias}.session_device_type`;
-			const isNegative =
-				filter.op === "ne" ||
-				filter.op === "not_in" ||
-				filter.op === "not_contains";
-			const lower = filter.value.toLowerCase();
-			if (lower === "desktop") {
-				const clause = `(${fieldExpr} = '' OR lower(${fieldExpr}) = {${key}:String})`;
-				return {
-					clause: isNegative ? `NOT ${clause}` : clause,
-					params: { [key]: "desktop" },
-				};
-			}
-			return {
-				clause: isNegative
-					? `lower(${fieldExpr}) != {${key}:String}`
-					: `lower(${fieldExpr}) = {${key}:String}`,
-				params: { [key]: lower },
-			};
-		}
-
-		return buildGenericFilter(
-			filter,
-			key,
-			operator,
-			`${alias}.session_${filter.field}`
-		);
 	}
 
 	private getIdField(): string {
@@ -506,15 +433,6 @@ export class SimpleQueryBuilder {
 	}
 
 	private validateRequiredFilters(): void {
-		if (
-			!(
-				this.config.requiredFilters?.length ||
-				this.config.requiredAnyFilter?.length
-			)
-		) {
-			return;
-		}
-
 		const requestFilters = this.request.filters ?? [];
 		const missingFilters = (this.config.requiredFilters ?? []).filter(
 			(requiredField) =>
@@ -546,6 +464,17 @@ export class SimpleQueryBuilder {
 		}
 	}
 
+	private validateRequestGroupBy(): void {
+		const fixedGroupBy = this.config.groupBy ?? [];
+		for (const field of this.request.groupBy ?? []) {
+			if (!fixedGroupBy.includes(field)) {
+				throw new Error(
+					`Grouping by '${field}' is not permitted for ${this.request.type}. Each query type returns a fixed breakdown; omit groupBy and choose a query type that already breaks down by ${field}.`
+				);
+			}
+		}
+	}
+
 	private needsSessionAttribution(): boolean {
 		if (!this.config.plugins?.sessionAttribution) {
 			return false;
@@ -555,12 +484,6 @@ export class SimpleQueryBuilder {
 			this.request.filters?.some((filter) =>
 				isSessionAttributionField(filter.field)
 			)
-		) {
-			return true;
-		}
-
-		if (
-			this.request.groupBy?.some((field) => isSessionAttributionField(field))
 		) {
 			return true;
 		}
@@ -597,8 +520,8 @@ export class SimpleQueryBuilder {
 		)`;
 	}
 
-	private generateSessionAttributionJoin(alias: string): string {
-		return `INNER JOIN session_attribution sa ON ${alias}.session_id = sa.session_id`;
+	private generateSessionAttributionJoin(): string {
+		return "INNER JOIN session_attribution sa ON e.session_id = sa.session_id";
 	}
 
 	private replaceDomainPlaceholders(sql: string): string {
@@ -617,9 +540,9 @@ export class SimpleQueryBuilder {
 
 	private finalizeCompiledQuery(
 		sql: string,
-		params: Record<string, Filter["value"]>
+		params: Record<string, unknown>
 	): CompiledQuery {
-		const finalParams: Record<string, Filter["value"]> = { ...params };
+		const finalParams: Record<string, unknown> = { ...params };
 
 		for (const [key, value] of Object.entries(finalParams)) {
 			if (DATE_PARAM_NAMES.has(key) && typeof value === "string") {
@@ -696,14 +619,9 @@ export class SimpleQueryBuilder {
 
 	compile(preparedKeys?: Record<string, string[]>): CompiledQuery {
 		for (const filter of this.request.filters ?? []) {
-			if (
-				filter.target &&
-				(this.config.customSql ||
-					filter.having ||
-					!this.config.with?.some((cte) => cte.name === filter.target))
-			) {
+			if (filter.target) {
 				throw new Error(
-					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows; target is only supported for a configured CTE.`
+					`Filter target '${filter.target}' is not permitted for ${this.request.type}. Omit target to filter the selected rows.`
 				);
 			}
 			if (filter.having && this.config.customSql) {
@@ -713,6 +631,7 @@ export class SimpleQueryBuilder {
 			}
 		}
 		this.validateRequiredFilters();
+		this.validateRequestGroupBy();
 
 		if (this.config.customSql) {
 			const whereClauseParams: Record<string, Filter["value"]> = {};
@@ -728,15 +647,13 @@ export class SimpleQueryBuilder {
 
 			const helpers = needsAttribution
 				? {
-						sessionAttributionCTE: (timeField = "time") =>
-							this.generateSessionAttributionCTE(
-								timeField,
-								"analytics.events",
-								"startDate",
-								"endDate"
-							),
-						sessionAttributionJoin: (alias = "e") =>
-							this.generateSessionAttributionJoin(alias),
+						sessionAttributionCTE: this.generateSessionAttributionCTE(
+							"time",
+							"analytics.events",
+							"startDate",
+							"endDate"
+						),
+						sessionAttributionJoin: this.generateSessionAttributionJoin(),
 					}
 				: undefined;
 
@@ -752,11 +669,10 @@ export class SimpleQueryBuilder {
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
 			}
-			const params = result.params as Record<string, Filter["value"]>;
 			if (preparedKeys) {
-				Object.assign(params, preparedKeys);
+				Object.assign(result.params, preparedKeys);
 			}
-			return this.finalizeCompiledQuery(result.sql, params);
+			return this.finalizeCompiledQuery(result.sql, result.params);
 		}
 
 		return this.buildStandardQuery();
@@ -770,13 +686,10 @@ export class SimpleQueryBuilder {
 		};
 
 		if (this.config.timeBucket?.timezone && this.request.timezone) {
-			params.timezone = this.request.timezone as string;
+			params.timezone = this.request.timezone;
 		}
 
-		const needsAttribution = this.needsSessionAttribution();
-		const hasCTEs = this.config.with?.length || needsAttribution;
-
-		if (needsAttribution && !this.config.with?.length) {
+		if (this.needsSessionAttribution()) {
 			return this.buildSessionAttributionQuery(params);
 		}
 
@@ -787,24 +700,13 @@ export class SimpleQueryBuilder {
 		fields.push(this.compileFields(this.config.fields));
 		const fieldsStr = fields.filter(Boolean).join(", ");
 
-		const ctesStr = hasCTEs ? this.compileCTEs(params) : "";
-		const fromSource = this.config.from || this.config.table;
-
-		let body = `SELECT ${fieldsStr} FROM ${fromSource}`;
-
-		if (!this.config.from) {
-			const whereClause = this.buildWhereClause(params);
-			body += ` WHERE ${whereClause.join(" AND ")}`;
-		} else if (this.config.where?.length) {
-			body += ` WHERE ${this.config.where.join(" AND ")}`;
-		}
+		let body = `SELECT ${fieldsStr} FROM ${this.config.table} WHERE ${this.buildWhereClause(params).join(" AND ")}`;
 
 		body = this.replaceDomainPlaceholders(body);
 		body += this.buildGroupByClause();
 		body += this.buildHavingClause(params);
 
-		const ctePrefix = ctesStr ? `${ctesStr}\n` : "";
-		let sql = ctePrefix + this.wrapPercentage(body);
+		let sql = this.wrapPercentage(body);
 		sql += this.buildOrderByClause();
 		sql += this.buildLimitClause();
 		sql += this.buildOffsetClause();
@@ -817,9 +719,8 @@ export class SimpleQueryBuilder {
 		if (!pct) {
 			return innerSql;
 		}
-		const alias = pct.as ?? "percentage";
-		const projection = this.getPercentageProjection(alias);
-		return `SELECT ${projection}, ROUND(${pct.of} / sum(${pct.of}) OVER () * 100, 2) AS ${alias} FROM (${innerSql})`;
+		const projection = this.getPercentageProjection("percentage");
+		return `SELECT ${projection}, ROUND(${pct.of} / sum(${pct.of}) OVER () * 100, 2) AS percentage FROM (${innerSql})`;
 	}
 
 	private getPercentageProjection(percentageAlias: string): string {
@@ -876,94 +777,6 @@ export class SimpleQueryBuilder {
 		return fields.map((f) => compileConfigField(f)).join(", ");
 	}
 
-	private compileCTE(
-		cte: CTEDefinition,
-		params: Record<string, Filter["value"]>
-	): string {
-		const source = cte.from || cte.table;
-		if (!source) {
-			throw new Error(
-				`CTE '${cte.name}' must have either 'table' or 'from' defined`
-			);
-		}
-
-		const fields = this.compileFields(cte.fields);
-		const parts = [`SELECT ${fields}`, `FROM ${source}`];
-		const whereConditions: string[] = [];
-
-		if (cte.where?.length) {
-			whereConditions.push(...cte.where);
-		}
-
-		if (cte.table && !this.config.skipDateFilter) {
-			const timeField = this.config.timeField || "time";
-			const idField = this.getIdField();
-			whereConditions.push(this.buildIdCondition(idField));
-			whereConditions.push(`${timeField} >= toDateTime({from:String})`);
-			whereConditions.push(
-				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
-			);
-		}
-
-		const cteFilters = this.request.filters?.filter(
-			(f) => f.target === cte.name && !f.having
-		);
-		if (cteFilters?.length) {
-			const baseIdx = Object.keys(params).length;
-			for (let i = 0; i < cteFilters.length; i++) {
-				const filter = cteFilters[i];
-				if (!filter) {
-					continue;
-				}
-				const { clause, params: filterParams } = this.buildFilter(
-					filter,
-					baseIdx + i
-				);
-				whereConditions.push(clause);
-				Object.assign(params, filterParams);
-			}
-		}
-
-		if (whereConditions.length > 0) {
-			parts.push(`WHERE ${whereConditions.join(" AND ")}`);
-		}
-
-		if (cte.groupBy?.length) {
-			parts.push(`GROUP BY ${cte.groupBy.join(", ")}`);
-		}
-
-		if (cte.orderBy) {
-			parts.push(`ORDER BY ${cte.orderBy}`);
-		}
-
-		if (cte.limit) {
-			parts.push(`LIMIT ${cte.limit}`);
-		}
-
-		return `${cte.name} AS (\n\t\t${parts.join("\n\t\t")}\n\t)`;
-	}
-
-	private compileCTEs(params: Record<string, Filter["value"]>): string {
-		const ctes: string[] = [];
-
-		const needsAttribution = this.needsSessionAttribution();
-		if (needsAttribution) {
-			const timeField = this.config.timeField || "time";
-			const table = this.config.table || "analytics.events";
-			ctes.push(
-				this.generateSessionAttributionCTE(timeField, table, "from", "to")
-			);
-		}
-
-		if (this.config.with?.length) {
-			for (const cte of this.config.with) {
-				ctes.push(this.compileCTE(cte, params));
-			}
-		}
-
-		return ctes.length > 0 ? `WITH ${ctes.join(",\n\t")}` : "";
-	}
-
 	private getGranularity(): Granularity | undefined {
 		const requestGranularity = normalizeGranularity(this.request.timeUnit);
 		return requestGranularity || this.config.timeBucket?.granularity;
@@ -979,10 +792,7 @@ export class SimpleQueryBuilder {
 		const alias = config.alias || "date";
 		const tz = config.timezone ? this.request.timezone : undefined;
 
-		if (
-			config.format !== false &&
-			(granularity === "hour" || granularity === "minute")
-		) {
+		if (granularity === "hour" || granularity === "minute") {
 			return `${time.bucketFormatted(granularity, field, tz)} as ${alias}`;
 		}
 
@@ -1001,11 +811,6 @@ export class SimpleQueryBuilder {
 
 	private buildHavingClause(params: Record<string, Filter["value"]>): string {
 		const conditions: string[] = [];
-
-		if (this.config.having?.length) {
-			conditions.push(...this.config.having);
-		}
-
 		const havingFilters = this.request.filters?.filter((f) => f.having);
 		if (havingFilters?.length) {
 			const startIdx = Object.keys(params).length;
@@ -1054,7 +859,7 @@ export class SimpleQueryBuilder {
 					${sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t\t")}
 				)
 			FROM ${table} e
-			${this.generateSessionAttributionJoin("e")}
+			${this.generateSessionAttributionJoin()}
 			WHERE ${this.buildIdCondition(`e.${idField}`)}
 				AND e.${timeField} >= toDateTime({from:String})
 				AND e.${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))
@@ -1086,15 +891,10 @@ export class SimpleQueryBuilder {
 
 		if (!this.config.skipDateFilter) {
 			const timeField = this.config.timeField || "time";
-			whereClause.push(`${timeField} >= toDateTime({from:String})`);
-
-			if (this.config.appendEndOfDayToTo === false) {
-				whereClause.push(`${timeField} <= toDateTime({to:String})`);
-			} else {
-				whereClause.push(
-					`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
-				);
-			}
+			whereClause.push(
+				`${timeField} >= toDateTime({from:String})`,
+				`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
+			);
 		}
 
 		if (this.request.filters) {
@@ -1142,12 +942,7 @@ export class SimpleQueryBuilder {
 			groupByFields.push(timeBucketAlias);
 		}
 
-		if (this.request.groupBy?.length) {
-			for (const f of this.request.groupBy) {
-				validateGroupByField(f);
-			}
-			groupByFields.push(...this.request.groupBy);
-		} else if (this.config.groupBy?.length) {
+		if (this.config.groupBy?.length) {
 			groupByFields.push(...this.config.groupBy);
 		}
 
@@ -1214,17 +1009,15 @@ export class SimpleQueryBuilder {
 		);
 		const resolved = await Promise.all(
 			stages.map(async (stage) => {
-				const rows = await chQuery<Record<string, unknown>>(
+				const { sql, params } = this.finalizeCompiledQuery(
 					stage.sql,
-					stage.params,
-					{
-						abort_signal: abortSignal,
-						clickhouse_settings: getClickHouseQuerySettings(
-							this.config.noCache
-						),
-						label: `${this.request.type}:prepare`,
-					}
+					stage.params
 				);
+				const rows = await chQuery<Record<string, unknown>>(sql, params, {
+					abort_signal: abortSignal,
+					clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+					label: `${this.request.type}:prepare`,
+				});
 				return [
 					stage.as,
 					rows.map((row) => String(row[stage.column] ?? "")),

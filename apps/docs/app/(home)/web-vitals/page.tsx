@@ -16,7 +16,7 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Core Web Vitals Monitoring From Real Users";
+const TITLE = "Core Web Vitals monitoring from real users";
 const DESCRIPTION =
 	"Real user monitoring for LCP, INP, CLS, FCP, and TTFB, with p75 by page, browser, and country against the thresholds Google uses for search. On every plan.";
 

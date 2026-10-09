@@ -212,7 +212,7 @@ describe("native investigation spending limits", () => {
 				enabled: true,
 				overageLimit: 50,
 			})
-		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		).rejects.toMatchObject({ code: "billing_unavailable" });
 		expect(reads).toBe(1);
 		expect(writes).toEqual([]);
 		expect(limits).toEqual(originalLimits);
@@ -226,7 +226,7 @@ describe("native investigation spending limits", () => {
 				enabled: true,
 				overageLimit: 50,
 			})
-		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		).rejects.toMatchObject({ code: "billing_unavailable" });
 		expect(reads).toBe(1);
 		expect(writes).toEqual([]);
 	});
@@ -242,7 +242,7 @@ describe("native investigation spending limits", () => {
 				enabled: true,
 				overageLimit: 50,
 			})
-		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		).rejects.toMatchObject({ code: "billing_unavailable" });
 		expect(reads).toBe(1);
 		expect(writes).toHaveLength(1);
 		expect(limits).toEqual(originalLimits);

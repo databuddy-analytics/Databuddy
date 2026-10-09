@@ -9,20 +9,20 @@ import {
 import { SciFiCard } from "@/components/scifi-card";
 
 const features = [
-	{ icon: ClockIcon, title: "Quick Response", description: "We respond fast" },
+	{ icon: ClockIcon, title: "Quick response", description: "We respond fast" },
 	{
 		icon: ChatCircleIcon,
-		title: "Personal Support",
+		title: "Personal support",
 		description: "Talk to real humans",
 	},
 	{
 		icon: ShieldCheckIcon,
-		title: "Privacy-First",
+		title: "Privacy-first",
 		description: "Your data is safe",
 	},
 	{
 		icon: EnvelopeIcon,
-		title: "Direct Contact",
+		title: "Direct contact",
 		description: "We're here to help",
 	},
 ] as const;

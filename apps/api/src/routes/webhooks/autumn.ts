@@ -56,7 +56,7 @@ const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const SVIX_SECRET = readBooleanEnv("SELFHOST")
 	? undefined
 	: process.env.AUTUMN_WEBHOOK_SECRET;
-const SLACK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+const SLACK_URL = config.services.slackWebhookUrl ?? "";
 
 const svix = SVIX_SECRET ? new Webhook(SVIX_SECRET) : null;
 const slack = SLACK_URL ? new SlackProvider({ webhookUrl: SLACK_URL }) : null;
@@ -347,7 +347,7 @@ export async function sendAlertEmail(opts: {
 		});
 		return { success: true, message: "No notification recipient found" };
 	}
-	const resendApiKey = process.env.RESEND_API_KEY;
+	const resendApiKey = config.services.resendApiKey;
 	if (!resendApiKey) {
 		log.error(new Error("RESEND_API_KEY is not configured"), {
 			autumn: {

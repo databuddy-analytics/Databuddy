@@ -31,14 +31,23 @@ concurrency:
 
 jobs:
   dashboard-e2e:
-    name: Dashboard Playwright
+    name: Dashboard Playwright${{ matrix.name }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ""
+            script: test:e2e:local
+            selfhost: "false"
+          - name: " (self-host)"
+            script: test:e2e:local:selfhost
+            selfhost: "true"
     env:
       DATABUDDY_E2E_BASE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       DATABUDDY_E2E_START_CLICKHOUSE: "false"
       DATABUDDY_E2E_SERVE_BUILD: "true"
-      DATABUDDY_E2E_SEED_CLICKHOUSE: "true"
       DATABUDDY_E2E_CLICKHOUSE_EVENTS: "150"
       CLICKHOUSE_URL: http://default:@localhost:8123/databuddy_analytics
       REDIS_URL: redis://localhost:6379
@@ -47,7 +56,6 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       RESEND_API_KEY: re_e2e_dummy
-      AUTUMN_SECRET_KEY: e2e-autumn-secret
 
     services:
       postgres:
@@ -106,22 +114,30 @@ jobs:
       - name: Mount dashboard build cache
         uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
         with:
-          key: ${{ github.repository }}-dashboard-e2e-next-cache
+          key: ${{ github.repository }}-dashboard-e2e-next-cache-selfhost-${{ matrix.selfhost }}
           path: apps/dashboard/.next/cache
           commit: ${{ github.event_name == 'push' && 'true' || 'false' }}
       - name: Build dashboard runtime packages
         run: bunx turbo run build --filter @databuddy/devtools --filter @databuddy/sdk
+      - name: Cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock') }}
       - name: Install dashboard Playwright browser
-        run: |
-          bun run --cwd apps/dashboard playwright --version
-          bun run --cwd apps/dashboard playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: bun run --cwd apps/dashboard playwright install --with-deps chromium
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: bun run --cwd apps/dashboard playwright install-deps chromium
       - name: Run dashboard E2E
-        run: bun run --cwd apps/dashboard test:e2e:local
+        run: bun run --cwd apps/dashboard ${{ matrix.script }}
       - name: Upload Playwright artifacts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: dashboard-e2e-artifacts
+          name: dashboard-e2e-artifacts-selfhost-${{ matrix.selfhost }}
           path: |
             apps/dashboard/test-results
             apps/dashboard/playwright-report

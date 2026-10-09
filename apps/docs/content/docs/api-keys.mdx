@@ -1,5 +1,5 @@
 ---
-title: API Keys
+title: API keys
 description: Create, use, and manage API keys with scopes and resource access
 ---
 
@@ -7,13 +7,13 @@ import { CodeBlock } from "@/components/docs";
 
 ## TL;DR
 
-- Generate keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
+- Generate keys in [Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys)
 - Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
 - Keys start with `dbdy_` followed by 48 characters
 - Scopes: `read:data`, `track:events`, `read:links`, `write:links`, `read:monitors`, `write:monitors`, `read:status_pages`, `write:status_pages`, `manage:websites`, `manage:flags`, `manage:config`
 - Access can be global or scoped to a resource like a specific `website`
 - For private websites, include `website_id` and ensure the key has `read:data`
-- Rotate and revoke keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys); only the prefix/start should be shared/logged
+- Rotate and revoke keys in [Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys); only the prefix/start should be shared/logged
 
 ### What is an API key?
 
@@ -21,8 +21,8 @@ An API key authenticates server-to-server calls to Databuddy. It supports fine-g
 
 ### Create a key
 
-1. Open [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
-2. Click “Create API Key”
+1. Open [Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys)
+2. Click "Create API key"
 3. Choose a name, optional organization, scopes, and resource access
 4. Copy the secret immediately (it’s only shown once)
 
@@ -57,7 +57,7 @@ Notes:
 ### Scopes
 
 - **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
-- **track:events**: Send custom events via the SDK or the `/track` endpoint on `basket.databuddy.cc`
+- **track:events**: Send custom events via the SDK or the `/track` endpoint on `basket.databuddy.cc`, and MCP tool calls via `@databuddy/sdk/mcp`
 - **read:links**: Read short links
 - **write:links**: Create, update, and delete short links
 - **read:monitors**: Read uptime monitors
@@ -72,10 +72,10 @@ Grant only what you need. Prefer resource-scoped access where possible.
 
 #### What each scope unlocks
 
-| Scope | Endpoints / actions |
+| Scope | Endpoints and actions |
 |-------|---------------------|
 | `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `GET /v1/query/websites`, `websites.list` RPC |
-| `track:events` | `POST /track` on `basket.databuddy.cc` (custom events, pageviews, sessions) |
+| `track:events` | `POST /track` and `POST /mcp` on `basket.databuddy.cc` (custom events, pageviews, sessions, MCP tool calls) |
 | `read:links` | Read short links via the `/rpc/links/*` routes |
 | `write:links` | Create, update, and delete short links via the `/rpc/links/*` routes |
 | `read:monitors` | Read uptime monitors and their check history |
@@ -126,13 +126,13 @@ Authentication/authorization failures return structured errors:
 - **Rotate** to generate a new secret for the same key (update your servers immediately)
 - **Revoke** to immediately disable a key (cannot be undone; create a new one if needed)
 
-Actions are available in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys) under each key’s detail view.
+Actions are available in [Organization settings → API keys](https://app.databuddy.cc/organizations/settings#api-keys) under each key’s detail view.
 
 ### Rate limits
 
-All API endpoints are rate-limited. See the Rate Limits section in the API Reference. Responses include standard `X-RateLimit-*` headers where applicable.
+All API endpoints are rate-limited. See [Rate limits](/docs/api/rate-limits) in the API reference. Responses include standard `X-RateLimit-*` headers where applicable.
 
-### Audit Logging
+### Audit logging
 
 Administrative mutations on API keys are logged: created, updated, revoked, rotated, and deleted. Per-request usage is not logged.
 

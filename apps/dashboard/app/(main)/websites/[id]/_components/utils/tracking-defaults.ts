@@ -7,7 +7,7 @@ export const ACTUAL_LIBRARY_DEFAULTS: TrackingOptions = {
 
 	trackAttributes: false,
 	trackOutgoingLinks: false,
-	trackInteractions: false,
+	trackInteractions: true,
 
 	trackWebVitals: false,
 	trackErrors: false,

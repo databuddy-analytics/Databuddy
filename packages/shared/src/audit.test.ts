@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { mockAudit } from "evlog";
 import {
 	AUDIT_REDACTED_VALUE,
+	auditActions,
+	emitAuditMirror,
 	redactAuditChanges,
 	redactAuditMetadata,
 } from "./audit";
@@ -129,5 +132,29 @@ describe("audit write-time redaction", () => {
 			accessToken: AUDIT_REDACTED_VALUE,
 			ip: "203.0.113.10",
 		});
+	});
+});
+
+describe("audit evlog mirror", () => {
+	test("splits per-field changes into before and after snapshots", () => {
+		const captured = mockAudit();
+		try {
+			emitAuditMirror({
+				action: auditActions.ORGANIZATION_UPDATED,
+				actor: { id: "user_1", type: "user" },
+				changes: {
+					name: { before: "Old", after: "New" },
+					slug: { after: "new-slug" },
+				},
+				organizationId: "org_1",
+				target: { id: "org_1" },
+			});
+			expect(captured.events[0]?.changes).toEqual({
+				before: { name: "Old", slug: undefined },
+				after: { name: "New", slug: "new-slug" },
+			});
+		} finally {
+			captured.restore();
+		}
 	});
 });

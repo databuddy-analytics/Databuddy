@@ -1,7 +1,11 @@
 import { conversationModelOptions } from "../config/conversation-model";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
-import { createModelFromId, getDefaultAgentModelId } from "../config/models";
+import {
+	type AgentSource,
+	createModelFromId,
+	getDefaultAgentModelId,
+} from "../config/models";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
@@ -17,12 +21,13 @@ export function createMcpAgentConfig(context: {
 	userId: string | null;
 	timezone?: string;
 	chatId?: string;
+	latestUserMessage?: string;
 	memoryUserId?: string | null;
 	modelOverride?: string | null;
 	mutationMode?: AppMutationMode;
 	organizationId?: string | null;
 	slackContext?: DatabuddyAgentSlackContext | null;
-	source?: "dashboard" | "mcp" | "slack";
+	source?: AgentSource;
 	websiteDomain?: string | null;
 	websiteId?: string | null;
 	activeTools?: string[];
@@ -47,8 +52,10 @@ export function createMcpAgentConfig(context: {
 		system: {
 			role: "system" as const,
 			content: buildAnalyticsInstructionsForMcp({
+				accessibleWebsites: context.accessibleWebsites,
 				timezone,
 				currentDateTime,
+				mutationMode: context.mutationMode,
 				source: context.source,
 				websiteDomain,
 				websiteId,
@@ -56,6 +63,7 @@ export function createMcpAgentConfig(context: {
 			providerOptions: modelOptions.systemProviderOptions,
 		},
 		tools: createMcpAgentTools({
+			mutationMode: context.mutationMode,
 			slackContext: context.slackContext,
 			organizationId: context.organizationId,
 			userId: context.userId,
@@ -71,6 +79,7 @@ export function createMcpAgentConfig(context: {
 			billingCustomerId: context.billingCustomerId,
 			chatId,
 			currentDateTime,
+			latestUserMessage: context.latestUserMessage,
 			memoryUserId: context.memoryUserId ?? "",
 			mutationMode: context.mutationMode ?? "allow",
 			organizationId: context.organizationId ?? null,

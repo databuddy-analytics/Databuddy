@@ -12,6 +12,7 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { funnelCache, invalidateFunnelsCache } from "../lib/funnels-cache";
+import { getEffectiveStartDate } from "../lib/goals-bulk-analytics-grouping";
 import {
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
@@ -31,6 +32,8 @@ import {
 } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 import {
+	conversionAnalyticsOutputSchema,
+	filterSchema,
 	funnelStepSchema,
 	requireFunnelSteps,
 	toAnalyticsSteps,
@@ -39,23 +42,6 @@ import { queueDefinitionChangeRechecks } from "./insights";
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 180;
-
-const filterSchema = z.object({
-	field: z.string(),
-	operator: z.enum([
-		"contains",
-		"ends_with",
-		"equals",
-		"in",
-		"not_contains",
-		"not_equals",
-		"not_in",
-		"starts_with",
-	]),
-	value: z.union([z.string(), z.array(z.string())]),
-});
-
-type Filter = z.infer<typeof filterSchema>;
 
 const funnelAnalyticsInputSchema = analyticsDateRangeSchema.safeExtend({
 	cohort: analyticsCohortSchema.optional(),
@@ -66,21 +52,6 @@ const funnelAnalyticsByLinkInputSchema = funnelAnalyticsInputSchema.safeExtend({
 	cohort: z.undefined(),
 	linkId: z.string(),
 });
-
-const getEffectiveStartDate = (
-	requestedStartDate: string,
-	createdAt: Date | null,
-	ignoreHistoricData: boolean
-): string => {
-	if (!(ignoreHistoricData && createdAt)) {
-		return requestedStartDate;
-	}
-
-	const createdDate = new Date(createdAt).toISOString().slice(0, 10);
-	return new Date(requestedStartDate) > new Date(createdDate)
-		? requestedStartDate
-		: createdDate;
-};
 
 async function loadFunnelAnalyticsQuery(
 	db: Context["db"],
@@ -111,10 +82,7 @@ async function loadFunnelAnalyticsQuery(
 		funnel.ignoreHistoricData
 	);
 
-	const filters = [
-		...((funnel.filters as Filter[]) || []),
-		...(input.cohort?.filters ?? []),
-	];
+	const filters = [...(funnel.filters ?? []), ...(input.cohort?.filters ?? [])];
 	return {
 		savedDefinition: insightMeasurementSchema.shape.definition.parse({
 			...funnel,
@@ -153,7 +121,7 @@ const funnelListOutputSchema = z.object({
 
 const funnelOutputSchema = z.object({
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	deletedAt: z.nullable(z.coerce.date()),
 	description: z.string().nullable(),
 	filters: z.array(filterSchema).nullable(),
@@ -164,56 +132,6 @@ const funnelOutputSchema = z.object({
 	steps: z.array(funnelStepSchema),
 	updatedAt: z.coerce.date(),
 	websiteId: z.string(),
-});
-
-const stepErrorInsightOutputSchema = z.object({
-	message: z.string(),
-	error_type: z.string(),
-	count: z.number(),
-});
-
-const stepAnalyticsOutputSchema = z.object({
-	step_number: z.number(),
-	step_name: z.string(),
-	users: z.number(),
-	total_users: z.number(),
-	conversion_rate: z.number(),
-	dropoffs: z.number(),
-	dropoff_rate: z.number(),
-	avg_time_to_complete: z.number(),
-	error_context_available: z.boolean(),
-	error_count: z.number(),
-	error_rate: z.number(),
-	top_errors: z.array(stepErrorInsightOutputSchema),
-});
-
-const timeSeriesPointSchema = z.object({
-	date: z.string(),
-	users: z.number(),
-	conversions: z.number(),
-	conversion_rate: z.number(),
-	dropoffs: z.number(),
-	avg_time: z.number(),
-});
-
-const funnelAnalyticsOutputSchema = z.object({
-	overall_conversion_rate: z.number(),
-	total_users_entered: z.number(),
-	total_users_completed: z.number(),
-	avg_completion_time: z.number(),
-	avg_completion_time_formatted: z.string(),
-	biggest_dropoff_step: z.number(),
-	biggest_dropoff_rate: z.number(),
-	duration_available: z.boolean(),
-	steps_analytics: z.array(stepAnalyticsOutputSchema),
-	time_series: z.array(timeSeriesPointSchema).optional(),
-	error_insights: z.object({
-		available: z.boolean(),
-		total_errors: z.number(),
-		sessions_with_errors: z.number(),
-		dropoffs_with_errors: z.number(),
-		error_correlation_rate: z.number(),
-	}),
 });
 
 const referrerAnalyticsOutputSchema = z.object({
@@ -397,7 +315,9 @@ export const funnelsRouter = {
 				.returning();
 
 			if (!newFunnel) {
-				throw rpcError.internal("Failed to create funnel");
+				throw rpcError.internal(
+					"The funnel could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateFunnelsCache(input.websiteId);
@@ -529,7 +449,7 @@ export const funnelsRouter = {
 		})
 		.input(funnelAnalyticsInputSchema)
 		.output(
-			funnelAnalyticsOutputSchema.extend({
+			conversionAnalyticsOutputSchema.extend({
 				measurement: insightMeasurementSchema,
 				savedDefinition: insightMeasurementSchema.shape.definition,
 				cohort: analyticsCohortSchema.optional(),
@@ -603,7 +523,7 @@ export const funnelsRouter = {
 			tags: ["Funnels"],
 		})
 		.input(funnelAnalyticsByLinkInputSchema)
-		.output(funnelAnalyticsOutputSchema)
+		.output(conversionAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
 			const { effectiveStartDate, endDate, filters, queryParams, steps } =

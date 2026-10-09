@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { gzipSync } from "node:zlib";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, spyOn } from "bun:test";
@@ -11,8 +10,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { StructuredData } from "@/components/structured-data";
 import { GET as robots } from "@/app/robots.txt/route";
-import { competitors } from "./comparison-config";
-import { homeFaqItems } from "./home-seo";
+import { createComparisonMarkdown, competitors } from "./comparison-config";
 
 describe("public copy contracts", () => {
 	it("emits GTM readiness only after the documented loader succeeds", async () => {
@@ -117,27 +115,9 @@ describe("public copy contracts", () => {
 		}
 	});
 
-	it("keeps the tracker-size claim aligned with the checked-in bundle", async () => {
-		const bundle = await readFile(
-			join(
-				import.meta.dir,
-				"..",
-				"..",
-				"..",
-				"packages",
-				"tracker",
-				"dist",
-				"databuddy.js"
-			)
-		);
-		const gzipKilobytes = Math.round(gzipSync(bundle).byteLength / 1024);
-		const performanceAnswer = homeFaqItems.find(
-			(item) => item.question === "Will the script slow down my site?"
-		)?.answer;
+	it("keeps retired tracker claims out of comparison copy", () => {
 		const comparisonCopy = JSON.stringify(competitors);
 
-		expect(performanceAnswer).toContain(`${gzipKilobytes} KB`);
-		expect(comparisonCopy).toContain(`${gzipKilobytes} KB gzip`);
 		expect(comparisonCopy).not.toContain("3KB");
 		expect(comparisonCopy).not.toContain("all features");
 	});
@@ -225,6 +205,79 @@ describe("search discovery", () => {
 		}
 	});
 
+	it("serves every comparison as Markdown that leads with the verdict", async () => {
+		await plugin(createMdxPlugin());
+		const { GET: compare } = await import("@/app/api/compare/raw/[slug]/route");
+		const { GET: index } = await import("@/app/llms.txt/route");
+		const request = new Request("https://www.databuddy.cc/api/compare/raw/x");
+		const indexBody = await index().text();
+		const cellCount = (row: string) => row.split(/(?<!\\)\|/).length - 2;
+		for (const [slug, data] of Object.entries(competitors)) {
+			const pageUrl = `https://www.databuddy.cc/compare/${slug}`;
+			expect(indexBody).toContain(`${pageUrl}.md`);
+			const response = await compare(request, {
+				params: Promise.resolve({ slug }),
+			});
+			const body = await response.text();
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toBe(
+				"text/markdown; charset=utf-8"
+			);
+			expect(response.headers.get("vary")).toBe("Accept, Accept-Encoding");
+			expect(response.headers.get("link")).toBe(
+				`<${pageUrl}>; rel="canonical"`
+			);
+			expect(body).toContain(`Canonical: ${pageUrl}`);
+			expect(body).not.toMatch(/undefined|\[object /);
+			const sections = [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
+			expect(sections.slice(0, 3)).toEqual([
+				"Choose Databuddy if",
+				`Choose ${data.competitor.name} if`,
+				"Features",
+			]);
+			for (const reason of [
+				...data.verdict.databuddy,
+				...data.verdict.competitor,
+			]) {
+				expect(body).toContain(`- ${reason}`);
+			}
+			for (const source of data.sources) {
+				expect(body).toContain(`](${source.href})`);
+			}
+			const tables = body
+				.split(/\n\n/)
+				.filter((block) => block.startsWith("|"));
+			expect(tables).toHaveLength(2);
+			const [features, pricing] = tables.map((table) => table.split("\n"));
+			expect(features).toHaveLength(data.features.length + 2);
+			expect(pricing).toHaveLength(data.pricingTiers.length + 2);
+			for (const row of features ?? []) {
+				expect(cellCount(row)).toBe(4);
+			}
+			for (const row of pricing ?? []) {
+				expect(cellCount(row)).toBe(3);
+			}
+		}
+		const plausible = competitors.plausible;
+		if (!plausible) {
+			throw new Error("Missing Plausible comparison");
+		}
+		const piped = createComparisonMarkdown({
+			...plausible,
+			features: [
+				{ name: "A | B", benefit: "x|y", databuddy: true, competitor: false },
+			],
+		});
+		const row = piped.split("\n").find((line) => line.startsWith("| A"));
+		expect(row && cellCount(row)).toBe(4);
+		for (const slug of ["missing", "..", "__proto__", "constructor", ""]) {
+			const response = await compare(request, {
+				params: Promise.resolve({ slug }),
+			});
+			expect(response.status).toBe(404);
+		}
+	});
+
 	it("models missing attribution from the supplied assumptions", async () => {
 		const { calculateCookieBannerCost } = await import(
 			"@/app/(home)/calculator/_components/calculator-engine"
@@ -278,7 +331,7 @@ describe("search discovery", () => {
 		});
 		expect(metadata.description).toContain("$1,198.80");
 		expect(JSON.stringify(metadata.openGraph)).toContain(
-			`revenue=${calculateCookieBannerCost(inputs).lostRevenueYearly}&visitors=1000`
+			`revenue=${Math.round(calculateCookieBannerCost(inputs).lostRevenueYearly)}&visitors=1000`
 		);
 		for (const invalid of ["NaN", "Infinity", "-1", "", "2000001"]) {
 			expect(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { safeCallbackPath } from "./safe-callback";
+import { newUserCallbackPath, safeCallbackPath } from "./safe-callback";
 
 describe("safeCallbackPath", () => {
 	it("keeps local paths, queries, and fragments", () => {
@@ -55,5 +55,23 @@ describe("safeCallbackPath", () => {
 		}
 
 		expect(safeCallbackPath(`/${encoded}`)).toBe("/websites");
+	});
+});
+
+describe("newUserCallbackPath", () => {
+	it("keeps plan checkout, invitation, and OAuth authorization callbacks", () => {
+		for (const callback of [
+			"/billing/plans?plan=pro",
+			"/invitations/invite-1",
+			"/api/auth/oauth2/authorize?client_id=https%3A%2F%2Fclaude.ai&prompt=consent",
+		]) {
+			expect(newUserCallbackPath(callback)).toBe(callback);
+		}
+	});
+
+	it("sends the landing defaults to onboarding", () => {
+		for (const callback of ["", "/", "/home", "/websites", "/websites/"]) {
+			expect(newUserCallbackPath(callback)).toBe("/onboarding");
+		}
 	});
 });

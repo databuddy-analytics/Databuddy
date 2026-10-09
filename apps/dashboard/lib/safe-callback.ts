@@ -1,4 +1,14 @@
 const CALLBACK_ORIGIN = "https://callback.databuddy.invalid";
+export const OAUTH_AUTHORIZE_PATH_PREFIX = "/api/auth/oauth2/authorize?";
+
+const LANDING_PATHS = new Set(["", "/", "/home", "/websites"]);
+const TRAILING_SLASHES = /\/+$/;
+
+export function newUserCallbackPath(callback: string): string {
+	return LANDING_PATHS.has(callback.replace(TRAILING_SLASHES, ""))
+		? "/onboarding"
+		: callback;
+}
 
 export function safeCallbackPath(
 	callback: string | null | undefined,
@@ -12,20 +22,15 @@ export function safeCallbackPath(
 }
 
 function isSafePath(value: string): boolean {
-	if (hasUnsafePathSyntax(value)) {
-		return false;
-	}
-
 	let decoded = value;
 	for (let pass = 0; pass < 5; pass += 1) {
+		if (hasUnsafePathSyntax(decoded)) {
+			return false;
+		}
 		let next: string;
 		try {
 			next = decodeURIComponent(decoded);
 		} catch {
-			return false;
-		}
-
-		if (hasUnsafePathSyntax(next)) {
 			return false;
 		}
 		if (next === decoded) {

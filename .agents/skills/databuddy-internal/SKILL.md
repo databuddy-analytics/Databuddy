@@ -19,6 +19,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 ## Quick Map
 
+- Work directly in the local `staging` checkout by default. Task branches, worktrees, and PRs require an explicit user request; preserve existing local edits.
+
 - Self-host changes must preserve hosted behavior with `SELFHOST` unset or `false`, including auth cookies/email, generated snippets, CSP, and image publication. Compare to the pre-change path; import guard-only helpers from `@databuddy/env/boolean` so checking the mode does not initialize unrelated URL config.
 
 - Before any PR merge, follow the AGENTS.md review-feedback gate: wait for configured reviewers on the final head, read all comment/review/thread pages, address each finding with evidence, and re-fetch to verify no unresolved feedback. Review bots can finish several minutes after a draft becomes ready; green CI does not establish completed review.
@@ -237,6 +239,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Core auth setup: `packages/auth/src/auth.ts`
 - Client auth entrypoint: `packages/auth/src/client/auth-client.ts`
+- Use the native OAuth provider client for consent and connected apps; public client metadata uses `client_name`, not `name`.
+- Better Auth OAuth tables have no Drizzle relational-query entries; use `db.select().from(oauthConsent)` and schema columns rather than `db.query.oauthConsent`.
 - Permission helpers often flow through `packages/rpc`
 
 ### SDK and tracker work
@@ -268,8 +272,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Dashboard agent navigation affordances should stay dashboard-local and generative where possible; do not move target-label maps into `@databuddy/shared` just to sync the AI tool with dashboard routes.
 - **`@elysiajs/cors` with `origin: true`** sets `Vary: *`, killing CDN caching. Override with `set.headers.vary = "Origin"` on cacheable public endpoints.
 - **`applyAuthWideEvent`** in `apps/api/src/index.ts` runs a session DB lookup on every request including anonymous `/public/` routes. Skip it for public endpoints via URL check in `onBeforeHandle`.
-- **Agent SQL security**: Tenant isolation (`client_id`) is enforced programmatically in `validateAgentSQL` + `requiresTenantFilter` from `@databuddy/db`. Never rely solely on system-prompt instructions for data isolation. Every SQL tool entry point (API, RPC, etc.) must use the shared validation from `packages/db/src/clickhouse/sql-validation.ts`.
-- **ClickHouse table allowlist**: Agent SQL is restricted to `analytics.*` tables only. `system.*`, `information_schema.*` are blocked. Add new allowed prefixes in `sql-validation.ts` if new databases are added.
+- **Agent SQL security**: Agent SQL runs as the restricted `dql_user` (`queryDql` in `packages/db/src/clickhouse/dql.ts`). ClickHouse enforces isolation: per-table RESTRICTIVE row policies on the website id setting and column grants generated from `AGENT_TABLE_COLUMNS`. Never add a regex validator or rely on prompt instructions for isolation; a column outside `AGENT_TABLE_COLUMNS` is unreadable. After changing `AGENT_TABLE_COLUMNS` or `AGENT_TENANT_COLUMN_BY_TABLE`, re-run `bun packages/db/src/clickhouse/dql.ts` against each environment.
 - **Flags API local dev** requires `dotenv -e .env` from repo root to pick up `REDIS_URL`, `DATABASE_URL`, etc.
 - **Node SDK flags**: The export is `createServerFlagsManager` (not `createFlagsManager`). Call `waitForInit()` before use.
 - **User-scoped flags**: The public flags API loads user-scoped flags (where `flags.userId` is set) via `getCachedFlagsForUser` and merges them with client/org-scoped flags. Client-scoped cache is shared; user-scoped cache is keyed per `userId`.

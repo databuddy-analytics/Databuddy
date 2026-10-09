@@ -4,6 +4,7 @@ import { APP_EVENTS } from "@databuddy/shared/custom-events";
 import { trackAppEvent } from "@/lib/app-events";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 
 export function useWebsiteTransfer(organizationId?: string) {
 	const queryClient = useQueryClient();
@@ -31,6 +32,7 @@ export function useWebsiteTransfer(organizationId?: string) {
 				}),
 			});
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	return {
@@ -46,7 +48,11 @@ export function useWebsiteTransfer(organizationId?: string) {
 					opts?.onSuccess?.();
 				},
 				onError: (error) => {
-					opts?.onError?.(error);
+					if (opts?.onError) {
+						opts.onError(error);
+						return;
+					}
+					showErrorToast(error, "Failed to transfer website");
 				},
 			});
 		},

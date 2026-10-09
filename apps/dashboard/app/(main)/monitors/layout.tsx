@@ -29,7 +29,7 @@ export default function MonitoringLayout({
 					},
 					{
 						id: "status-pages",
-						label: "Status Pages",
+						label: "Status pages",
 						href: "/monitors/status-pages",
 						icon: GlobeSimpleIcon,
 					},

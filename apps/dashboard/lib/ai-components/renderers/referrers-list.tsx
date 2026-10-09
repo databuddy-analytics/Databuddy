@@ -21,6 +21,32 @@ export interface ReferrersListProps extends BaseComponentProps {
 	title?: string;
 }
 
+const PLAIN_HOSTNAME_RE = /^[a-z\d-]+(?:\.[a-z\d-]+)*$/i;
+
+const MULTI_LABEL_SUFFIXES = new Set([
+	"co.uk",
+	"org.uk",
+	"ac.uk",
+	"gov.uk",
+	"com.au",
+	"net.au",
+	"org.au",
+	"co.jp",
+	"co.nz",
+	"co.in",
+	"co.za",
+	"com.br",
+	"com.mx",
+	"com.tr",
+	"co.kr",
+]);
+
+function registrableHost(hostname: string): string {
+	const labels = hostname.toLowerCase().split(".");
+	const keep = MULTI_LABEL_SUFFIXES.has(labels.slice(-2).join(".")) ? 3 : 2;
+	return labels.slice(-keep).join(".");
+}
+
 function formatNumber(value: number): string {
 	return Intl.NumberFormat(undefined, {
 		notation: value > 9999 ? "compact" : "standard",
@@ -31,6 +57,8 @@ function formatNumber(value: number): string {
 function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 	const displayName = referrer.name || referrer.referrer || "Direct";
 	const isDirect = displayName === "Direct" || !referrer.domain;
+	const domain = referrer.domain?.trim() ?? "";
+	const isLinkable = !isDirect && PLAIN_HOSTNAME_RE.test(domain);
 
 	return (
 		<div className="flex items-center gap-3 rounded-sm bg-muted px-2.5 py-2.5 transition-colors hover:bg-accent">
@@ -41,21 +69,16 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 					<FaviconImage
 						altText={`${displayName} favicon`}
 						className="shrink-0 rounded-sm"
-						domain={referrer.domain ?? ""}
+						domain={isLinkable ? registrableHost(domain) : ""}
 						size={16}
 					/>
 				)}
-				{isDirect ? (
-					<TruncatedText
-						className="truncate font-medium text-sm"
-						text={displayName}
-					/>
-				) : (
+				{isLinkable ? (
 					<a
 						className={cn(
 							"flex min-w-0 cursor-pointer items-center gap-2 hover:text-foreground hover:underline"
 						)}
-						href={`https://${referrer.domain?.trim()}`}
+						href={`https://${domain}`}
 						onClick={(e) => {
 							e.stopPropagation();
 						}}
@@ -67,6 +90,11 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 							text={displayName}
 						/>
 					</a>
+				) : (
+					<TruncatedText
+						className="truncate font-medium text-sm"
+						text={displayName}
+					/>
 				)}
 			</div>
 			<div className="flex shrink-0 items-center gap-3 text-balance text-right">

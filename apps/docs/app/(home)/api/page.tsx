@@ -23,12 +23,12 @@ export const metadata: Metadata = {
 		title: apiPlaygroundSeo.title,
 		description: apiPlaygroundSeo.description,
 		url: apiPlaygroundSeo.url,
+		images: ["/og-image.png"],
 	},
 };
 
 export default async function ApiPlaygroundPage() {
 	const queryTypesData = await getQueryTypes();
-	const docDateIso = new Date().toISOString();
 
 	return (
 		<>
@@ -39,14 +39,14 @@ export default async function ApiPlaygroundPage() {
 						value: {
 							title: apiPlaygroundSeo.title,
 							description: apiPlaygroundSeo.description,
-							datePublished: docDateIso,
-							dateModified: docDateIso,
-							section: "API Reference",
+							datePublished: "2025-08-11",
+							dateModified: "2026-04-29",
+							section: "API reference",
 							keywords: [
 								"Query API",
 								"REST API",
 								"analytics API",
-								"privacy-first",
+								"product analytics",
 								"web analytics",
 							],
 						},
@@ -63,8 +63,8 @@ export default async function ApiPlaygroundPage() {
 					<div className="mb-8">
 						<h1 className="font-semibold text-2xl">Databuddy Query API</h1>
 						<p className="mt-2 text-muted-foreground text-sm">
-							Interactive API explorer - select query types and see real
-							responses
+							Interactive API explorer. Select query types and see real
+							responses.
 						</p>
 					</div>
 
@@ -75,7 +75,7 @@ export default async function ApiPlaygroundPage() {
 
 					<Card className="rounded">
 						<CardHeader>
-							<CardTitle>API Documentation</CardTitle>
+							<CardTitle>API documentation</CardTitle>
 							<CardDescription>
 								Endpoint details and authentication requirements
 							</CardDescription>
@@ -85,7 +85,7 @@ export default async function ApiPlaygroundPage() {
 							<div className="space-y-6">
 								<div>
 									<h3 className="font-semibold text-lg">
-										Available Query Types
+										Available query types
 									</h3>
 									<p className="text-muted-foreground text-sm">
 										Use these parameter names in your queries to get specific
@@ -98,7 +98,7 @@ export default async function ApiPlaygroundPage() {
 										<div className="rounded border border-gray-200 bg-gray-50 p-6 text-center">
 											<div className="space-y-2">
 												<h4 className="font-medium text-gray-800">
-													No Query Types Found
+													No query types found
 												</h4>
 												<p className="text-gray-600 text-sm">
 													No query types are currently available.
@@ -117,7 +117,7 @@ export default async function ApiPlaygroundPage() {
 									<div className="rounded border border-red-200 bg-red-50 p-6 text-center">
 										<div className="space-y-2">
 											<h4 className="font-medium text-red-800">
-												Query Types Unavailable
+												Query types unavailable
 											</h4>
 											<p className="text-red-600 text-sm">
 												Could not fetch query types from the API. Please check
@@ -155,7 +155,7 @@ export default async function ApiPlaygroundPage() {
 									<div className="rounded border p-4">
 										<div className="font-medium text-sm">website_id</div>
 										<div className="text-muted-foreground text-xs">
-											Your website identifier (e.g., web_abc123)
+											Your website identifier (e.g. web_abc123)
 										</div>
 									</div>
 									<div className="rounded border p-4">

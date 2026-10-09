@@ -1,8 +1,13 @@
 import { ArrowLeftIcon } from "@databuddy/ui/icons";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
 import { competitors } from "@/lib/comparison-config";
+
+export const metadata: Metadata = {
+	robots: null,
+};
 
 export default function NotFound() {
 	const entries = Object.entries(competitors);
@@ -53,7 +58,7 @@ export default function NotFound() {
 										rel="noopener noreferrer"
 										target="_blank"
 									>
-										Start Free - No Credit Card
+										Start free
 									</Link>
 								</SciFiButton>
 							</div>

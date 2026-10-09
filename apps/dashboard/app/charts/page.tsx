@@ -68,7 +68,7 @@ export default function ChartsPage() {
 					<Card.Header>
 						<div className="flex items-center gap-2">
 							<WaveformIcon className="size-5" />
-							<Card.Title>Area Chart</Card.Title>
+							<Card.Title>Area chart</Card.Title>
 						</div>
 						<Card.Description>Filled area under the line</Card.Description>
 					</Card.Header>
@@ -109,7 +109,7 @@ export default function ChartsPage() {
 							chartType="area"
 							displayMode="chart"
 							id="area-step-before"
-							title="Step Before"
+							title="Step before"
 							trend={5.1}
 							value={15_420}
 						/>
@@ -119,7 +119,7 @@ export default function ChartsPage() {
 							chartType="area"
 							displayMode="chart"
 							id="area-step-after"
-							title="Step After"
+							title="Step after"
 							trend={2.8}
 							value={15_420}
 						/>
@@ -130,7 +130,7 @@ export default function ChartsPage() {
 					<Card.Header>
 						<div className="flex items-center gap-2">
 							<ChartLineIcon className="size-5" />
-							<Card.Title>Line Chart</Card.Title>
+							<Card.Title>Line chart</Card.Title>
 						</div>
 						<Card.Description>Simple line without fill</Card.Description>
 					</Card.Header>
@@ -171,7 +171,7 @@ export default function ChartsPage() {
 							chartType="line"
 							displayMode="chart"
 							id="line-step-before"
-							title="Step Before"
+							title="Step before"
 							trend={5.1}
 							value={45_200}
 						/>
@@ -181,7 +181,7 @@ export default function ChartsPage() {
 							chartType="line"
 							displayMode="chart"
 							id="line-step-after"
-							title="Step After"
+							title="Step after"
 							trend={2.8}
 							value={45_200}
 						/>
@@ -192,7 +192,7 @@ export default function ChartsPage() {
 					<Card.Header>
 						<div className="flex items-center gap-2">
 							<ChartBarIcon className="size-5" />
-							<Card.Title>Bar Chart</Card.Title>
+							<Card.Title>Bar chart</Card.Title>
 						</div>
 						<Card.Description>
 							Vertical bars for each data point
@@ -213,7 +213,7 @@ export default function ChartsPage() {
 							chartType="bar"
 							displayMode="chart"
 							id="bar-chart-2"
-							title="Negative Trend"
+							title="Negative trend"
 							trend={-5.4}
 							value={9800}
 						/>
@@ -222,7 +222,7 @@ export default function ChartsPage() {
 							chartType="bar"
 							displayMode="chart"
 							id="bar-chart-3"
-							title="Neutral Trend"
+							title="Neutral trend"
 							trend={0}
 							value={9800}
 						/>
@@ -231,7 +231,7 @@ export default function ChartsPage() {
 							chartType="bar"
 							displayMode="compact"
 							id="bar-compact"
-							title="Compact Mode"
+							title="Compact mode"
 							trend={7.2}
 							value={9800}
 						/>
@@ -240,7 +240,7 @@ export default function ChartsPage() {
 							chartType="bar"
 							displayMode="text"
 							id="bar-text"
-							title="Text Mode"
+							title="Text mode"
 							value={9800}
 						/>
 					</Card.Content>
@@ -250,7 +250,7 @@ export default function ChartsPage() {
 					<Card.Header>
 						<div className="flex items-center gap-2">
 							<ChartPieIcon className="size-5" />
-							<Card.Title>Pie Chart</Card.Title>
+							<Card.Title>Pie chart</Card.Title>
 						</div>
 						<Card.Description>Distribution visualization</Card.Description>
 					</Card.Header>
@@ -271,13 +271,13 @@ export default function ChartsPage() {
 							data={trafficData}
 							id="pie-no-labels"
 							showLabels={false}
-							title="Traffic Sources"
+							title="Traffic sources"
 							variant="donut"
 						/>
 						<MiniPieChart
 							data={[]}
 							id="pie-empty"
-							title="No Data"
+							title="No data"
 							variant="donut"
 						/>
 						<MiniPieChart

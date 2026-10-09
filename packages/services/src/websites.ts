@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db, eq, isUniqueViolationFor } from "@databuddy/db";
+import { dataUrl } from "@databuddy/env/app";
 import {
 	type WebsiteInsert,
 	type Website,
@@ -88,7 +89,7 @@ export class WebsiteService {
 	}
 
 	private async invalidateReadCaches(id: string): Promise<void> {
-		if (!process.env.REDIS_URL) {
+		if (!dataUrl("REDIS_URL")) {
 			return;
 		}
 

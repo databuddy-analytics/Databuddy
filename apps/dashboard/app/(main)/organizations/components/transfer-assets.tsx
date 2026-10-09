@@ -84,7 +84,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 				onSuccess: () => {
 					setSelectedWebsite(null);
 					setTargetOrgId("");
-					toast.success("Website transferred successfully");
+					toast.success("Website transferred");
 				},
 			}
 		);
@@ -103,7 +103,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 	if (organizationWebsites.length === 0) {
 		return (
 			<EmptyState
-				description="This organization has no websites to transfer"
+				description="This organization has no websites to transfer."
 				icon={<ArrowsLeftRightIcon />}
 				title="No websites"
 			/>
@@ -169,7 +169,7 @@ export function TransferAssets({ organizationId }: { organizationId: string }) {
 				variant="secondary"
 			>
 				<ArrowRightIcon size={14} />
-				Transfer Website
+				Transfer website
 			</Button>
 		</div>
 	);

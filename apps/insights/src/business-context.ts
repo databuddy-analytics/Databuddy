@@ -1,5 +1,6 @@
 import {
 	type BusinessContext,
+	type BusinessContextWithTelemetry,
 	type BusinessScope,
 	type BusinessSource,
 	loadBusinessProfile,
@@ -36,6 +37,7 @@ import { readOrganizationBusinessContext } from "@databuddy/services/organizatio
 import {
 	formatBusinessTeamContext,
 	type OrganizationBusinessProfile,
+	PROFILE_ORIGIN_PROVENANCE,
 } from "@databuddy/shared/organization-business-context";
 import {
 	businessContextSchema,
@@ -238,22 +240,10 @@ async function reconcileReplies(
 		subjectKey?: string;
 		allowWrite: boolean;
 	},
-	context: BusinessContext,
+	{ telemetryIssues = [], ...context }: BusinessContextWithTelemetry,
 	sources: typeof productionSources
 ): Promise<BusinessContext> {
 	try {
-		if (
-			context.status === "unavailable" ||
-			context.status === "partial" ||
-			context.issues.length > 0
-		) {
-			emitInsightsEvent("warn", "business_context.incomplete", {
-				organization_id: input.scope.organizationId,
-				website_id: input.scope.websiteId,
-				status: context.status,
-				issue_count: context.issues.length,
-			});
-		}
 		const replies = await sources.readReplies(input);
 		// Reauthorize immediately before any external reply write. A refresh
 		// or concurrent transfer must not move old replies into a new scope.
@@ -271,7 +261,7 @@ async function reconcileReplies(
 		);
 		const known = new Set(context.sources.map((source) => source.id));
 		const missing = eligible.filter((reply) => !known.has(reply.id));
-		let issue: string | undefined;
+		let acknowledgement: string | undefined;
 		if (input.allowWrite && missing.length > 0) {
 			try {
 				const saved = await sources.record({
@@ -283,7 +273,7 @@ async function reconcileReplies(
 					saved.status !== "saved" ||
 					missing.some((reply) => !saved.ids.includes(reply.id))
 				) {
-					issue =
+					acknowledgement =
 						saved.status === "disabled"
 							? "Shared memory is disabled; persisted team replies are included directly."
 							: "Team replies are included directly; shared memory has not acknowledged all of them.";
@@ -297,15 +287,32 @@ async function reconcileReplies(
 				}
 			} catch (error) {
 				unavailableBusinessContext(error, input.scope, input.asOf);
-				issue =
+				acknowledgement =
 					"Team replies are included directly; shared memory did not acknowledge them.";
 			}
 		}
+		const telemetry = acknowledgement
+			? [...telemetryIssues, acknowledgement]
+			: telemetryIssues;
+		if (
+			context.status === "unavailable" ||
+			context.status === "partial" ||
+			context.issues.length > 0 ||
+			telemetry.length > 0
+		) {
+			emitInsightsEvent("warn", "business_context.incomplete", {
+				organization_id: input.scope.organizationId,
+				website_id: input.scope.websiteId,
+				status: context.status,
+				issue_count: context.issues.length,
+				telemetry_issues: telemetry,
+			});
+		}
 		const raw: BusinessContext = {
 			capturedAt: input.asOf.toISOString(),
-			status: issue ? "partial" : eligible.length ? "ready" : context.status,
+			status: eligible.length ? "ready" : context.status,
 			sources: eligible,
-			issues: issue ? [issue] : [],
+			issues: [],
 		};
 		// Shared pages must not consume the budget before canonical replies.
 		// Exact-subject recall still keeps relevance ahead of recent replies below.
@@ -430,10 +437,7 @@ export function organizationProfileContext(
 			`organization-profile:${organizationId}`,
 			profile.content,
 			{
-				author:
-					profile.origin === "mixed"
-						? "Edited website background"
-						: "Organization settings",
+				author: PROFILE_ORIGIN_PROVENANCE[profile.origin].label,
 				origin: profile.origin,
 			},
 			{ references: profile.sources }

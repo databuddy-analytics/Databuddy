@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { markFeedbackSubmitted } from "@/components/feedback-prompt";
 import { orpc } from "@/lib/orpc";
 import { CaretDownIcon, ChatTextIcon, PlusIcon } from "@databuddy/ui/icons";
@@ -17,9 +18,9 @@ import {
 import { Dialog, DropdownMenu } from "@databuddy/ui/client";
 
 const CATEGORIES = [
-	{ value: "bug_report", label: "Bug Report" },
-	{ value: "feature_request", label: "Feature Request" },
-	{ value: "ux_improvement", label: "UX Improvement" },
+	{ value: "bug_report", label: "Bug report" },
+	{ value: "feature_request", label: "Feature request" },
+	{ value: "ux_improvement", label: "UX improvement" },
 	{ value: "performance", label: "Performance" },
 	{ value: "documentation", label: "Documentation" },
 	{ value: "other", label: "Other" },
@@ -38,9 +39,7 @@ export function SubmitFeedbackDialog() {
 		...orpc.feedback.submit.mutationOptions(),
 		onSuccess: () => {
 			markFeedbackSubmitted();
-			toast.success(
-				"Feedback submitted! You'll earn credits if it's approved."
-			);
+			toast.success("Feedback submitted. You'll earn credits if it's approved");
 			queryClient.invalidateQueries({
 				queryKey: orpc.feedback.list.queryOptions({ input: {} }).queryKey,
 			});
@@ -53,8 +52,9 @@ export function SubmitFeedbackDialog() {
 			setCategory("");
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to submit feedback");
+			showErrorToast(error, "Failed to submit feedback");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	const canSubmit =
@@ -82,7 +82,7 @@ export function SubmitFeedbackDialog() {
 				render={
 					<Button size="sm">
 						<PlusIcon className="size-3.5" />
-						New Feedback
+						Submit feedback
 					</Button>
 				}
 			/>

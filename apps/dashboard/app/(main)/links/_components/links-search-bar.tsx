@@ -24,8 +24,8 @@ const SORT_LABELS: Record<LinkSortOption, string> = {
 
 const TYPE_LABELS: Record<LinkTypeFilter, string> = {
 	all: "All",
-	short: "Short Links",
-	deep: "Deep Links",
+	short: "Short links",
+	deep: "Deep links",
 };
 
 const UNFILED_VALUE = "__unfiled__";
@@ -162,10 +162,10 @@ export function LinksSearchBar({
 					>
 						<DropdownMenu.RadioItem value="all">All</DropdownMenu.RadioItem>
 						<DropdownMenu.RadioItem value="short">
-							Short Links
+							Short links
 						</DropdownMenu.RadioItem>
 						<DropdownMenu.RadioItem value="deep">
-							Deep Links
+							Deep links
 						</DropdownMenu.RadioItem>
 					</DropdownMenu.RadioGroup>
 				</DropdownMenu.Content>

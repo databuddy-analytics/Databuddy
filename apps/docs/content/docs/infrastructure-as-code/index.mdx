@@ -1,0 +1,51 @@
+---
+title: Infrastructure as code
+description: Manage Databuddy resources from infrastructure as code tools
+---
+
+import { Card, Cards } from "@/components/docs";
+
+Define Databuddy resources in code and review them in pull requests, next to the infrastructure they watch.
+
+## Tools
+
+| Tool | Status | Languages |
+|------|--------|-----------|
+| [Pulumi](/docs/infrastructure-as-code/pulumi) | Available | TypeScript, JavaScript |
+| Terraform | Coming soon | HCL |
+| OpenTofu | Coming soon | HCL |
+
+## Resources
+
+### Available
+
+| Resource | What you control |
+|----------|------------------|
+| Uptime monitors | URL, check frequency, timeout, cache busting, paused state, linked website |
+| Status pages | Name, slug, description, logo, favicon, links, theme |
+| Status page monitors | Which monitors appear on a page, display name, order, and what is hidden |
+
+### Coming soon
+
+| Resource | What you'll control |
+|----------|---------------------|
+| Uptime alerts | Slack, email, and webhook destinations for monitor outages |
+| Websites | Tracked websites, their domains, and tracking settings |
+| Feature flags | Flags, rollout percentages, targeting rules, and variants |
+| Flag target groups | Reusable audiences for flag targeting |
+| Goals | Pageview and event conversion goals |
+| Funnels | Funnel steps and filters |
+| Short links | Links, destinations, and folders |
+
+Want something sooner? Email [support@databuddy.cc](mailto:support@databuddy.cc).
+
+## Related
+
+<Cards>
+  <Card title="Pulumi" href="/docs/infrastructure-as-code/pulumi">
+    Set up the provider and manage your first monitor
+  </Card>
+  <Card title="API keys" href="/docs/api-keys">
+    Create a key scoped to monitors and status pages
+  </Card>
+</Cards>

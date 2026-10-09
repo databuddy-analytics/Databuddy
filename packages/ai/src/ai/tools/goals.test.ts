@@ -5,7 +5,8 @@ import type { callRPCProcedure } from "./utils/rpc";
 
 const current = { id: "goal-1", name: "Checkout", isActive: true };
 const invoke = mock<typeof callRPCProcedure>(async () => current);
-mock.module("./utils/rpc", () => ({ callRPCProcedure: invoke }));
+const realRpc = await import("./utils/rpc");
+mock.module("./utils/rpc", () => ({ ...realRpc, callRPCProcedure: invoke }));
 
 const { createGoalTools } = await import("./goals");
 const { createFunnelTools } = await import("./funnels");

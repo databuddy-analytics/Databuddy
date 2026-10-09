@@ -1,5 +1,6 @@
 import {
 	getAccessibleWebsites,
+	getOrganizationWebsites,
 	type WebsiteSummary,
 } from "../../lib/accessible-websites";
 import {
@@ -9,14 +10,15 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { websitesApi } from "@databuddy/auth";
 import { roleHasPermission } from "@databuddy/auth/permissions";
-import { getRedisCache } from "@databuddy/redis";
+import { cacheable } from "@databuddy/redis";
 import { getMemberRole } from "@databuddy/rpc/organization";
-import type { AppContext } from "../config/context";
+import type { AppContext, ServiceAuth } from "../config/context";
 import { getCachedWebsite } from "../../lib/website-utils";
 import { matchesWebsiteDomain } from "../../lib/website-domain";
 
 const ACCESSIBLE_WEBSITES_TTL_SEC = 30;
-const ACCESSIBLE_WEBSITES_KEY_PREFIX = "mcp:accessible_websites:v2:";
+const ACCESSIBLE_WEBSITES_STALE_SEC = 10;
+const UNAUTHORIZED_STATUS_CODES = new Set([401, 403]);
 
 export interface WebsiteSelectorInput {
 	websiteDomain?: string;
@@ -26,7 +28,7 @@ export interface WebsiteSelectorInput {
 
 export interface RequestPrincipal {
 	apiKey: ApiKeyRow | null;
-	oauthUserId?: string | null;
+	oauth?: NonNullable<ServiceAuth["oauth"]>;
 	organizationId?: string | null;
 	userId: string | null;
 }
@@ -35,116 +37,203 @@ export type AuthorizedPrincipal = RequestPrincipal & {
 	requestHeaders: Headers;
 };
 
+type WebsiteSelectionErrorCode = "invalid_input" | "not_found" | "unauthorized";
+
+export class WebsiteSelectionError extends Error {
+	readonly code: WebsiteSelectionErrorCode;
+	readonly hint?: string;
+
+	constructor(code: WebsiteSelectionErrorCode, message: string, hint?: string) {
+		super(message);
+		this.name = "WebsiteSelectionError";
+		this.code = code;
+		this.hint = hint;
+	}
+}
+
+const WEBSITE_LIST_HINT = "Website IDs come from list_websites.";
+
+interface WebsiteAccess {
+	domain: string;
+	organizationId: string;
+}
+
+function accessDenied(): WebsiteSelectionError {
+	return new WebsiteSelectionError(
+		"unauthorized",
+		"Access denied to this website",
+		WEBSITE_LIST_HINT
+	);
+}
+
+function isAuthRejection(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"statusCode" in error &&
+		typeof error.statusCode === "number" &&
+		UNAUTHORIZED_STATUS_CODES.has(error.statusCode)
+	);
+}
+
 export async function ensureWebsiteAccess(
 	websiteId: string,
 	principal: AuthorizedPrincipal
-): Promise<{ domain: string } | Error> {
-	const { apiKey, oauthUserId, organizationId } = principal;
+): Promise<WebsiteAccess> {
+	const { apiKey, oauth, organizationId } = principal;
+	if (
+		oauth &&
+		(!oauth.scopes.includes("read:data") ||
+			(oauth.grant.websiteIds && !oauth.grant.websiteIds.includes(websiteId)))
+	) {
+		throw accessDenied();
+	}
 	const website = await getCachedWebsite(websiteId);
-	if (!website) {
-		return new Error("Website not found");
-	}
-	if (organizationId && website.organizationId !== organizationId) {
-		return new Error("Website is not in this organization");
-	}
-
-	if (oauthUserId) {
-		if (!website.organizationId) {
-			return new Error("Access denied to this website");
-		}
-		const role = await getMemberRole(oauthUserId, website.organizationId);
-		if (!(role && roleHasPermission(role, "website", ["read"]))) {
-			return new Error("Access denied to this website");
-		}
-		return { domain: website.domain ?? "unknown" };
-	}
-
-	if (apiKey) {
-		const hasWebsiteAccess = hasWebsiteScopeForOrganization(
-			apiKey,
-			website,
-			"read:data"
+	if (!website || website.deletedAt) {
+		throw new WebsiteSelectionError(
+			"not_found",
+			"Website not found",
+			WEBSITE_LIST_HINT
 		);
-		if (!hasWebsiteAccess) {
-			return new Error("Access denied to this website");
-		}
-		return { domain: website.domain ?? "unknown" };
+	}
+	const scopedOrganizationId = oauth?.grant.organizationId ?? organizationId;
+	if (scopedOrganizationId && website.organizationId !== scopedOrganizationId) {
+		throw new WebsiteSelectionError(
+			"unauthorized",
+			"This website belongs to a different organization than this connection.",
+			WEBSITE_LIST_HINT
+		);
+	}
+	if (!website.organizationId) {
+		throw accessDenied();
 	}
 
-	const hasPermission =
-		website.organizationId &&
-		(
-			await websitesApi.hasPermission({
+	if (oauth) {
+		const role = await getMemberRole(oauth.user.id, website.organizationId);
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
+			throw accessDenied();
+		}
+	} else if (apiKey) {
+		if (!hasWebsiteScopeForOrganization(apiKey, website, "read:data")) {
+			throw accessDenied();
+		}
+	} else {
+		try {
+			const permission = await websitesApi.hasPermission({
 				headers: principal.requestHeaders,
 				body: {
 					organizationId: website.organizationId,
 					permissions: { website: ["read"] },
 				},
-			})
-		).success;
-	if (!hasPermission) {
-		return new Error("Access denied to this website");
+			});
+			if (!permission.success) {
+				throw accessDenied();
+			}
+		} catch (error) {
+			if (isAuthRejection(error)) {
+				throw accessDenied();
+			}
+			throw error;
+		}
 	}
-	return { domain: website.domain ?? "unknown" };
+	return {
+		domain: website.domain ?? "unknown",
+		organizationId: website.organizationId,
+	};
 }
-function accessibleWebsitesCacheKey(
-	principal: RequestPrincipal
-): string | null {
-	const organizationId =
-		principal.organizationId ?? principal.apiKey?.organizationId;
-	if (principal.apiKey) {
-		return `apikey:${principal.apiKey.id}:org:${organizationId ?? "none"}`;
-	}
-	if (principal.userId && organizationId) {
-		return `user:${principal.userId}:org:${organizationId}`;
-	}
-	return null;
+
+type AccessibleWebsite = Omit<WebsiteSummary, "createdAt">;
+
+async function loadWebsiteList(
+	principal: "organization" | "user",
+	principalId: string,
+	organizationId: string | null
+): Promise<AccessibleWebsite[]> {
+	const list =
+		principal === "user"
+			? await getAccessibleWebsites({
+					apiKey: null,
+					organizationId,
+					user: { id: principalId },
+				})
+			: await getOrganizationWebsites(principalId);
+	return list.map(({ createdAt: _createdAt, ...website }) => website);
 }
+
+const getCachedWebsiteList = cacheable(loadWebsiteList, {
+	expireInSec: ACCESSIBLE_WEBSITES_TTL_SEC,
+	prefix: "mcp:accessible-website-list",
+	reviveDates: false,
+	staleTime: ACCESSIBLE_WEBSITES_STALE_SEC,
+	staleWhileRevalidate: true,
+});
+
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
-): Promise<WebsiteSummary[]> {
-	const scopedApiKey =
-		principal.apiKey && !hasKeyScope(principal.apiKey, "read:data");
-	const authCtx = {
-		apiKey: principal.apiKey,
-		organizationId: scopedApiKey
+): Promise<AccessibleWebsite[]> {
+	const { apiKey, oauth } = principal;
+	const userId = oauth?.user.id ?? principal.userId;
+	const organizationId =
+		apiKey && !hasKeyScope(apiKey, "read:data")
 			? null
-			: (principal.organizationId ?? principal.apiKey?.organizationId ?? null),
-		user: principal.userId ? { id: principal.userId } : null,
-	};
-	const cacheKey = accessibleWebsitesCacheKey(principal);
-	const redis = cacheKey ? getRedisCache() : null;
-	if (!(cacheKey && redis)) {
-		return getAccessibleWebsites(authCtx);
-	}
-
-	const redisKey = `${ACCESSIBLE_WEBSITES_KEY_PREFIX}${cacheKey}`;
-	try {
-		const cached = await redis.get(redisKey);
-		if (cached) {
-			return JSON.parse(cached) as WebsiteSummary[];
+			: (oauth?.grant.organizationId ??
+				principal.organizationId ??
+				apiKey?.organizationId ??
+				null);
+	if (oauth) {
+		const role = oauth.scopes.includes("read:data")
+			? await getMemberRole(oauth.user.id, oauth.grant.organizationId)
+			: null;
+		if (!(role && roleHasPermission(role, "website", ["read"]))) {
+			return [];
 		}
-	} catch {
-		// Cache read failure — fall through to DB
 	}
+	let list: AccessibleWebsite[] = [];
+	if (apiKey) {
+		const keyOrganizationId = apiKey.organizationId;
+		list =
+			keyOrganizationId &&
+			(!organizationId || organizationId === keyOrganizationId)
+				? (
+						await getCachedWebsiteList("organization", keyOrganizationId, null)
+					).filter((website) =>
+						hasWebsiteScopeForOrganization(apiKey, website, "read:data")
+					)
+				: [];
+	} else if (userId && organizationId) {
+		list = await getCachedWebsiteList("user", userId, organizationId);
+	}
+	const grantedWebsiteIds = oauth?.grant.websiteIds;
+	return grantedWebsiteIds
+		? list.filter((website) => grantedWebsiteIds.includes(website.id))
+		: list;
+}
 
-	const result = await getAccessibleWebsites(authCtx);
-	try {
-		await redis.setex(
-			redisKey,
-			ACCESSIBLE_WEBSITES_TTL_SEC,
-			JSON.stringify(result)
+function singleMatch(matches: AccessibleWebsite[], selector: string): string {
+	const [match, ...others] = matches;
+	if (!match) {
+		throw new WebsiteSelectionError(
+			"not_found",
+			`No accessible website found with ${selector}`,
+			"list_websites shows the websites this connection can use."
 		);
-	} catch {
-		// Cache write failure — non-fatal
 	}
-	return result;
+	if (others.length > 0) {
+		const candidates = matches
+			.map((website) => `${website.id} in ${website.organizationName}`)
+			.join(", ");
+		throw new WebsiteSelectionError(
+			"invalid_input",
+			`${matches.length} accessible websites match ${selector}: ${candidates}. Pass websiteId to choose one.`,
+			WEBSITE_LIST_HINT
+		);
+	}
+	return match.id;
 }
 
 export async function resolveWebsiteId(
 	input: WebsiteSelectorInput,
 	principal: RequestPrincipal
-): Promise<string | Error> {
+): Promise<string> {
 	if (input.websiteId) {
 		return input.websiteId;
 	}
@@ -153,111 +242,82 @@ export async function resolveWebsiteId(
 
 	const domain = input.websiteDomain;
 	if (domain) {
-		const match = list.find((website) =>
-			matchesWebsiteDomain(website.domain, domain)
-		);
-		if (match) {
-			return match.id;
-		}
-		return new Error(
-			`No accessible website found with domain "${input.websiteDomain}"`
+		return singleMatch(
+			list.filter((website) => matchesWebsiteDomain(website.domain, domain)),
+			`domain "${domain}"`
 		);
 	}
 
 	if (input.websiteName) {
 		const name = input.websiteName.toLowerCase();
-		const match = list.find((w) => w.name?.toLowerCase() === name);
-		if (match) {
-			return match.id;
-		}
-		return new Error(
-			`No accessible website found with name "${input.websiteName}"`
+		return singleMatch(
+			list.filter((website) => website.name?.toLowerCase() === name),
+			`name "${input.websiteName}"`
 		);
 	}
 
-	return new Error(
-		"One of websiteId, websiteName, or websiteDomain is required"
+	throw new WebsiteSelectionError(
+		"invalid_input",
+		"One of websiteId, websiteName, or websiteDomain is required",
+		WEBSITE_LIST_HINT
 	);
 }
 
-export async function getOrganizationId(
-	websiteId: string
-): Promise<string | Error> {
-	const website = await getCachedWebsite(websiteId);
-	if (!website) {
-		return new Error("Website not found");
-	}
-	if (!website.organizationId) {
-		return new Error("Website is not associated with an organization");
-	}
-	return website.organizationId;
-}
-
-/**
- * Resolve the set of organization IDs to query, based on auth principal and
- * an optional explicit websiteId. Used by org-wide tools (insights, summaries).
- *
- * Resolution order:
- * 1. If websiteId provided → resolve via getOrganizationId (single org)
- * 2. If an organization is scoped on the request → use that organization
- * 3. If API key → use apiKey.organizationId (single org)
- * Session users must have an active organization; never fan out across all memberships.
- */
-export async function resolveOrganizationIds(
-	websiteId: string | undefined,
-	principal: RequestPrincipal
-): Promise<string[] | Error> {
-	if (websiteId) {
-		const orgId = await getOrganizationId(websiteId);
-		if (orgId instanceof Error) {
-			return orgId;
-		}
-		return [orgId];
-	}
-	if (principal.organizationId) {
-		if (
-			principal.apiKey &&
-			principal.apiKey.organizationId !== principal.organizationId
-		) {
-			return new Error("API key does not belong to the requested organization");
-		}
-		if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
-			return new Error(
-				"Scoped API key requires a websiteId for org-level queries"
-			);
-		}
-		return [principal.organizationId];
-	}
-	if (
-		principal.apiKey?.organizationId &&
-		hasKeyScope(principal.apiKey, "read:data")
-	) {
-		return [principal.apiKey.organizationId];
-	}
-	if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
-		return new Error(
-			"Scoped API key requires a websiteId for org-level queries"
+export function resolveOrganizationId(principal: RequestPrincipal): string {
+	const { apiKey, oauth, organizationId } = principal;
+	if (oauth?.grant.websiteIds) {
+		throw new WebsiteSelectionError(
+			"invalid_input",
+			"This connection is limited to selected websites, so organization-wide data, including organization-wide flags, is not available. Pass websiteId, websiteName, or websiteDomain from list_websites to use one of those websites."
 		);
 	}
-	if (principal.userId) {
-		return new Error("Session requests require an active organization");
+	if (oauth) {
+		return oauth.grant.organizationId;
 	}
-	return new Error("Could not determine organization");
+	if (apiKey) {
+		if (organizationId && apiKey.organizationId !== organizationId) {
+			throw new WebsiteSelectionError(
+				"unauthorized",
+				"API key does not belong to the requested organization"
+			);
+		}
+		if (!(apiKey.organizationId && hasKeyScope(apiKey, "read:data"))) {
+			throw new WebsiteSelectionError(
+				"invalid_input",
+				"Scoped API key requires a websiteId for org-level queries",
+				WEBSITE_LIST_HINT
+			);
+		}
+		return apiKey.organizationId;
+	}
+	if (organizationId) {
+		return organizationId;
+	}
+	throw new WebsiteSelectionError(
+		"unauthorized",
+		principal.userId
+			? "Session requests require an active organization"
+			: "Failed to determine organization"
+	);
 }
 
 export function buildRpcContext(principal: AuthorizedPrincipal): AppContext {
 	return {
-		userId: principal.userId,
+		userId: principal.oauth?.user.id ?? principal.userId,
 		websiteId: "",
 		websiteDomain: "",
 		timezone: "UTC",
 		currentDateTime: new Date().toISOString(),
 		chatId: "",
 		organizationId:
-			principal.organizationId ?? principal.apiKey?.organizationId,
+			principal.oauth?.grant.organizationId ??
+			principal.organizationId ??
+			principal.apiKey?.organizationId,
 		requestHeaders: principal.requestHeaders,
 		serviceAuth: principal.apiKey
 			? { apiKey: principal.apiKey, session: null }
-			: undefined,
+			: principal.oauth
+				? { apiKey: null, oauth: principal.oauth, session: null }
+				: undefined,
 	};
 }

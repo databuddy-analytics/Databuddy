@@ -22,8 +22,8 @@ export function StatsCards({ competitor }: { competitor: CompetitorInfo }) {
 						<span className="font-semibold text-primary">Free</span>
 					</div>
 					<div className="flex items-center justify-between">
-						<span className="text-muted-foreground">Free tier</span>
-						<span className="font-medium">10K events</span>
+						<span className="text-muted-foreground">Free plan</span>
+						<span className="font-medium">10,000 events</span>
 					</div>
 				</div>
 
@@ -33,7 +33,7 @@ export function StatsCards({ competitor }: { competitor: CompetitorInfo }) {
 						rel="noopener noreferrer"
 						target="_blank"
 					>
-						Start Free - No Credit Card
+						Start free
 					</Link>
 				</SciFiButton>
 			</div>

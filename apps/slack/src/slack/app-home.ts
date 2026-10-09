@@ -22,12 +22,12 @@ function connectedSitesBlock(sites: ConnectedSite[]): KnownBlock | null {
 	const lines = sites
 		.slice(0, MAX_HOME_SITES)
 		.map((site) =>
-			site.name ? `• *${site.name}* — ${site.domain}` : `• ${site.domain}`
+			site.name ? `• *${site.name}* (${site.domain})` : `• ${site.domain}`
 		)
 		.join("\n");
 	return {
 		type: "section",
-		text: { type: "mrkdwn", text: `*Your connected sites*\n${lines}` },
+		text: { type: "mrkdwn", text: `*Your connected websites*\n${lines}` },
 	};
 }
 
@@ -48,7 +48,7 @@ export function buildAppHomeView(sites: ConnectedSite[] = []): HomeView {
 				type: "section",
 				text: {
 					type: "mrkdwn",
-					text: "Ask about your analytics right here in Slack — traffic, pages, conversions, campaigns, errors, and product usage. Mention *@Databuddy*, send a direct message, or use the assistant.",
+					text: "Ask about your analytics right here in Slack: traffic, pages, conversions, campaigns, errors, and product usage. Mention *@Databuddy*, send a direct message, or use the assistant.",
 				},
 			},
 			...(sitesBlock ? [sitesBlock] : []),

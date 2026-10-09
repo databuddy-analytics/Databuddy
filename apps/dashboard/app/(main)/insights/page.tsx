@@ -2,7 +2,12 @@
 
 import { isSelfHosted } from "@databuddy/env/public";
 
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, type ReactNode, useEffect, useRef, useState } from "react";
@@ -11,11 +16,23 @@ import {
 	useBillingContext,
 	useInvestigationUsage,
 } from "@/components/providers/billing-provider";
-import { type BriefInsight, insightQueries } from "@/lib/insight-api";
+import {
+	BRIEF_NEXT_LABELS,
+	type BriefInsight,
+	insightQueries,
+} from "@/lib/insight-api";
 import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
+import {
+	Badge,
+	Button,
+	Card,
+	dayjs,
+	EmptyState,
+	fromNow,
+	guessTimezone,
+} from "@databuddy/ui";
 import {
 	ArrowRightIcon,
 	CheckCircleIcon,
@@ -28,6 +45,7 @@ import {
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { latestRunDescription } from "./_lib/insight-run";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -55,6 +73,10 @@ function InsightsPageContent() {
 		searchParams.get("firstReview")?.trim() || undefined;
 	const { canUse: canUseInvestigations, fixedPrice } = useInvestigationUsage();
 	const { isLoading: billingLoading } = useBillingContext();
+	const reviewSchedule = useReviewScheduleEmptyState(
+		organizationId,
+		!firstReviewWebsiteId
+	);
 	const latestRun = useQuery({
 		...orpc.insightGeneration.getLatestRun.queryOptions({
 			input: { organizationId },
@@ -86,12 +108,7 @@ function InsightsPageContent() {
 			: null;
 	const triggerFirstReview = useMutation({
 		...orpc.insightGeneration.triggerRun.mutationOptions(),
-		onError: (error) =>
-			toast.error(
-				error instanceof Error
-					? error.message
-					: "Couldn't start your first review"
-			),
+		meta: { errorTitle: "Failed to start first review" },
 		onSuccess: (run) => {
 			if (run.reusedRun) {
 				toast.info("An analysis is already in progress");
@@ -312,15 +329,16 @@ function InsightsPageContent() {
 							? "Findings from this review only."
 							: latestRunDescription(latestRun.data)
 					}
+					emptyAction={reviewSchedule.action}
 					emptyDescription={
 						isFirstReviewComplete(firstReviewState)
 							? "The review found nothing that needs your attention."
-							: undefined
+							: reviewSchedule.description
 					}
 					emptyTitle={
 						isFirstReviewComplete(firstReviewState)
 							? "No material findings"
-							: undefined
+							: reviewSchedule.title
 					}
 					hasNextPage={brief.hasNextPage ?? false}
 					insights={insights}
@@ -413,7 +431,7 @@ function FirstReview({
 					<WarningCircleIcon aria-hidden className="size-5 text-destructive" />
 					<div className="min-w-0 flex-1">
 						<p className="font-medium text-sm">
-							Couldn't check your first review
+							Failed to check your first review
 						</p>
 						<p className="mt-0.5 text-muted-foreground text-xs">
 							Try again before starting an analysis.
@@ -500,12 +518,20 @@ function FirstReview({
 					Ask your administrator to configure AI before running a review.
 				</p>
 			);
-		} else {
+		} else if (fixedPrice) {
 			action = (
 				<Button asChild size="sm">
 					<Link href="/billing#topup">
 						<CoinsIcon className="size-3.5" />
 						Add investigation balance
+					</Link>
+				</Button>
+			);
+		} else {
+			action = (
+				<Button asChild size="sm">
+					<Link href="/billing/plans?plan=intelligence">
+						Upgrade to Business
 					</Link>
 				</Button>
 			);
@@ -589,7 +615,7 @@ const FIRST_REVIEW_STATUSES = {
 		badgeLabel: "Ready",
 		badgeVariant: "success",
 		description:
-			"Run one review of this site. You will see a specific finding—or a clear no-finding result.",
+			"Run one review of this site. You will see a specific finding or a clear no-finding result.",
 		icon: <LightbulbIcon className="size-5 text-success" />,
 		title: "Your first review is ready",
 	},
@@ -687,8 +713,79 @@ function formatFirstReviewDate(value: string) {
 	return PERIOD_DATE_FORMATTER.format(new Date(value));
 }
 
+function useReviewScheduleEmptyState(
+	organizationId: string | undefined,
+	enabled: boolean
+): { action?: ReactNode; description?: string; title?: string } {
+	const queryClient = useQueryClient();
+	const { canUserUpgrade, isLoading: billingLoading } = useBillingContext();
+	const { hasAccess } = useInvestigationUsage();
+	const config = useQuery({
+		...orpc.insightGeneration.getConfig.queryOptions({
+			input: { organizationId },
+		}),
+		enabled: Boolean(organizationId) && enabled && !isSelfHosted,
+	});
+	const enableReviews = useMutation({
+		...orpc.insightGeneration.upsertConfig.mutationOptions(),
+		onError: (error) =>
+			showErrorToast(error, "Failed to turn on weekly reviews"),
+		meta: { suppressGlobalErrorToast: true },
+		onSuccess: () =>
+			queryClient.invalidateQueries({
+				queryKey: orpc.insightGeneration.key(),
+			}),
+	});
+
+	if (
+		!enabled ||
+		isSelfHosted ||
+		billingLoading ||
+		!hasAccess ||
+		!config.data
+	) {
+		return {};
+	}
+	if (config.data.enabled) {
+		return config.data.nextRunAt
+			? {
+					description: `Your next review runs ${dayjs(config.data.nextRunAt).format("dddd, MMM D")}.`,
+				}
+			: {};
+	}
+	if (!canUserUpgrade) {
+		return {
+			description:
+				"Ask an owner or admin to turn on weekly reviews so Databunny can tell you what changed on your sites.",
+			title: "Automatic reviews are off",
+		};
+	}
+	return {
+		action: (
+			<Button
+				loading={enableReviews.isPending}
+				onClick={() =>
+					enableReviews.mutate({
+						enabled: true,
+						frequency: "weekly",
+						organizationId,
+						timezone: guessTimezone(),
+					})
+				}
+				size="sm"
+			>
+				Turn on weekly reviews
+			</Button>
+		),
+		description:
+			"Turn on weekly reviews and Databunny will tell you what changed on your sites and what to do next.",
+		title: "Automatic reviews are off",
+	};
+}
+
 function InsightBrief({
 	description,
+	emptyAction,
 	emptyDescription,
 	emptyTitle,
 	hasNextPage,
@@ -700,6 +797,7 @@ function InsightBrief({
 	title,
 }: {
 	description: string;
+	emptyAction?: ReactNode;
 	emptyDescription?: string;
 	emptyTitle?: string;
 	hasNextPage: boolean;
@@ -733,7 +831,7 @@ function InsightBrief({
 					}}
 					description="Databuddy couldn't load recent insights."
 					icon={<LightbulbIcon />}
-					title="Couldn't load insights"
+					title="Failed to load insights"
 					variant="error"
 				/>
 			</div>
@@ -742,6 +840,7 @@ function InsightBrief({
 		content = (
 			<div className="px-5 py-8">
 				<EmptyState
+					action={emptyAction}
 					description={
 						emptyDescription ??
 						"Noteworthy changes, improvements, and recoveries will appear here."
@@ -841,6 +940,14 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						</Badge>
 					) : null}
 				</div>
+				{insight.next ? (
+					<p className="mt-2 line-clamp-2 max-w-3xl text-foreground/85 text-sm leading-relaxed">
+						<span className="font-semibold text-foreground">
+							{BRIEF_NEXT_LABELS[insight.next.type]}:
+						</span>{" "}
+						{insight.next.text}
+					</p>
+				) : null}
 				<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
 					<div className="sm:col-span-2">
 						<dt className="font-semibold text-foreground/75">What happened</dt>
@@ -905,7 +1012,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 							aria-label={`Review investigation: ${insight.title}`}
 							href={`/insights/${insight.investigationId}`}
 						>
-							Review & respond
+							Review and respond
 							<ArrowRightIcon className="size-3" />
 						</Link>
 					</Button>

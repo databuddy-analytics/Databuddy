@@ -9,6 +9,7 @@ const originalEnv = process.env;
 beforeEach(() => {
 	process.env = {
 		...originalEnv,
+		NODE_ENV: "production",
 		SELFHOST: "false",
 		REDIS_URL: "rediss://shared:secret@shared.test:6380/2",
 		BULLMQ_REDIS_URL: "",

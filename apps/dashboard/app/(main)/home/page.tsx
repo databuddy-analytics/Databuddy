@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -16,7 +17,7 @@ import { SummaryStats } from "./_components/summary-stats";
 import { useGlobalAnalytics } from "./hooks/use-global-analytics";
 import { usePulseStatus } from "./hooks/use-pulse-status";
 import { ArrowClockwiseIcon, GlobeIcon, PlusIcon } from "@databuddy/ui/icons";
-import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
+import { Button, Card, EmptyState, Skeleton, StatusDot } from "@databuddy/ui";
 
 const WEBSITE_PREVIEW_LIMIT = 3;
 const INSIGHT_PREVIEW_LIMIT = 4;
@@ -48,6 +49,7 @@ function WebsiteCardSkeleton() {
 
 export default function HomePage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const router = useRouter();
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
@@ -68,7 +70,16 @@ export default function HomePage() {
 		averageTrend,
 		trendDirection,
 		websiteCount,
+		needsSetup,
 	} = useGlobalAnalytics();
+	const anySiteHasData = websites.some((website) => {
+		const chart = chartData?.[website.id];
+		return Boolean(chart && (chart.totalViews > 0 || chart.hasHistoricalData));
+	});
+	const siteToInstall = anySiteHasData ? undefined : needsSetup.at(0);
+	const showSetupPrompt =
+		!(isLoading || isError) &&
+		(websites.length === 0 || Boolean(siteToInstall));
 
 	const {
 		monitors,
@@ -135,7 +146,7 @@ export default function HomePage() {
 				</Button>
 				<Button onClick={() => setDialogOpen(true)} size="sm">
 					<PlusIcon className="size-4 shrink-0" />
-					New Website
+					Add website
 				</Button>
 			</TopBar.Actions>
 
@@ -148,6 +159,37 @@ export default function HomePage() {
 				}
 				className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-5"
 			>
+				{showSetupPrompt ? (
+					<Card className="flex-row flex-wrap items-center justify-between gap-3 px-5 py-4">
+						<div className="flex items-start gap-2.5">
+							<StatusDot className="mt-1.5" color="warning" size="sm" />
+							<div className="space-y-0.5">
+								<p className="text-pretty font-medium text-sm">
+									{siteToInstall
+										? `Install tracking on ${siteToInstall.domain} to see your first visitors`
+										: "Add your website to see your first visitors"}
+								</p>
+								<p className="text-pretty text-muted-foreground text-xs">
+									{siteToInstall
+										? "Your first visitor shows up as soon as someone opens the site with the script installed."
+										: "Everything on this page fills in once your site sends its first page view."}
+								</p>
+							</div>
+						</div>
+						{siteToInstall ? (
+							<Button asChild size="sm">
+								<Link href={`/websites/${siteToInstall.id}`}>
+									Install tracking
+								</Link>
+							</Button>
+						) : (
+							<Button onClick={() => setDialogOpen(true)} size="sm">
+								Add your website
+							</Button>
+						)}
+					</Card>
+				) : null}
+
 				<SummaryStats
 					activeMonitors={activeMonitors}
 					averageTrend={averageTrend}
@@ -180,10 +222,15 @@ export default function HomePage() {
 					/>
 				</div>
 
-				<div className="space-y-4">
+				<div
+					className={cn(
+						"space-y-4",
+						!(isLoading || isError) && websites.length === 0 && "hidden"
+					)}
+				>
 					<div className="flex items-center justify-between">
 						<h2 className="font-semibold text-foreground text-sm">
-							Website Snapshot
+							Website snapshot
 						</h2>
 						{websites.length > 0 && (
 							<Link
@@ -206,26 +253,13 @@ export default function HomePage() {
 					{isError && (
 						<EmptyState
 							action={{
-								label: "Try Again",
+								label: "Try again",
 								onClick: handleRefetch,
 							}}
 							description="There was an issue fetching your websites."
 							icon={<GlobeIcon />}
-							title="Failed to load"
+							title="Failed to load websites"
 							variant="error"
-						/>
-					)}
-
-					{!(isLoading || isError) && websites.length === 0 && (
-						<EmptyState
-							action={{
-								label: "Create Your First Website",
-								onClick: () => setDialogOpen(true),
-							}}
-							description="Start tracking your website analytics by adding your first website."
-							icon={<GlobeIcon />}
-							title="No websites yet"
-							variant="minimal"
 						/>
 					)}
 
@@ -258,7 +292,11 @@ export default function HomePage() {
 				</div>
 			</div>
 
-			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
+			<WebsiteDialog
+				onOpenChange={setDialogOpen}
+				onSave={(site) => router.push(`/websites/${site.id}`)}
+				open={dialogOpen}
+			/>
 		</div>
 	);
 }

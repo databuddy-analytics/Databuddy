@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Data Policy - How Your Data Flows Through Databuddy";
+const title = "Data policy: how your data flows through Databuddy";
 const description =
 	"How data flows through our system, what we collect, how we process it, and the steps we've taken to protect your visitors' privacy.";
 const url = "https://www.databuddy.cc/data-policy";
@@ -41,7 +41,7 @@ export default function DataPolicyPage() {
 					<div className="mb-5 inline-flex items-center justify-center rounded border border-accent bg-accent/50 p-3">
 						<DatabaseIcon className="size-7 text-primary" />
 					</div>
-					<h1 className="mb-4 font-bold text-4xl md:text-5xl">Data Policy</h1>
+					<h1 className="mb-4 font-bold text-4xl md:text-5xl">Data policy</h1>
 					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
 						<span className="font-medium text-foreground">
@@ -68,7 +68,7 @@ export default function DataPolicyPage() {
 				<div className="prose prose-lg dark:prose-invert max-w-none">
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
-							Our Tracking Script
+							Our tracking script
 						</h2>
 						<p className="mb-4 text-pretty">
 							The browser tracker sends pageviews and enabled events with the
@@ -92,7 +92,7 @@ export default function DataPolicyPage() {
 							</a>
 							.
 						</p>
-						<h3 className="mb-3 font-semibold text-xl">Event Types</h3>
+						<h3 className="mb-3 font-semibold text-xl">Event types</h3>
 						<p className="mb-3 text-pretty">
 							Depending on your configuration, the tracker can collect:
 						</p>
@@ -101,7 +101,7 @@ export default function DataPolicyPage() {
 								<thead>
 									<tr className="border-accent border-b">
 										<th className="py-3 pr-4 text-left font-semibold">
-											Event Type
+											Event type
 										</th>
 										<th className="py-3 text-left font-semibold">
 											Description
@@ -157,7 +157,7 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 text-balance font-bold text-2xl">
-							Security and Protection
+							Security and protection
 						</h2>
 						<p className="mb-4 text-pretty">
 							Requests undergo validation, rate limiting, and bot checks.
@@ -169,10 +169,10 @@ export default function DataPolicyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 text-balance font-bold text-2xl">
-							What We Collect
+							What we collect
 						</h2>
 						<h3 className="mb-3 text-balance font-semibold text-xl">
-							Visitor and Session IDs
+							Visitor and session IDs
 						</h3>
 						<p className="mb-4 text-pretty">
 							The browser generates a random visitor ID and stores it in
@@ -191,7 +191,7 @@ export default function DataPolicyPage() {
 							profile. Profile IDs are not made anonymous by the visitor-ID
 							setting.
 						</p>
-						<h3 className="mb-3 font-semibold text-xl">IP Address Handling</h3>
+						<h3 className="mb-3 font-semibold text-xl">IP address handling</h3>
 						<p className="mb-4 text-pretty">
 							The ingestion service uses the request IP address for security
 							checks and an approximate country, region, and city lookup.
@@ -207,14 +207,14 @@ export default function DataPolicyPage() {
 					<section className="mb-8">
 						<h2 className="mb-4 flex items-center font-bold text-2xl">
 							<DatabaseIcon className="mr-2 size-6 text-primary" />
-							Storage and Retention
+							Storage and retention
 						</h2>
 						<p className="mb-4 text-pretty">
 							Analytics events are stored in ClickHouse. Supporting account,
 							website, and profile records are stored separately.
 						</p>
 
-						<h3 className="mb-3 font-semibold text-xl">Data Organization</h3>
+						<h3 className="mb-3 font-semibold text-xl">Data organization</h3>
 						<p className="mb-3 text-pretty">
 							We store event-level analytics and supporting application data,
 							including:
@@ -224,10 +224,10 @@ export default function DataPolicyPage() {
 								<thead>
 									<tr className="border-accent border-b">
 										<th className="py-3 pr-4 text-left font-semibold">
-											Data Type
+											Data type
 										</th>
 										<th className="py-3 text-left font-semibold">
-											What's Stored
+											What's stored
 										</th>
 									</tr>
 								</thead>
@@ -264,7 +264,7 @@ export default function DataPolicyPage() {
 							</table>
 						</div>
 
-						<h3 className="mt-6 mb-3 font-semibold text-xl">Data Retention</h3>
+						<h3 className="mt-6 mb-3 font-semibold text-xl">Data retention</h3>
 						<p className="mb-4 text-pretty">
 							Most data is retained indefinitely while your account is active.
 							We target one year for performance metrics, but automatic expiry
@@ -365,8 +365,8 @@ export default function DataPolicyPage() {
 							<div className="py-3">
 								<dt className="font-semibold">Supermemory</dt>
 								<dd className="text-muted-foreground">
-									Memory for the AI assistant, including questions asked in
-									chat.
+									Memory for Databunny, the built-in AI analyst, including
+									questions asked in chat.
 								</dd>
 							</div>
 							<div className="py-3">
@@ -412,14 +412,14 @@ export default function DataPolicyPage() {
 								<dt className="font-semibold">OpenAI</dt>
 								<dd className="text-muted-foreground">
 									Advertising measurement. A pixel on the Databuddy dashboard
-									records visits and sign-up conversions.
+									records visits and signup conversions.
 								</dd>
 							</div>
 						</dl>
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 text-balance font-bold text-2xl">Data Use</h2>
+						<h2 className="mb-4 text-balance font-bold text-2xl">Data use</h2>
 						<p className="mb-4 text-pretty">
 							We do not sell your data to third parties or use your visitor
 							information for our own advertising or marketing. Your data
@@ -451,10 +451,10 @@ export default function DataPolicyPage() {
 						</div>
 						<div className="flex flex-wrap gap-4">
 							<a className="text-primary hover:text-primary/80" href="/privacy">
-								Privacy Policy →
+								Privacy policy →
 							</a>
 							<a className="text-primary hover:text-primary/80" href="/dpa">
-								Data Processing Agreement →
+								Data processing agreement →
 							</a>
 							<a
 								className="text-primary hover:text-primary/80"

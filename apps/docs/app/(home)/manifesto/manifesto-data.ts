@@ -18,7 +18,7 @@ export interface ManifestoChapter {
 }
 
 export const manifestoIntro = {
-	title: "The Databuddy Manifesto",
+	title: "The Databuddy manifesto",
 	lead: [
 		"I built Databuddy because I wanted to understand what changed in my product without reconstructing the answer across separate analytics, error, and performance tools.",
 		"Here's what guides the product.",
@@ -29,7 +29,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "analytics-is-broken",
 		number: "01",
-		title: "Analytics Is Broken",
+		title: "Analytics is broken",
 		blocks: [
 			{
 				type: "paragraph",
@@ -48,7 +48,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "context-is-everything",
 		number: "02",
-		title: "Context Is Everything",
+		title: "Context is everything",
 		blocks: [
 			{
 				type: "paragraph",
@@ -79,7 +79,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "privacy-is-the-default",
 		number: "03",
-		title: "Privacy Is the Default, Not the Feature",
+		title: "Privacy is the default, not the feature",
 		blocks: [
 			{
 				type: "paragraph",
@@ -87,11 +87,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "callout",
-				text: "Privacy isn’t a feature. It’s the bare minimum.",
+				text: "Privacy isn’t a feature you upgrade to, because it’s the bare minimum.",
 			},
 			{
 				type: "paragraph",
-				text: "Databuddy’s tracker is about 13 KB gzipped and uses browser storage instead of analytics cookies. User identification is optional. Website owners choose what to collect and remain responsible for their privacy notices and consent requirements.",
+				text: "Databuddy’s tracker uses browser storage instead of analytics cookies. User identification is optional. Website owners choose what to collect and remain responsible for their privacy notices and consent requirements.",
 			},
 			{
 				type: "paragraph",
@@ -102,7 +102,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "ask-your-data",
 		number: "04",
-		title: "Ask Your Data Questions, Not Your Dashboard",
+		title: "Ask your data questions, not your dashboard",
 		blocks: [
 			{
 				type: "callout",
@@ -122,7 +122,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Databunny, the AI agent inside Databuddy, answers questions, builds charts, and runs investigations. When you configure a schedule and Slack delivery, it sends actionable investigations to your chosen channels.",
+				text: "Databunny, the built-in AI analyst, answers questions, builds charts, and runs investigations. When you configure a schedule and Slack delivery, it sends actionable investigations to your chosen channels.",
 			},
 			{
 				type: "paragraph",
@@ -133,11 +133,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 	{
 		id: "build-for-builders",
 		number: "05",
-		title: "Build for Builders",
+		title: "Build for builders",
 		blocks: [
 			{
 				type: "paragraph",
-				text: "Databuddy is for the founder who checks analytics between deploys. The engineer who wants to know if the feature they shipped last night actually moved a number. The two-person team that doesn’t have a “data person” and shouldn’t need one.",
+				text: "Databuddy is for the founder who checks analytics between deploys, the engineer who wants to know if last night’s feature actually moved a number, and the two-person team that doesn’t have a “data person” and shouldn’t need one.",
 			},
 			{
 				type: "paragraph",
@@ -145,11 +145,11 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "callout",
-				text: "One script. One platform. The full picture.",
+				text: "One script gives you the full picture on one platform.",
 			},
 			{
 				type: "paragraph",
-				text: "That’s it. That’s Databuddy.",
+				text: "That’s all Databuddy is meant to be.",
 			},
 		],
 	},

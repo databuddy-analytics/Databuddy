@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { insightQueries } from "@/lib/insight-api";
 import { listQueryOutcome } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
-import { mutationErrorToast } from "@/lib/user-facing-error";
 
 export type Goal = InferSelectModel<typeof goals>;
 
@@ -109,28 +108,28 @@ function useGoalActions(websiteId: string) {
 
 	const createMutation = useMutation({
 		...orpc.goals.create.mutationOptions(),
-		...mutationErrorToast,
+		meta: { errorTitle: "Failed to create goal" },
 		onSuccess: () => {
 			invalidateAll();
-			toast.success("Goal created successfully");
+			toast.success("Goal created");
 		},
 	});
 
 	const updateMutation = useMutation({
 		...orpc.goals.update.mutationOptions(),
-		...mutationErrorToast,
+		meta: { errorTitle: "Failed to update goal" },
 		onSuccess: () => {
 			invalidateAll();
-			toast.success("Goal updated successfully");
+			toast.success("Goal updated");
 		},
 	});
 
 	const deleteMutation = useMutation({
 		...orpc.goals.delete.mutationOptions(),
-		...mutationErrorToast,
+		meta: { errorTitle: "Failed to delete goal" },
 		onSuccess: () => {
 			invalidateAll();
-			toast.success("Goal deleted successfully");
+			toast.success("Goal deleted");
 		},
 	});
 

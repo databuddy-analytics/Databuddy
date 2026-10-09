@@ -4,6 +4,7 @@ import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { FeatureGate } from "@/components/feature-gate";
 import {
 	useBillingContext,
@@ -85,7 +86,8 @@ export function InvestigationSettings({
 	const saveMutation = useMutation({
 		...orpc.insightGeneration.upsertConfig.mutationOptions(),
 		onError: (error) =>
-			toast.error(error instanceof Error ? error.message : "Could not save"),
+			showErrorToast(error, "Failed to save analysis settings"),
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: async () => {
 			toast.success("Settings saved");
 			await refreshConfig();
@@ -95,8 +97,7 @@ export function InvestigationSettings({
 
 	const triggerMutation = useMutation({
 		...orpc.insightGeneration.triggerRun.mutationOptions(),
-		onError: (error) =>
-			toast.error(error instanceof Error ? error.message : "Could not start"),
+		meta: { errorTitle: "Failed to start analysis" },
 		onSuccess: async (data) => {
 			if (data.reusedRun) {
 				toast.info("Analysis is already running");
@@ -166,7 +167,7 @@ export function InvestigationSettings({
 								}}
 								description="Databuddy couldn't load analysis settings for this organization."
 								icon={<GearIcon />}
-								title="Couldn't load settings"
+								title="Failed to load settings"
 								variant="error"
 							/>
 						) : configReady && form ? (

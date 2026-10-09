@@ -11,7 +11,7 @@ import { CalculatorSection } from "./_components/calculator-section";
 import { CalculatorSources } from "./_components/calculator-sources";
 import { CtaSection } from "./_components/cta-section";
 
-const TITLE = "Analytics Measurement Gap Calculator";
+const TITLE = "Analytics measurement gap calculator";
 const DESCRIPTION =
 	"Estimate how missing visits affect revenue attribution. Adjust traffic, measurement coverage, conversion rate, and order value using your own assumptions.";
 
@@ -27,7 +27,7 @@ export async function generateMetadata({
 	const selected = inputs ?? DEFAULT_INPUTS;
 	const result = calculateCookieBannerCost(selected);
 	const ogParams = new URLSearchParams({
-		revenue: String(result.lostRevenueYearly),
+		revenue: String(Math.round(result.lostRevenueYearly)),
 		visitors: String(selected.monthlyVisitors),
 	});
 	const ogImageUrl = `${SITE_URL}/calculator/og?${ogParams}`;
@@ -48,7 +48,7 @@ export async function generateMetadata({
 					url: ogImageUrl,
 					width: 1200,
 					height: 630,
-					alt: "Analytics Measurement Gap Calculator results",
+					alt: "Analytics measurement gap calculator results",
 				},
 			],
 		},
@@ -70,10 +70,10 @@ export default async function CalculatorPage({ searchParams }: PageProps) {
 				<div className="mx-auto w-full max-w-7xl">
 					<header className="mb-12 text-center sm:mb-16">
 						<p className="mb-3 text-pretty font-mono text-muted-foreground text-xs uppercase tracking-widest">
-							Free Tool
+							Free tool
 						</p>
 						<h1 className="mb-3 text-balance font-bold text-3xl tracking-tight sm:text-4xl lg:text-5xl">
-							Analytics Measurement Gap Calculator
+							Analytics measurement gap calculator
 						</h1>
 						<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base">
 							Estimate the revenue associated with visits missing from your

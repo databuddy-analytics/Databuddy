@@ -14,6 +14,7 @@ import {
 	DotMatrixLoader,
 	useRandomDotMatrixLoader,
 } from "@/components/ui/dotmatrix";
+import { IMAGE_BLOCKING_REHYPE_PLUGINS, ImageAltText } from "./message";
 import { Shimmer } from "./shimmer";
 import { useThinkingPhrase } from "./thinking-phrases";
 import { CaretDownIcon } from "@databuddy/ui/icons";
@@ -207,7 +208,12 @@ export const ReasoningContent = memo(
 			{...props}
 		>
 			<div className="py-1.5 pl-5 text-xs">
-				<Streamdown>{children}</Streamdown>
+				<Streamdown
+					components={{ img: ImageAltText }}
+					rehypePlugins={IMAGE_BLOCKING_REHYPE_PLUGINS}
+				>
+					{children}
+				</Streamdown>
 			</div>
 		</CollapsibleContent>
 	)

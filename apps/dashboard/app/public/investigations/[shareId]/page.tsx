@@ -35,6 +35,7 @@ export default function PublicInvestigationPage() {
 	});
 
 	const latest = data?.timeline.at(-1) ?? null;
+	const recovered = data?.insight.resolvedReason === "recovered";
 	const visibleItems =
 		data && !historyExpanded ? data.timeline.slice(-1) : (data?.timeline ?? []);
 	const earlierCount = (data?.timeline.length ?? 0) - 1;
@@ -110,14 +111,22 @@ export default function PublicInvestigationPage() {
 											data.insight.status === "resolved" ? "success" : "warning"
 										}
 									/>
-									{data.insight.status === "resolved" ? "Resolved" : "Open"}
+									{data.insight.status === "resolved"
+										? recovered
+											? "Recovered"
+											: "Resolved"
+										: "Open"}
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
 								{latest?.entity.label ?? data.insight.title}
 							</h2>
 						</header>
-						<CaseState items={data.timeline} latest={latest} />
+						<CaseState
+							items={data.timeline}
+							latest={latest}
+							recovered={recovered}
+						/>
 						<ol className="divide-y">
 							{visibleItems.map((item) => (
 								<li className="px-4 py-4 sm:px-5" key={item.id}>

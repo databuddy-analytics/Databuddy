@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
+import { OAUTH_AUTHORIZE_PATH_PREFIX } from "./lib/safe-callback";
 
 const SIGN_IN_ROUTES = ["/login", "/register"];
 const PUBLIC_AUTH_ROUTES = [...SIGN_IN_ROUTES, "/auth/error"];
@@ -19,8 +20,11 @@ export function proxy(request: NextRequest) {
 		pathname.startsWith(route)
 	);
 	const isAddingAccount = searchParams.get("add_account") === "true";
+	const isOAuthSignIn =
+		searchParams.has("sig") ||
+		searchParams.get("callback")?.startsWith(OAUTH_AUTHORIZE_PATH_PREFIX);
 
-	if (isSignInRoute && sessionCookie && !isAddingAccount) {
+	if (isSignInRoute && sessionCookie && !(isAddingAccount || isOAuthSignIn)) {
 		return NextResponse.redirect(new URL("/websites", request.url));
 	}
 
@@ -38,6 +42,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
 	matcher: [
-		"/((?!api|rpc/|v1/|_next/static|_next/image|favicon.ico|demo|public|dby|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+		"/((?!api|rpc/|v1/|\\.well-known/|_next/static|_next/image|favicon.ico|demo|public|dby|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 	],
 };

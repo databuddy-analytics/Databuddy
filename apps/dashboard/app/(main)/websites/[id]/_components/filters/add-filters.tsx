@@ -25,7 +25,7 @@ function getOperatorDisplay(value: string): string {
 type FilterOption = (typeof filterOptions)[number];
 
 const filterFormSchema = z.object({
-	field: z.string().min(1, "Please select a field"),
+	field: z.string().min(1, "Select a field"),
 	operator: z.enum(["eq", "ne", "contains", "not_contains", "starts_with"]),
 	value: z.string().min(1, "Value is required"),
 });
@@ -165,7 +165,7 @@ function FilterDialogContent({
 				<p className="font-medium text-foreground text-sm">
 					Failed to load filters
 				</p>
-				<p className="text-muted-foreground text-xs">Please try again later</p>
+				<p className="text-muted-foreground text-xs">Try again later</p>
 				<Button
 					className="mt-2"
 					onClick={onClose}
@@ -329,7 +329,7 @@ export function AddFilterForm({
 			<Dialog onOpenChange={setIsOpen} open={isOpen}>
 				<Dialog.Content className="max-w-sm overflow-hidden p-0">
 					<Dialog.Header className="sr-only">
-						<Dialog.Title>Add Filter</Dialog.Title>
+						<Dialog.Title>Add filter</Dialog.Title>
 						<Dialog.Description>
 							Choose a field and configure the filter
 						</Dialog.Description>

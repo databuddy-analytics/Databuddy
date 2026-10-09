@@ -69,6 +69,17 @@ export function normalizeGranularity(
 	return unit as Granularity;
 }
 
+export function eventTimeBucket(
+	granularity: TimeUnit | undefined,
+	field: string
+): SqlExpression {
+	return expr(
+		granularity === "hour" || granularity === "hourly"
+			? `formatDateTime(toStartOfHour(toTimeZone(${field}, {timezone:String})), '%Y-%m-%d %H:00:00')`
+			: `toDate(toTimeZone(${field}, {timezone:String}))`
+	);
+}
+
 export const Expressions = {
 	referrer: {
 		normalized: expr(`
@@ -102,6 +113,15 @@ export const Expressions = {
 			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END"
 		),
 	},
+
+	segments: (alias = "") =>
+		expr(`[
+			('browser', ifNull(${alias}browser_name, '')),
+			('browser_version', if(ifNull(${alias}browser_version, '') = '', '', concat(ifNull(${alias}browser_name, ''), ' ', splitByChar('.', ifNull(${alias}browser_version, ''))[1]))),
+			('os', ifNull(${alias}os_name, '')),
+			('device', if(ifNull(${alias}device_type, '') = '', 'Desktop', initCap(${alias}device_type))),
+			('country', ifNull(${alias}country, ''))
+		]`),
 } as const;
 
 export const SESSION_ATTRIBUTION_FIELDS = [

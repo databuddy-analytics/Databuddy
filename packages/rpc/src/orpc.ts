@@ -1,11 +1,13 @@
 import type { OrganizationBusinessContext } from "@databuddy/shared/organization-business-context";
+import type { McpAccessGrant } from "@databuddy/shared/mcp-access";
 import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
 } from "@databuddy/api-keys/resolve";
-import { auth } from "@databuddy/auth";
+import { auth, type User } from "@databuddy/auth";
 import { db } from "@databuddy/db";
-import { os as createOS } from "@orpc/server";
+import { billingMode } from "@databuddy/env/app";
+import { ORPCError, os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
 import {
 	enrichRpcWideEventContext,
@@ -14,7 +16,7 @@ import {
 	setRpcProcedureType,
 	setRpcAuthTiming,
 } from "./lib/rpc-log-context";
-import { hasHostedBilling } from "./lib/autumn-client";
+import { isBillingUnavailable } from "./lib/autumn-client";
 import { runTracked } from "./middleware/track-mutation";
 import { runAuditedMutation } from "./middleware/audit-mutation";
 import { type BillingOwner, getBillingOwner } from "./utils/billing";
@@ -22,6 +24,11 @@ import { getOrganizationOwnerId } from "./utils/organization";
 
 export interface PreResolvedAuth {
 	apiKey: ApiKeyRow | null;
+	oauth?: {
+		grant: McpAccessGrant;
+		scopes: string[];
+		user: User;
+	} | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
 }
 
@@ -90,6 +97,7 @@ export const createRPCContext = async (
 ) => {
 	let session: PreResolvedAuth["session"];
 	let apiKey: PreResolvedAuth["apiKey"];
+	const oauth = preResolved?.oauth ?? null;
 	if (preResolved) {
 		session = preResolved.session;
 		apiKey = preResolved.apiKey;
@@ -102,17 +110,25 @@ export const createRPCContext = async (
 		setRpcAuthTiming(performance.now() - authStartedAt);
 	}
 
-	const user = session?.user;
+	const user = session?.user ?? oauth?.user;
 
 	const organizationId =
-		apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null;
+		apiKey?.organizationId ??
+		session?.session.activeOrganizationId ??
+		oauth?.grant.organizationId ??
+		null;
 
 	let billingCache: BillingOwner | undefined;
 	let billingResolved = false;
 
-	const getBilling = async (): Promise<BillingOwner | undefined> => {
-		if (!hasHostedBilling()) {
+	const getBilling = async (
+		billingOrganizationId: string | null = organizationId
+	): Promise<BillingOwner | undefined> => {
+		if (billingMode() !== "live") {
 			return;
+		}
+		if (user && billingOrganizationId !== organizationId) {
+			return getBillingOwner(user.id, billingOrganizationId);
 		}
 		if (billingResolved) {
 			return billingCache;
@@ -136,6 +152,7 @@ export const createRPCContext = async (
 		session: session?.session,
 		user,
 		apiKey: apiKey ?? undefined,
+		oauth,
 		getBilling,
 		organizationId,
 		anonymousId: opts.headers.get("x-databuddy-anonymous-id"),
@@ -148,31 +165,49 @@ export type Context = Awaited<ReturnType<typeof createRPCContext>>;
 
 const os = createOS.$context<Context>().errors(baseErrors);
 
-export const publicProcedure = os.use(({ context, next, path }) => {
+const procedure = os.use(async ({ next }) => {
+	try {
+		return await next();
+	} catch (error) {
+		if (isBillingUnavailable(error)) {
+			throw new ORPCError("SERVICE_UNAVAILABLE", {
+				status: 503,
+				message: "Billing is temporarily unavailable. Try again in a moment.",
+				data: { retryAfter: 30 },
+				cause: error,
+			});
+		}
+		throw error;
+	}
+});
+
+export const publicProcedure = procedure.use(({ context, next, path }) => {
 	setRpcProcedureType("public");
 	setRpcProcedurePath(path);
 	enrichRpcWideEventContext(context);
 	return next();
 });
 
-export const protectedProcedure = os.use(({ context, next, errors, path }) => {
-	setRpcProcedureType("protected");
-	setRpcProcedurePath(path);
-	enrichRpcWideEventContext(context);
+export const protectedProcedure = procedure.use(
+	({ context, next, errors, path }) => {
+		setRpcProcedureType("protected");
+		setRpcProcedurePath(path);
+		enrichRpcWideEventContext(context);
 
-	if (!(context.user || context.apiKey)) {
-		recordORPCError({ code: "UNAUTHORIZED" });
-		throw errors.UNAUTHORIZED();
+		if (!(context.user || context.apiKey)) {
+			recordORPCError({ code: "UNAUTHORIZED" });
+			throw errors.UNAUTHORIZED();
+		}
+
+		return next({ context });
 	}
-
-	return next({ context });
-});
+);
 
 export const sessionProcedure = protectedProcedure.use(
 	({ context, next, errors }) => {
 		if (!(context.user && context.session)) {
 			recordORPCError({ code: "UNAUTHORIZED" });
-			throw errors.UNAUTHORIZED({ message: "Session required" });
+			throw errors.UNAUTHORIZED({ message: "Sign in to continue." });
 		}
 
 		return next({

@@ -1,4 +1,9 @@
-export { Badge, PercentageBadge } from "./components/badge";
+export {
+	Badge,
+	PercentageBadge,
+	type Stage,
+	StageBadge,
+} from "./components/badge";
 export { Button, buttonVariants } from "./components/button";
 export { Card } from "./components/card";
 export {

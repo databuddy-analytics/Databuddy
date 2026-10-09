@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { BriefInsight } from "@/lib/insight-api";
+import { BRIEF_NEXT_LABELS, type BriefInsight } from "@/lib/insight-api";
 import {
 	LightbulbIcon,
 	TrendDownIcon,
@@ -44,7 +44,7 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					Couldn't load insights
+					Failed to load insights
 				</p>
 				<p className="text-muted-foreground text-xs">
 					Recent analysis results couldn't be loaded
@@ -56,7 +56,7 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 				size="sm"
 				variant="secondary"
 			>
-				Retry
+				Try again
 			</Button>
 		</div>
 	);
@@ -100,7 +100,16 @@ function InsightRow({ insight }: { insight: BriefInsight }) {
 					{insight.title}
 				</span>
 				<span className="mt-0.5 line-clamp-2 block text-muted-foreground text-xs leading-relaxed">
-					{insight.summary}
+					{insight.next ? (
+						<>
+							<span className="font-medium text-foreground/80">
+								{BRIEF_NEXT_LABELS[insight.next.type]}:
+							</span>{" "}
+							{insight.next.text}
+						</>
+					) : (
+						insight.summary
+					)}
 				</span>
 				<span className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
 					<span>{insight.websiteName ?? insight.websiteDomain}</span>

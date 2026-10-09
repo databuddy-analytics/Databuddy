@@ -16,7 +16,7 @@ describe("persisted funnel step normalization", () => {
 		expect(normalizeFunnelSteps(persistedSteps)).toEqual([]);
 
 		expect(() => requireFunnelSteps(persistedSteps)).toThrow(
-			"no malformed steps"
+			"every step needs a target"
 		);
 	});
 
@@ -57,7 +57,7 @@ describe("persisted funnel step normalization", () => {
 		expect(error).toMatchObject({
 			code: "BAD_REQUEST",
 			message:
-				"Funnel must contain at least 2 valid steps and no malformed steps",
+				"A funnel needs at least 2 steps, and every step needs a target. Fix the steps and try again.",
 		});
 	});
 });

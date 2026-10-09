@@ -58,29 +58,32 @@ it.each([
 	"passed",
 	"failed",
 	"inconclusive",
+	null,
 ] as const)("does not label an unverified closure recovered: %s", (status) => {
 	const values = caseValues(
 		{
 			outcome: {
 				...quietResolve,
-				verification: {
-					check: {
-						metric: "total_users_completed",
-						startDate: "2026-07-01",
-						endDate: "2026-07-07",
-						minimumEntrants: 100,
-						threshold: {
-							anchor: "prior_baseline",
-							comparison: "at_or_above",
-							value: 100,
-							evidenceRef: { source: "signal" },
-						},
-					},
-					status,
-					measured: 40,
-					entrants: 200,
-					source: null,
-				},
+				verification: status
+					? {
+							check: {
+								metric: "total_users_completed",
+								startDate: "2026-07-01",
+								endDate: "2026-07-07",
+								minimumEntrants: 100,
+								threshold: {
+									anchor: "prior_baseline",
+									comparison: "at_or_above",
+									value: 100,
+									evidenceRef: { source: "signal" },
+								},
+							},
+							status,
+							measured: 40,
+							entrants: 200,
+							source: null,
+						}
+					: undefined,
 			},
 			signal: {
 				signalKey: "goal:workspace",

@@ -3,7 +3,7 @@
 import { ArrowsClockwiseIcon, PencilSimpleIcon } from "@databuddy/ui/icons";
 import { nanoid } from "nanoid";
 import { useState } from "react";
-import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { type Organization, useOrganizations } from "@/hooks/use-organizations";
 import { getOrganizationInitials } from "@/lib/utils";
 import { Button, Field, Input, Text } from "@databuddy/ui";
@@ -39,8 +39,8 @@ export function OrganizationAvatarEditor({
 				onSuccess: () => {
 					setIsModalOpen(false);
 				},
-				onError: () => {
-					toast.error("Failed to update avatar");
+				onError: (error) => {
+					showErrorToast(error, "Failed to update avatar");
 				},
 			}
 		);

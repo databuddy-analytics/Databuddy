@@ -535,7 +535,7 @@ describeIntegration("insights scheduler integration", () => {
 					organizationId: org.id,
 					websiteIds: [failedWebsite.id],
 				})
-			).rejects.toThrow("Failed to queue insight generation");
+			).rejects.toThrow("The investigation could not be started");
 		} finally {
 			publish.mockRestore();
 		}

@@ -1,5 +1,5 @@
 import { buildRevenueLatestCte } from "@databuddy/db/clickhouse";
-import { Expressions } from "../expressions";
+import { eventTimeBucket, Expressions } from "../expressions";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -96,11 +96,13 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: [
 			"path",
 			"browser_name",
 			"os_name",
 			"country",
+			"region",
 			"message",
 			"device_type",
 			"error_type",
@@ -130,6 +132,7 @@ export const ErrorsBuilders = {
 		orderBy: "count DESC",
 		limit: 50,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
@@ -204,6 +207,7 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 		noCache: true,
@@ -235,6 +239,7 @@ export const ErrorsBuilders = {
 				{ name: "payment_match_is_lower_bound", type: "boolean" },
 			],
 		},
+		commonFilters: false,
 		allowedFilters: ["message", "path"],
 		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
 		customSql: (ctx) => {
@@ -448,6 +453,7 @@ export const ErrorsBuilders = {
 				},
 			],
 		},
+		commonFilters: false,
 		allowedFilters: ["message", "path"],
 		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
 		customSql: (ctx) => {
@@ -684,17 +690,89 @@ export const ErrorsBuilders = {
 			description: "Error counts over time to identify spikes and trends.",
 			category: "Errors",
 			tags: ["errors", "trends", "time-series"],
+			supports_granularity: ["hour", "day"],
 		},
-		table: Analytics.error_spans,
-		fields: [
-			"toDate(toTimeZone(timestamp, {timezone:String})) as date",
-			"COUNT(*) as errors",
-			"uniq(anonymous_id) as users",
-		],
-		where: ["message != ''"],
-		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
-		orderBy: "date ASC",
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			return {
+				sql: `
+					SELECT
+						${eventTimeBucket(ctx.granularity, "timestamp")} as date,
+						COUNT(*) as errors,
+						uniq(anonymous_id) as users
+					FROM ${Analytics.error_spans}
+					WHERE client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND message != ''
+						${appendFilterClause(filterConditions)}
+					GROUP BY date
+					ORDER BY date ASC
+				`,
+				params: { websiteId, startDate, endDate, ...filterParams },
+			};
+		},
 		timeField: "timestamp",
+		commonFilters: false,
+		allowedFilters: ["message", "path", "error_type"],
+	},
+
+	error_segments: {
+		meta: {
+			description:
+				"Occurrences and sessions of matching errors per browser, browser major version, operating system, device type and country, counting sessions whose context was recorded. Top 50 values per dimension.",
+			category: "Errors",
+			tags: ["errors", "segments", "browsers", "internal"],
+		},
+		customSql: (ctx) => ({
+			sql: `
+				WITH matched AS (
+					SELECT session_id
+					FROM ${Analytics.error_spans}
+					WHERE client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND message != ''
+						AND session_id != ''
+						${appendFilterClause(ctx.filterConditions)}
+				),
+				context AS (
+					SELECT
+						session_id,
+						any(browser_name) AS browser_name,
+						any(browser_version) AS browser_version,
+						any(os_name) AS os_name,
+						any(device_type) AS device_type,
+						any(country) AS country
+					FROM ${Analytics.events}
+					WHERE client_id = {websiteId:String}
+						AND time >= toDateTime({startDate:String})
+						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND session_id IN (SELECT session_id FROM matched)
+					GROUP BY session_id
+				)
+				SELECT
+					pair.1 AS dimension,
+					pair.2 AS value,
+					count() AS errors,
+					uniq(m.session_id) AS sessions
+				FROM matched AS m
+				INNER JOIN context AS c ON c.session_id = m.session_id
+				ARRAY JOIN ${Expressions.segments("c.")} AS pair
+				GROUP BY dimension, value
+				ORDER BY dimension, sessions DESC
+				LIMIT 50 BY dimension
+			`,
+			params: {
+				websiteId: ctx.websiteId,
+				startDate: ctx.startDate,
+				endDate: ctx.endDate,
+				...ctx.filterParams,
+			},
+		}),
+		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
@@ -715,13 +793,14 @@ export const ErrorsBuilders = {
 		orderBy: "errors DESC",
 		limit: 20,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},
 
 	error_frequency: {
 		meta: {
-			description: "Error frequency and recurrence patterns.",
+			description: "Error counts per day.",
 			category: "Errors",
 			tags: ["errors", "frequency"],
 		},
@@ -734,13 +813,15 @@ export const ErrorsBuilders = {
 		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
 	error_summary: {
 		meta: {
 			title: "Error Summary",
-			description: "Overview of errors with calculated error rate",
+			description:
+				"Overview of errors with calculated error rate: sessions with a matching error as a percentage of all sessions in the range; filters apply to the errors only. uniqueErrorTypes counts distinct error messages.",
 			category: "Errors",
 			tags: ["errors", "summary", "overview"],
 		},
@@ -789,6 +870,7 @@ export const ErrorsBuilders = {
 			};
 		},
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 	},
@@ -809,6 +891,7 @@ export const ErrorsBuilders = {
 		groupBy: ["toDate(toTimeZone(timestamp, {timezone:String}))"],
 		orderBy: "date ASC",
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["message", "path", "error_type"],
 	},
 
@@ -831,6 +914,7 @@ export const ErrorsBuilders = {
 		orderBy: "count DESC",
 		limit: 20,
 		timeField: "timestamp",
+		commonFilters: false,
 		allowedFilters: ["path", "message", "error_type"],
 		customizable: true,
 	},

@@ -7,25 +7,17 @@ let ownerId: string | null = OWNER_ID;
 let memberRole: string | null = null;
 
 const mockGetOrCreate = mock(async () => ({ subscriptions: [] }));
-const mockLoggerError = mock(() => undefined);
 const mockGetOrganizationOwnerId = mock(async () => ownerId);
 const mockGetMemberRole = mock(async () => memberRole);
 
+const actualAutumnClient = { ...(await import("../lib/autumn-client")) };
 mock.module("../lib/autumn-client", () => ({
+	...actualAutumnClient,
 	getAutumn: () => ({
 		customers: {
 			getOrCreate: mockGetOrCreate,
 		},
 	}),
-}));
-
-mock.module("../lib/logger", () => ({
-	logger: {
-		error: mockLoggerError,
-		info: mock(() => undefined),
-		warn: mock(() => undefined),
-	},
-	record: <T>(_name: string, fn: () => Promise<T> | T) => fn(),
 }));
 
 mock.module("./organization", () => ({
@@ -43,7 +35,6 @@ beforeEach(() => {
 	ownerId = OWNER_ID;
 	memberRole = null;
 	mockGetOrCreate.mockClear();
-	mockLoggerError.mockClear();
 	mockGetOrganizationOwnerId.mockClear();
 	mockGetMemberRole.mockClear();
 	mockGetOrCreate.mockImplementation(async () => ({ subscriptions: [] }));
@@ -58,7 +49,6 @@ describe("resolveBillingOwner", () => {
 		await expect(resolveBillingOwner("user-1", null)).rejects.toThrow(
 			"autumn unavailable"
 		);
-		expect(mockLoggerError).toHaveBeenCalledTimes(1);
 	});
 
 	it("resolves and normalizes the active billing plan when Autumn succeeds", async () => {

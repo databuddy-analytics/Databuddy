@@ -14,9 +14,9 @@ export interface HonorableMention {
 	logo: string;
 	name: string;
 	supportType:
-		| "Free Plan"
-		| "Open Source"
-		| "Community Support"
+		| "Free plan"
+		| "Open source"
+		| "Community support"
 		| "Educational";
 	website: string;
 }
@@ -47,7 +47,7 @@ export const honorableMentions: HonorableMention[] = [
 		logo: "coderabbit.svg",
 		website: "https://coderabbit.ai",
 		description: "AI-powered code reviews with comprehensive OSS plan",
-		supportType: "Free Plan",
+		supportType: "Free plan",
 	},
 ];
 

@@ -1,12 +1,23 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
-import { runWithTransaction } from "@better-auth/core/context";
-import { and, db, eq, like } from "@databuddy/db";
+import {
+	defineRequestState,
+	runWithTransaction,
+} from "@better-auth/core/context";
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	like,
+	TransactionRollbackError,
+} from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
 	member as memberTable,
 	organization as organizationTable,
+	user as userTable,
 	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
@@ -19,8 +30,7 @@ import {
 	ResetPasswordEmail,
 	VerificationEmail,
 } from "@databuddy/email";
-import { config } from "@databuddy/env/app";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { billingMode, config, readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
 	getRedisCache,
@@ -40,10 +50,19 @@ import {
 	auditActions,
 	type AuditActionDefinition,
 	type AuditActor,
+	type AuditRequestContext,
 } from "@databuddy/shared/audit";
+import { Autumn, AutumnError } from "autumn-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { BetterAuthPlugin } from "better-auth";
-import { APIError, createAuthEndpoint } from "better-auth/api";
+import {
+	APIError,
+	createAuthEndpoint,
+	createAuthMiddleware,
+	getAuthoritativeSessionFromCtx,
+	getIP,
+	getSessionFromCtx,
+} from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
@@ -53,10 +72,11 @@ import {
 	organization,
 	twoFactor,
 } from "better-auth/plugins";
-import { log } from "evlog";
+import { createLogger, log } from "evlog";
+import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
-import { getAuthAuditContext } from "./audit-context";
+import { getAuthAuditContext, runWithAuthAuditContext } from "./audit-context";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -158,7 +178,7 @@ function shouldRequireEmailVerification() {
 		if (
 			required &&
 			isSelfHosted() &&
-			!(process.env.RESEND_API_KEY?.trim() && process.env.EMAIL_FROM?.trim())
+			!(config.services.resendApiKey && process.env.EMAIL_FROM?.trim())
 		) {
 			throw new Error(
 				"Self-hosted email verification requires RESEND_API_KEY and EMAIL_FROM on a verified domain."
@@ -201,7 +221,7 @@ async function enforceAuthEmailRateLimit(input: {
 		...(input.email ? { auth_rate_limit_email: input.email } : {}),
 	});
 	throw new APIError("TOO_MANY_REQUESTS", {
-		message: "Too many email requests. Please try again later.",
+		message: "Too many email requests. Try again shortly.",
 	});
 }
 
@@ -210,7 +230,11 @@ async function sendAuthEmail(input: {
 	template: EmailTemplate;
 	to: string;
 }): Promise<void> {
-	const apiKey = process.env.RESEND_API_KEY;
+	if (readBooleanEnv("DATABUDDY_E2E_MODE")) {
+		log.info({ service: "auth", auth_email_skipped: true });
+		return;
+	}
+	const apiKey = config.services.resendApiKey;
 	if (!apiKey) {
 		log.error({
 			service: "auth",
@@ -218,7 +242,7 @@ async function sendAuthEmail(input: {
 			email_provider_error: "RESEND_API_KEY is not configured",
 		});
 		throw new APIError("SERVICE_UNAVAILABLE", {
-			message: "Email delivery is temporarily unavailable. Please try again.",
+			message: "Email delivery is temporarily unavailable. Try again shortly.",
 		});
 	}
 	const [html, text] = await Promise.all([
@@ -241,7 +265,7 @@ async function sendAuthEmail(input: {
 			email_provider_error: result.error.message,
 		});
 		throw new APIError("INTERNAL_SERVER_ERROR", {
-			message: "We could not send this email. Please try again.",
+			message: "Failed to send this email. Try again shortly.",
 		});
 	}
 }
@@ -253,7 +277,7 @@ function formatInvitationRole(role: string | string[]): string {
 		.join(", ");
 }
 
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+const SLACK_WEBHOOK_URL = config.services.slackWebhookUrl ?? "";
 
 function notifySlack(
 	title: string,
@@ -280,7 +304,7 @@ function notifySlack(
 		});
 }
 
-const DUB_API_KEY = process.env.DUB_API_KEY ?? "";
+const DUB_API_KEY = config.services.dubApiKey ?? "";
 
 function trackDubSignUp(user: {
 	id: string;
@@ -334,7 +358,7 @@ function notifySignUpSlackAction(input: {
 }): void {
 	notifySlack("New sign-up", "A new user created an account.", "normal", {
 		email: input.email,
-		name: input.name ?? "—",
+		name: input.name ?? "Not set",
 		userId: input.userId,
 		organizationId: input.organizationId,
 	});
@@ -429,6 +453,186 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	});
 }
 
+const ipAddress = { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] };
+
+// Rate limiting buckets IPv6 by /64; audit keeps the full address.
+function getRequestIp(request: Request | Headers): string | undefined {
+	return (
+		getIP(request, {
+			advanced: {
+				ipAddress: {
+					...ipAddress,
+					ipAddressHeaders: [...ipAddress.ipAddressHeaders, "cf-connecting-ip"],
+					ipv6Subnet: 128,
+				},
+			},
+		}) ?? undefined
+	);
+}
+
+export function toAuditRequest(request: Request): AuditRequestContext {
+	return {
+		requestId: request.headers.get("x-request-id") ?? undefined,
+		ip: getRequestIp(request),
+		userAgent: request.headers.get("user-agent") ?? undefined,
+	};
+}
+
+function isOwnerRole(role: string): boolean {
+	return role.split(",").some((value) => value.trim() === "owner");
+}
+
+function foreignKeyViolationTable(error: unknown): string | undefined {
+	if (typeof error !== "object" || error === null) {
+		return;
+	}
+	if ("code" in error && error.code === "23503" && "table" in error) {
+		return String(error.table);
+	}
+	return "cause" in error ? foreignKeyViolationTable(error.cause) : undefined;
+}
+
+async function assertUserRowDeletable(
+	userId: string,
+	organizationIds: string[]
+): Promise<void> {
+	const outcome = await db
+		.transaction(async (tx) => {
+			if (organizationIds.length > 0) {
+				await tx
+					.delete(organizationTable)
+					.where(inArray(organizationTable.id, organizationIds));
+			}
+			await tx.delete(userTable).where(eq(userTable.id, userId));
+			tx.rollback();
+		})
+		.catch((error: unknown) => error);
+	if (outcome instanceof TransactionRollbackError) {
+		return;
+	}
+	const table = foreignKeyViolationTable(outcome);
+	if (!table) {
+		throw outcome;
+	}
+	log.warn({
+		service: "auth",
+		component: "account_deletion",
+		auth_user_id: userId,
+		blocking_table: table,
+	});
+	throw new APIError("BAD_REQUEST", {
+		message:
+			"Your account still owns data in an organization you share. Transfer or delete it, then try again.",
+	});
+}
+
+async function assertNoRenewingSubscription(userId: string): Promise<void> {
+	if (billingMode() !== "live") {
+		return;
+	}
+	const customer = await new Autumn({
+		secretKey: config.services.autumnSecretKey,
+		timeoutMs: 5000,
+	}).customers
+		.get({ customerId: userId })
+		.catch((error: unknown) => {
+			if (error instanceof AutumnError && error.statusCode === 404) {
+				return null;
+			}
+			log.error({
+				service: "auth",
+				component: "account_deletion",
+				error: error instanceof Error ? error.message : String(error),
+			});
+			throw new APIError("SERVICE_UNAVAILABLE", {
+				message: "Failed to check your subscription. Try again shortly.",
+			});
+		});
+	if (
+		customer?.subscriptions.some(
+			(subscription) =>
+				!subscription.autoEnable && subscription.canceledAt === null
+		)
+	) {
+		throw new APIError("BAD_REQUEST", {
+			message:
+				"Cancel your subscription in Billing before deleting your account",
+		});
+	}
+}
+
+async function planAccountDeletion(userId: string) {
+	const memberships = await db.query.member.findMany({
+		where: { userId },
+		columns: { role: true },
+		with: {
+			organization: {
+				columns: { id: true, name: true },
+				with: { members: { columns: { userId: true, role: true } } },
+			},
+		},
+	});
+	for (const { role, organization } of memberships) {
+		const others = organization.members.filter((m) => m.userId !== userId);
+		if (
+			isOwnerRole(role) &&
+			others.length > 0 &&
+			!others.some((m) => isOwnerRole(m.role))
+		) {
+			throw new APIError("BAD_REQUEST", {
+				message: `Transfer ownership of ${organization.name} or delete it before deleting your account`,
+			});
+		}
+	}
+	await assertNoRenewingSubscription(userId);
+	const soleMemberOrganizations = memberships
+		.map((m) => m.organization)
+		.filter((org) => org.members.every((m) => m.userId === userId));
+	await assertUserRowDeletable(
+		userId,
+		soleMemberOrganizations.map((org) => org.id)
+	);
+	return soleMemberOrganizations;
+}
+
+async function deleteSoleMemberOrganizations(userId: string): Promise<void> {
+	for (const org of await planAccountDeletion(userId)) {
+		try {
+			await deleteOrganizationWithBusinessMemory(org.id);
+		} catch (error) {
+			if (!(error instanceof BusinessMemoryRetirementError)) {
+				throw error;
+			}
+			throw new APIError("SERVICE_UNAVAILABLE", {
+				message:
+					"Failed to remove business context. Try deleting your account again shortly.",
+			});
+		}
+		await recordAuthAudit(org.id, {
+			action: auditActions.ORGANIZATION_DELETED,
+			target: { id: org.id, displayName: org.name },
+			changes: { deleted: { after: true } },
+			reason: "account_deleted",
+		});
+	}
+}
+
+const accountDeletionPaths = new Set(["/delete-user", "/delete-user/callback"]);
+
+const refuseBlockedAccountDeletion = createAuthMiddleware(async (ctx) => {
+	if (!accountDeletionPaths.has(ctx.path)) {
+		return;
+	}
+	const session = await getAuthoritativeSessionFromCtx(ctx);
+	if (session) {
+		await planAccountDeletion(session.user.id);
+	}
+});
+
+const deleteAccountEmailFailure = defineRequestState<APIError | null>(
+	() => null
+);
+
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
 
 function forwardAuthLog(
@@ -453,7 +657,113 @@ function forwardAuthLog(
 	log.info(fields);
 }
 
+function toAuthAuditAction(path: string): string {
+	return `auth${path.replaceAll("/", ".").replaceAll("-", "_").replaceAll(":", "")}`;
+}
+
+const unauthenticatedActor = { type: "user", id: "unauthenticated" } as const;
+
+function auditRateLimitedRequest(key: string): void {
+	const separator = key.indexOf("|");
+	const logger = createLogger({ service: "auth", ip: key.slice(0, separator) });
+	logger.audit({
+		action: toAuthAuditAction(key.slice(separator + 1)),
+		actor: unauthenticatedActor,
+		outcome: "failure",
+		reason: "TOO_MANY_REQUESTS",
+	});
+	logger.emit();
+}
+
+function isTwoFactorChallenge(returned: unknown): boolean {
+	return (
+		typeof returned === "object" &&
+		returned !== null &&
+		"twoFactorRedirect" in returned &&
+		returned.twoFactorRedirect === true
+	);
+}
+
+const recordAuthOutcome = createAuthMiddleware(async (ctx) => {
+	const deleteEmailFailure =
+		ctx.path === "/delete-user" ? await deleteAccountEmailFailure.get() : null;
+	const { newSession, session } = ctx.context;
+	const returned = deleteEmailFailure ?? ctx.context.returned;
+	const failure =
+		returned instanceof APIError && returned.statusCode >= 400
+			? returned
+			: null;
+	const request =
+		ctx.method === "GET" && !(newSession || failure) ? undefined : ctx.request;
+	if (request) {
+		const secondFactorRequired = isTwoFactorChallenge(returned);
+		const email = (ctx.body as { email?: unknown } | undefined)?.email;
+		let userId = newSession?.user.id ?? session?.user.id;
+		if (!userId && ctx.path.startsWith("/organization/")) {
+			// The organization plugin runs its endpoints on a copy of the context,
+			// so the session it loaded never reaches this hook.
+			userId = (await getSessionFromCtx(ctx, { disableRefresh: true }))?.user
+				.id;
+		} else if (!userId && ctx.path.startsWith("/two-factor/")) {
+			const challenge = await ctx.getSignedCookie(
+				ctx.context.createAuthCookie("two_factor").name,
+				ctx.context.secret
+			);
+			userId = challenge
+				? (await ctx.context.internalAdapter.findVerificationValue(challenge))
+						?.value
+				: undefined;
+		} else if (!userId && secondFactorRequired && typeof email === "string") {
+			userId = (await ctx.context.internalAdapter.findUserByEmail(email))?.user
+				.id;
+		}
+		if (userId || failure || typeof email === "string") {
+			const logger = createLogger({
+				service: "auth",
+				ip: getRequestIp(request),
+				user_agent: request.headers.get("user-agent") ?? undefined,
+				...(ctx.params && { route_params: ctx.params }),
+			});
+			logger.audit({
+				action: secondFactorRequired
+					? `${toAuthAuditAction(ctx.path)}.second_factor_required`
+					: toAuthAuditAction(ctx.path),
+				actor: userId ? { type: "user", id: userId } : unauthenticatedActor,
+				...(typeof email === "string" && {
+					target: {
+						type:
+							ctx.path === "/organization/invite-member"
+								? "invitee"
+								: "account",
+						id: maskEmail(email),
+					},
+				}),
+				outcome: failure ? "failure" : "success",
+				...(failure && {
+					reason:
+						(failure.body as { code?: string } | undefined)?.code ??
+						String(failure.status),
+				}),
+			});
+			logger.emit();
+		}
+	}
+	if (deleteEmailFailure) {
+		throw deleteEmailFailure;
+	}
+});
+
+// A plugin after hook, listed after twoFactor, so the audit sees a password-only
+// sign-in after twoFactor has replaced its session with a second-factor challenge.
+const authAudit = {
+	id: "auth-audit",
+	hooks: { after: [{ matcher: () => true, handler: recordAuthOutcome }] },
+} satisfies BetterAuthPlugin;
+
 export const baseAuthOptions = {
+	hooks: {
+		before: refuseBlockedAccountDeletion,
+	},
 	logger: {
 		log: forwardAuthLog,
 	},
@@ -479,6 +789,9 @@ export const baseAuthOptions = {
 		customStorage: {
 			consume: async (key, rule) => {
 				const result = await ratelimit(key, rule.max, rule.window);
+				if (!result.success) {
+					auditRateLimitedRequest(key);
+				}
 				return {
 					allowed: result.success,
 					retryAfter: result.success
@@ -628,23 +941,59 @@ export const baseAuthOptions = {
 			enabled: true,
 			deleteTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.accountDeletion,
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
-				await sendAuthEmail({
-					to: targetUser.email,
-					subject: "[Action required] Confirm account deletion",
-					template: DeleteAccountEmail({ url }),
-				});
+				try {
+					await sendAuthEmail({
+						to: targetUser.email,
+						subject: "[Action required] Confirm account deletion",
+						template: DeleteAccountEmail({ url }),
+					});
+				} catch (error) {
+					// Better Auth logs and swallows errors from this callback; the
+					// after hook turns the stored failure into the response.
+					await deleteAccountEmailFailure.set(
+						error instanceof APIError
+							? error
+							: new APIError("INTERNAL_SERVER_ERROR", {
+									message: "Failed to send this email. Try again shortly.",
+								})
+					);
+					throw error;
+				}
 			},
-			beforeDelete: async (userToDelete) => {
-				await notifySlack(
+			beforeDelete: (userToDelete, request) =>
+				runWithAuthAuditContext(
+					{
+						...getAuthAuditContext(),
+						actor: toAuditActor(userToDelete),
+						operation: "auth.deleteUser",
+						request: request ? toAuditRequest(request) : undefined,
+					},
+					() => deleteSoleMemberOrganizations(userToDelete.id)
+				),
+			afterDelete: (deletedUser, request) => {
+				const requestContext = request ? toAuditRequest(request) : undefined;
+				const logger = createLogger({
+					service: "auth",
+					ip: requestContext?.ip,
+					user_agent: requestContext?.userAgent,
+				});
+				logger.audit({
+					action: "auth.account_deleted",
+					actor: { type: "user", id: deletedUser.id },
+					target: { type: "user", id: deletedUser.id },
+				});
+				logger.emit();
+				notifySlack(
 					"Account deleted",
 					"A user deleted their account.",
 					"high",
 					{
-						email: userToDelete.email,
-						name: userToDelete.name ?? "—",
-						userId: userToDelete.id,
+						email: deletedUser.email,
+						name: deletedUser.name ?? "Not set",
+						userId: deletedUser.id,
 					}
 				);
+				return Promise.resolve();
 			},
 		},
 	},
@@ -658,6 +1007,7 @@ export const baseAuthOptions = {
 		errorURL: "/auth/error",
 	},
 	advanced: {
+		ipAddress,
 		crossSubDomainCookies: {
 			enabled: isProduction() && (!isSelfHosted() || Boolean(cookieDomain)),
 			domain: cookieDomain,
@@ -764,13 +1114,13 @@ export const baseAuthOptions = {
 					windowSeconds: 900,
 				});
 
-				let subject = `${otp} is your verification code`;
+				let subject = `${otp} is your Databuddy verification code`;
 				if (type === "sign-in") {
-					subject = `${otp} — Sign in to Databuddy`;
+					subject = `${otp} is your Databuddy sign-in code`;
 				} else if (type === "email-verification") {
-					subject = `${otp} — Verify your email`;
+					subject = `${otp} is your Databuddy verification code`;
 				} else if (type === "forget-password") {
-					subject = `${otp} — Reset your password`;
+					subject = `${otp} is your Databuddy password reset code`;
 				}
 
 				await sendAuthEmail({
@@ -816,7 +1166,7 @@ export const baseAuthOptions = {
 				beforeCreateOrganization: ({ organization }) => {
 					if (organization.metadata !== undefined) {
 						throw new APIError("BAD_REQUEST", {
-							message: "Organization metadata is managed by the server.",
+							message: "Organization metadata is managed by the server",
 						});
 					}
 					return Promise.resolve();
@@ -824,7 +1174,7 @@ export const baseAuthOptions = {
 				beforeUpdateOrganization: ({ organization }) => {
 					if (organization.metadata !== undefined) {
 						throw new APIError("BAD_REQUEST", {
-							message: "Organization metadata is managed by the server.",
+							message: "Organization metadata is managed by the server",
 						});
 					}
 					return Promise.resolve();
@@ -1015,6 +1365,7 @@ export const baseAuthOptions = {
 			},
 		}),
 		secretFingerprint,
+		authAudit,
 	],
 } satisfies Parameters<typeof betterAuth>[0];
 

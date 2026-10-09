@@ -11,7 +11,7 @@ export const DATABUNNY_USAGE = {
 
 export const EVENTS_USAGE = {
 	description:
-		"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
+		"Events include pageviews, custom events, errors, Web Vitals, and MCP tool calls collected by Databuddy.",
 	name: "Event tracking",
 	pausedActivity: "new event collection",
 	unit: "events",
@@ -60,7 +60,7 @@ export const PLAN_COPY = {
 	},
 	intelligence: {
 		description:
-			"An always-on product investigator for founders and engineers.",
+			"Daily or weekly investigations that end with evidence and a next step.",
 		positioning: "Recommended",
 	},
 	intelligence_scale: {
@@ -95,3 +95,18 @@ export const investigationQuantitySchema = number()
 	.int()
 	.min(1)
 	.max(INVESTIGATION_USAGE.maxPurchase);
+
+export class BillingUnavailableError extends Error {
+	readonly code = "billing_unavailable";
+
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = "BillingUnavailableError";
+	}
+}
+
+export function isBillingUnavailable(
+	error: unknown
+): error is BillingUnavailableError {
+	return error instanceof BillingUnavailableError;
+}

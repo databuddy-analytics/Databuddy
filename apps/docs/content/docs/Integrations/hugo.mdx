@@ -1,6 +1,6 @@
 ---
 title: Hugo
-description: Add privacy-first analytics to your Hugo static site
+description: Add cookieless product analytics to your Hugo static site
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,12 +8,12 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your Hugo static site by adding the tracking script to your site's templates. The best way to do this is by creating a partial template for the script and including it in your site's footer.
+Add Databuddy's cookieless product analytics to your Hugo static site by adding the tracking script to your site's templates. The best way to do this is by creating a partial template for the script and including it in your site's footer.
 
-## How to Add Databuddy to Hugo
+## How to add Databuddy to Hugo
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Get your Databuddy tracking script from your [Databuddy dashboard](https://app.databuddy.cc). It will look like this:
 
     <CodeBlock
@@ -29,7 +29,7 @@ Add Databuddy's privacy-first analytics to your Hugo static site by adding the t
     Replace `YOUR_CLIENT_ID` with your actual Client ID from your Databuddy dashboard.
   </Step>
 
-  <Step title="Create a Partial Template">
+  <Step title="Create a partial template">
     In your Hugo project, navigate to the `layouts/partials/` directory. If it doesn't exist, create it.
 
     Inside `layouts/partials/`, create a new file named `databuddy-analytics.html`.
@@ -52,12 +52,12 @@ Add Databuddy's privacy-first analytics to your Hugo static site by adding the t
 
     **Explanation:**
 
-    - `{{ if not .Site.IsServer }}`: This Hugo condition ensures that the tracking script is only included when you build your site for production (`hugo`) and not during local development (`hugo server`). This prevents tracking your own local page views.
+    - `{{ if not .Site.IsServer }}`: This Hugo condition ensures that the tracking script is only included when you build your site for production (`hugo`) and not during local development (`hugo server`). This prevents tracking your own local pageviews.
     - Replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Include the Partial in Your Footer">
-    Now, you need to include this partial in your site's main footer template. This is typically located in `layouts/_default/baseof.html` or a theme-specific footer partial (e.g., `layouts/partials/footer.html` or `themes/your-theme/layouts/partials/footer.html`).
+  <Step title="Include the partial in your footer">
+    Now, you need to include this partial in your site's main footer template. This is typically located in `layouts/_default/baseof.html` or a theme-specific footer partial (e.g. `layouts/partials/footer.html` or `themes/your-theme/layouts/partials/footer.html`).
 
     Open your main base template or footer partial file. Just before the closing `</body>` tag, add the following line to include your Databuddy Analytics partial:
 
@@ -80,11 +80,11 @@ Add Databuddy's privacy-first analytics to your Hugo static site by adding the t
 </html>`}
     />
 
-    If you named your partial differently, make sure to use that name (e.g., `{{ partial "my-analytics-script.html" . }}`).
+    If you named your partial differently, make sure to use that name (e.g. `{{ partial "my-analytics-script.html" . }}`).
   </Step>
 </Steps>
 
-## Configure `config.toml` (Recommended)
+## Configure `config.toml` (recommended)
 
 To make your Client ID configurable, you can use Hugo's site parameters.
 
@@ -107,8 +107,8 @@ To make your Client ID configurable, you can use Hugo's site parameters.
     />
   </Step>
 
-  <Step title="Add Parameters to config.toml">
-    Open your Hugo configuration file (e.g., `config.toml`) and add:
+  <Step title="Add parameters to config.toml">
+    Open your Hugo configuration file (e.g. `config.toml`) and add:
 
     <CodeBlock
       language="toml"
@@ -121,7 +121,7 @@ To make your Client ID configurable, you can use Hugo's site parameters.
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by modifying the partial:
 
@@ -144,11 +144,11 @@ Enable additional tracking features by modifying the partial:
 {{ end }}`}
 />
 
-## Custom Event Tracking
+## Custom event tracking
 
 Track custom events in your Hugo content using data attributes or inline JavaScript.
 
-### Using Data Attributes
+### Using data attributes
 
 Enable automatic tracking with data attributes:
 
@@ -185,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>`}
 />
 
-### In Hugo Posts
+### In Hugo posts
 
 Add tracking to specific blog posts using front matter and shortcodes:
 
@@ -227,7 +227,7 @@ if (window.databuddy) {
 {{ end }}`}
 />
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Jekyll" href="/docs/Integrations/jekyll">

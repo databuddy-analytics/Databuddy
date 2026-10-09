@@ -7,9 +7,11 @@ import type {
 	InvestigationOutcome,
 } from "@databuddy/shared/insights";
 import { Button, dayjs, Skeleton, StatusDot } from "@databuddy/ui";
+import { DeleteDialog } from "@databuddy/ui/client";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { List } from "@/components/ui/composables/list";
 import {
 	insightQueries,
@@ -40,26 +42,26 @@ type DefinitionExecution = Extract<
 
 export function ExecuteDefinitionAction({
 	action,
+	entityLabel,
 	execution,
 	insightId,
 	definitionType,
 }: {
 	action: string;
+	entityLabel: string;
 	execution: DefinitionExecution;
 	definitionType: "funnel" | "goal";
 	insightId: string;
 }) {
 	const queryClient = useQueryClient();
 	const memberRole = authClient.useActiveMemberRole();
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const apply = useMutation({
 		...orpc.insights.applyAction.mutationOptions(),
 		onError: (error) => {
-			toast.error(
-				error instanceof Error
-					? error.message
-					: `Could not apply ${definitionType} action`
-			);
+			showErrorToast(error, `Failed to apply ${definitionType} change`);
 		},
+		meta: { suppressGlobalErrorToast: true },
 		onSuccess: ({ reply }) => {
 			queryClient.invalidateQueries({ queryKey: insightQueries.all() });
 			queryClient.invalidateQueries({
@@ -70,7 +72,7 @@ export function ExecuteDefinitionAction({
 			toast.success(
 				reply.status === "failed"
 					? `${noun} change applied, but verification could not start`
-					: `${noun} change applied — verifying the result`
+					: `${noun} change applied. Verifying the result`
 			);
 		},
 	});
@@ -88,7 +90,13 @@ export function ExecuteDefinitionAction({
 			<Button
 				disabled={Boolean(accessReason) || apply.isPending}
 				loading={apply.isPending}
-				onClick={() => apply.mutate({ insightId })}
+				onClick={() => {
+					if (deleting) {
+						setConfirmingDelete(true);
+						return;
+					}
+					apply.mutate({ insightId });
+				}}
 				size="sm"
 				tone={deleting ? "destructive" : "neutral"}
 				type="button"
@@ -98,6 +106,19 @@ export function ExecuteDefinitionAction({
 			</Button>
 			{accessReason ? (
 				<p className="text-muted-foreground text-xs">{accessReason}</p>
+			) : null}
+			{deleting ? (
+				<DeleteDialog
+					confirmLabel={`Delete ${definitionType}`}
+					description={`Delete ${entityLabel}? Historical events remain in your analytics, but this ${definitionType} will no longer be available for reporting.`}
+					isDeleting={apply.isPending}
+					isOpen={confirmingDelete}
+					onClose={() => setConfirmingDelete(false)}
+					onConfirm={async () => {
+						await apply.mutateAsync({ insightId });
+					}}
+					title={`Delete ${definitionType}`}
+				/>
 			) : null}
 		</div>
 	);
@@ -202,9 +223,11 @@ export function InvestigationRow({ insight }: { insight: Insight }) {
 export function CaseState({
 	items,
 	latest,
+	recovered = false,
 }: {
 	items: TimelineItem[];
 	latest: InvestigationItem | null;
+	recovered?: boolean;
 }) {
 	if (!latest) {
 		return null;
@@ -226,7 +249,9 @@ export function CaseState({
 				? "Needs your input"
 				: latest.outcome.next.type === "watch"
 					? "Measuring"
-					: "Verified";
+					: recovered
+						? "Recovered"
+						: "Verified";
 
 	return (
 		<section
@@ -345,6 +370,7 @@ export function InvestigationActivity({
 					<ExecuteDefinitionAction
 						action={outcome.next.type === "act" ? outcome.next.action : ""}
 						definitionType={definitionType}
+						entityLabel={item.entity.label}
 						execution={execution}
 						insightId={insightId}
 					/>

@@ -1,5 +1,6 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
+import { dataUrl, isLocalHost } from "@databuddy/env/app";
 import { finalizeDeliveryTables } from "./logical-reads";
 export const TABLE_NAMES = {
 	events: "analytics.events",
@@ -10,8 +11,31 @@ export const TABLE_NAMES = {
 	engagement_spans: "analytics.engagement_spans",
 	custom_events: "analytics.custom_events",
 	ai_traffic_spans: "analytics.ai_traffic_spans",
+	mcp_spans: "analytics.mcp_spans",
 	link_visits: "analytics.link_visits",
 };
+
+// Warn instead of throwing: every service imports this module, and a half-set
+// pair keeps working until Cloudflare Access is enforced on ch-cluster.
+export function clickHouseAccessHeaders(
+	env: Record<string, string | undefined> = process.env
+): Record<string, string> | undefined {
+	const clientId = env.CLICKHOUSE_ACCESS_CLIENT_ID?.trim();
+	const clientSecret = env.CLICKHOUSE_ACCESS_CLIENT_SECRET?.trim();
+	if (!(clientId || clientSecret)) {
+		return;
+	}
+	if (!(clientId && clientSecret)) {
+		console.warn(
+			"[db] ClickHouse Access is half-configured: set both CLICKHOUSE_ACCESS_CLIENT_ID and CLICKHOUSE_ACCESS_CLIENT_SECRET; sending no Access headers"
+		);
+		return;
+	}
+	return {
+		"CF-Access-Client-Id": clientId,
+		"CF-Access-Client-Secret": clientSecret,
+	};
+}
 
 export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	max_open_connections: 64,
@@ -24,6 +48,7 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 		request: true,
 		response: true,
 	},
+	http_headers: clickHouseAccessHeaders(),
 };
 
 export const FINAL_READ_SETTINGS = {
@@ -58,10 +83,9 @@ function assertLoopbackForIntegrationTests(url: string | undefined): void {
 	if (process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true") {
 		return;
 	}
-	const hostname = url ? new URL(url).hostname : "";
-	if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname)) {
+	if (!(url && isLocalHost(url))) {
 		throw new Error(
-			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${hostname || "unset"}"`
+			`ClickHouse integration tests only run against a loopback server; CLICKHOUSE_URL host is "${url ? new URL(url).hostname : "unset"}"`
 		);
 	}
 }
@@ -69,7 +93,7 @@ function assertLoopbackForIntegrationTests(url: string | undefined): void {
 assertLoopbackForIntegrationTests(process.env.CLICKHOUSE_URL);
 
 const baseClient = createClient({
-	url: process.env.CLICKHOUSE_URL,
+	url: dataUrl("CLICKHOUSE_URL"),
 	...CLICKHOUSE_OPTIONS,
 });
 

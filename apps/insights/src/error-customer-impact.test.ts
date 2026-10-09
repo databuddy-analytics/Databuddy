@@ -2,6 +2,7 @@ import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
+	cohortMeasurementEvidence,
 	errorCustomerImpactEvidence,
 	hasMaterialRouteContinuation,
 	loadErrorCustomerImpact,
@@ -130,13 +131,14 @@ describe("error customer impact", () => {
 
 	it("binds a route signal without exposing cohort identifiers", async () => {
 		const requests: Record<string, unknown>[] = [];
+		const routeSignal: InvestigationSignal = {
+			...errorSignal,
+			entity: { id: "/explore", label: "Route /explore", type: "page" },
+			signalKey: "route:error:/explore",
+		};
 		const impact = await loadErrorCustomerImpact(
 			{
-				signal: {
-					...errorSignal,
-					entity: { id: "/explore", label: "Route /explore", type: "page" },
-					signalKey: "route:error:/explore",
-				},
+				signal: routeSignal,
 				timezone: "UTC",
 				websiteId: "site-1",
 			},
@@ -165,13 +167,13 @@ describe("error customer impact", () => {
 			exposedSessions: 40,
 			percentagePointDifference: -40,
 		});
-		expect(errorCustomerImpactEvidence(impact)).toContain(
+		expect(errorCustomerImpactEvidence(impact, routeSignal)).toContain(
 			"Errors on this route"
 		);
-		expect(errorCustomerImpactEvidence(impact)).toContain(
+		expect(errorCustomerImpactEvidence(impact, routeSignal)).toContain(
 			"This is an association, not proof"
 		);
-		expect(errorCustomerImpactEvidence(impact)).not.toContain(
+		expect(errorCustomerImpactEvidence(impact, routeSignal)).not.toContain(
 			"This exact error"
 		);
 	});
@@ -232,19 +234,20 @@ describe("error customer impact", () => {
 		});
 	});
 
-	it("reuses a persisted continuation cohort instead of querying it again", async () => {
+	it("reuses a persisted continuation cohort without querying or restating it", async () => {
 		const calls: string[] = [];
+		const behaviorSignal: InvestigationSignal = {
+			...errorSignal,
+			cohortMeasurement: {
+				type: "matched_error_continuation",
+				controlContinuationPercent: 60,
+				exposedContinuationPercent: 20,
+				matchedSessions: 40,
+			},
+		};
 		const impact = await loadErrorCustomerImpact(
 			{
-				signal: {
-					...errorSignal,
-					cohortMeasurement: {
-						type: "matched_error_continuation",
-						controlContinuationPercent: 60,
-						exposedContinuationPercent: 20,
-						matchedSessions: 40,
-					},
-				},
+				signal: behaviorSignal,
 				timezone: "UTC",
 				websiteId: "site-1",
 			},
@@ -261,6 +264,18 @@ describe("error customer impact", () => {
 			exposedSessions: 40,
 			percentagePointDifference: -40,
 		});
+		if (!impact) {
+			throw new Error("Expected behavior impact fixture");
+		}
+		const evidence = errorCustomerImpactEvidence(impact, behaviorSignal);
+		expect(cohortMeasurementEvidence(behaviorSignal)).toContain(
+			"error-exposed session"
+		);
+		expect(evidence).not.toContain("error-exposed session");
+		expect(evidence).toContain("had an unambiguous same-window profile link");
+		expect(evidence).toContain(
+			"At least 2 identified profiles had an attributed completed payment"
+		);
 	});
 
 	it("skips continuation analysis before the affected session cohort is usable", async () => {
@@ -297,7 +312,7 @@ describe("error customer impact", () => {
 		if (!impact) {
 			throw new Error("Expected impact fixture");
 		}
-		const evidence = errorCustomerImpactEvidence(impact);
+		const evidence = errorCustomerImpactEvidence(impact, errorSignal);
 
 		expect(evidence).toContain(
 			"At least 2 identified profiles had an attributed completed payment"

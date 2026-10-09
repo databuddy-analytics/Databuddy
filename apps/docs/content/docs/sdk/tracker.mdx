@@ -1,5 +1,5 @@
 ---
-title: Tracker Helpers
+title: Tracker helpers
 description: Helper functions for tracking events, managing sessions, and cross-domain attribution
 ---
 
@@ -11,7 +11,7 @@ The Databuddy SDK exports helper functions for tracking events, managing session
   **Import**: `import { track, flush, getAnonymousId, ... } from "@databuddy/sdk"`
 </Callout>
 
-## Event Tracking
+## Event tracking
 
 ### track(name, properties)
 
@@ -62,7 +62,7 @@ try {
   **Note:** `trackError()` is for *manual* error tracking. To automatically capture all JavaScript errors, use the `trackErrors` prop on the `<Databuddy />` component.
 </Callout>
 
-## Session Management
+## Session management
 
 ### clear()
 
@@ -92,7 +92,7 @@ function handleExternalLink(url: string) {
 }`}
 </CodeBlock>
 
-## Identity & Attribution
+## Identity and attribution
 
 ### getAnonymousId(urlParams?)
 
@@ -161,7 +161,7 @@ const url = \`https://app.example.com/dashboard\${params ? \`?\${params}\` : ""}
 
 **Returns**: `"anonId=xxx&sessionId=yyy"` or empty string if unavailable.
 
-## Tracker Instance
+## Tracker instance
 
 ### isTrackerAvailable()
 
@@ -191,7 +191,7 @@ if (tracker) {
 }`}
 </CodeBlock>
 
-## Cross-Domain Tracking
+## Cross-domain tracking
 
 When users navigate between domains you own, use tracking params to maintain identity:
 
@@ -219,7 +219,7 @@ function redirectWithIds() {
 
 On the destination page, the tracker automatically reads `anonId` and `sessionId` from URL params.
 
-## Server-Side Integration
+## Server-side integration
 
 Pass tracking IDs to your backend for server-side event attribution:
 
@@ -264,9 +264,9 @@ export async function POST(request: Request) {
 }`}
 </CodeBlock>
 
-## Best Practices
+## Best practices
 
-### Use snake_case for Event Names
+### Use snake_case for event names
 
 <CodeBlock language="tsx">
   {`// ✅ Good
@@ -280,7 +280,7 @@ track("ProductViewed");
 track("PURCHASE_COMPLETED");`}
 </CodeBlock>
 
-### Avoid PII in Properties
+### Avoid PII in properties
 
 <CodeBlock language="tsx">
   {`// ✅ Good
@@ -297,7 +297,7 @@ track("purchase_completed", {
 });`}
 </CodeBlock>
 
-### Always Flush Before Navigation
+### Always flush before navigation
 
 <CodeBlock language="tsx">
   {`function handleExternalRedirect(url: string) {
@@ -307,7 +307,7 @@ track("purchase_completed", {
 }`}
 </CodeBlock>
 
-## TypeScript Types
+## TypeScript types
 
 <CodeBlock language="tsx">
   {`import { 
@@ -329,7 +329,7 @@ const tracker: DatabuddyTracker | null = getTracker();`}
   <Card title="Node SDK" href="/docs/sdk/node">
     Server-side tracking for APIs and webhooks
   </Card>
-  <Card title="Configuration" href="/docs/sdk/configuration">
+  <Card title="SDK configuration" href="/docs/sdk/configuration">
     All configuration options
   </Card>
 </Cards>

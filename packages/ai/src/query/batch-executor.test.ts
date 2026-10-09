@@ -2,9 +2,10 @@ import * as actualClickHouse from "@databuddy/db/clickhouse";
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestLogger } from "evlog";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
-import { QueryBuilders } from "./builders";
+import { getQueryBuilder, QueryBuilders } from "./builders";
 import { makeRequiredFilters } from "./filter-fixtures";
 import { SimpleQueryBuilder } from "./simple-builder";
+import type { CompiledQuery, QueryRequest } from "./types";
 
 const realClickHouseModule = { ...actualClickHouse };
 const realChQuery = realClickHouseModule.chQuery;
@@ -15,26 +16,28 @@ mock.module("@databuddy/db/clickhouse", () => ({
 }));
 
 const {
-	areQueriesCompatible,
 	buildUnionQuery,
 	executeBatch,
 	extractOuterSelectColumns,
-	getCompatibleQueries,
 	getSchemaGroups,
 } = await import("./batch-executor");
 
-function compileSql(type: string): string {
-	const config = QueryBuilders[type];
+function compileQuery(
+	type: string,
+	request: Pick<QueryRequest, "filters" | "timeUnit"> = {}
+): CompiledQuery {
+	const config = getQueryBuilder(type);
 	if (!config) {
 		throw new Error(`Missing config for ${type}`);
 	}
 	return new SimpleQueryBuilder(config, {
-		filters: makeRequiredFilters(config),
+		filters: [...makeRequiredFilters(config), ...(request.filters ?? [])],
 		projectId: "test-website",
 		type,
 		from: "2026-04-01",
 		to: "2026-04-11",
-	}).compile().sql;
+		timeUnit: request.timeUnit,
+	}).compile();
 }
 
 const singleQueryRequest = {
@@ -78,9 +81,43 @@ describe("batch-executor schema signatures", () => {
 		type,
 		declared,
 	}) => {
-		const sql = compileSql(type);
+		const { sql } = compileQuery(type);
 		const actual = extractOuterSelectColumns(sql);
 		expect(actual).toEqual(declared);
+	});
+
+	const commonFilterCases = builderEntries
+		.filter(([, config]) => config.commonFilters !== false)
+		.map(([type]) => ({ type }));
+
+	it.each(commonFilterCases)("$type binds the common path filter it accepts", ({
+		type,
+	}) => {
+		const { sql, params } = compileQuery(type, {
+			filters: [{ field: "path", op: "eq", value: "/x" }],
+		});
+		const boundKeys = Object.keys(params).filter(
+			(key) => params[key] === "/x" && sql.includes(`{${key}:`)
+		);
+		expect(boundKeys).not.toHaveLength(0);
+	});
+
+	const granularityCases = builderEntries.flatMap(([type, config]) => {
+		const units = config.meta?.supports_granularity;
+		return units ? [{ type, units }] : [];
+	});
+
+	it.each(
+		granularityCases
+	)("$type compiles a different bucket for each declared granularity", ({
+		type,
+		units,
+	}) => {
+		const sqls = new Set(
+			units.map((timeUnit) => compileQuery(type, { timeUnit }).sql)
+		);
+		expect(units.length).toBeGreaterThan(1);
+		expect(sqls.size).toBe(units.length);
 	});
 
 	it("groups builders that share a schema signature", () => {
@@ -94,27 +131,22 @@ describe("batch-executor schema signatures", () => {
 		);
 	});
 
-	it("reports compatible queries for a builder with peers", () => {
-		const peers = getCompatibleQueries("country");
-		expect(peers.length).toBeGreaterThan(0);
-		expect(peers).not.toContain("country");
-		for (const peer of peers) {
-			expect(areQueriesCompatible("country", peer)).toBe(true);
-		}
-	});
-
-	it("treats builders with different column shapes as incompatible", () => {
-		expect(areQueriesCompatible("country", "region")).toBe(false);
-		expect(areQueriesCompatible("country", "city")).toBe(false);
+	it("groups country with same-shape peers and apart from region and city", () => {
+		const countryGroup = Array.from(getSchemaGroups().values()).find((types) =>
+			types.includes("country")
+		);
+		expect(countryGroup?.length).toBeGreaterThan(1);
+		expect(countryGroup).not.toContain("region");
+		expect(countryGroup).not.toContain("city");
 	});
 
 	it("every realtime builder opts out of the ClickHouse query cache", () => {
-		const realtimeTypes = Object.entries(QueryBuilders)
-			.filter(([, config]) => config.meta?.category === "Realtime")
-			.map(([type]) => type);
-		expect(realtimeTypes.length).toBeGreaterThan(0);
-		for (const type of realtimeTypes) {
-			expect(QueryBuilders[type]?.noCache).toBe(true);
+		const realtimeBuilders = Object.values(QueryBuilders).filter(
+			(config) => config.meta?.category === "Realtime"
+		);
+		expect(realtimeBuilders.length).toBeGreaterThan(0);
+		for (const config of realtimeBuilders) {
+			expect(config.noCache).toBe(true);
 		}
 	});
 });
@@ -181,6 +213,41 @@ describe("executeBatch single query retry", () => {
 			data: [],
 			error: "The operation was aborted",
 		});
+	});
+});
+
+describe("executeBatch prepare stages", () => {
+	it("binds prepare-stage dates to the same local days as the main query", async () => {
+		mockChQuery.mockResolvedValue([]);
+
+		await executeBatch([
+			{
+				projectId: "test-website",
+				type: "profile_sessions",
+				from: "2026-04-01",
+				to: "2026-04-11",
+				timezone: "America/New_York",
+				filters: [{ field: "anonymous_id", op: "eq", value: "visitor-1" }],
+			},
+		]);
+
+		const prepareCalls = mockChQuery.mock.calls.filter(
+			([, , options]) => options?.label === "profile_sessions:prepare"
+		);
+		expect(prepareCalls.length).toBeGreaterThan(0);
+		for (const [sql, params] of prepareCalls) {
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({startDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({startDate:String})");
+			expect(sql).toContain(
+				"parseDateTimeBestEffort({endDate:String}, {timezone:String})"
+			);
+			expect(sql).not.toContain("toDateTime({endDate:String})");
+			expect(sql).not.toContain("{endDate:DateTime}");
+			expect(params?.endDate).toBe("2026-04-11 23:59:59");
+			expect(params?.timezone).toBe("America/New_York");
+		}
 	});
 });
 

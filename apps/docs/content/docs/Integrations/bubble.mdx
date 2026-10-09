@@ -1,6 +1,6 @@
 ---
-title: Bubble.io
-description: Add privacy-first analytics to your Bubble.io application
+title: Bubble
+description: Add cookieless product analytics to your Bubble application
 ---
 
 import { Steps, Step } from "@/components/docs";
@@ -8,14 +8,14 @@ import { Callout } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-This guide explains how to integrate Databuddy with your Bubble.io application to track user behavior, page views, and custom events.
+This guide explains how to integrate Databuddy with your Bubble application to track user behavior, pageviews, and custom events.
 
-## How to Add Databuddy to Your Bubble App
+## How to add Databuddy to your Bubble app
 
 Bubble allows you to add custom code, including JavaScript snippets, to the header of your pages.
 
 <Steps>
-  <Step title="Get Your Tracking Script">
+  <Step title="Get your tracking script">
     Navigate to your [Databuddy dashboard](https://app.databuddy.cc) to get your tracking code snippet. It will look like this:
 
     <CodeBlock
@@ -31,53 +31,53 @@ Bubble allows you to add custom code, including JavaScript snippets, to the head
     Remember to replace `YOUR_CLIENT_ID` with your actual Client ID.
   </Step>
 
-  <Step title="Access Your Bubble App Settings">
+  <Step title="Access your Bubble app settings">
     - Open your Bubble application in the editor
     - Navigate to the **Settings** tab in the left-hand sidebar
     - Go to the **SEO / metatags** sub-tab
   </Step>
 
-  <Step title="Add the Snippet to the Page Header">
+  <Step title="Add the snippet to the page header">
     - Scroll down to the section titled **"Script/meta tags in header"**
     - Paste your Databuddy tracking snippet into this box. This will add the script to the `<head>` section of every page in your Bubble app
 
     Alternatively, some Bubble plans or configurations might offer a dedicated section for "Advanced Settings" or "Custom Code" where header scripts can be placed globally or on specific pages. The "SEO / metatags" header script section is generally the most common place for global scripts.
   </Step>
 
-  <Step title="Deploy Your App">
+  <Step title="Deploy your app">
     After adding the script, ensure you deploy your Bubble application to the live version for the changes to take effect.
   </Step>
 
-  <Step title="Verify Installation">
+  <Step title="Verify installation">
     Open your live Bubble application and navigate through a few pages. Then, check your [Databuddy dashboard](https://app.databuddy.cc) to see if data is being received. You can also inspect your browser's network tab to confirm the script is loaded.
   </Step>
 </Steps>
 
 <Callout type="info">
-  **Page View Tracking in Bubble Apps**: Bubble applications often behave like Single Page Applications (SPAs) for navigation between "pages" (which are often groups shown/hidden on a single actual HTML page). Databuddy automatically detects URL changes in SPAs.
+  **Pageview tracking in Bubble apps**: Bubble applications often behave like Single Page Applications (SPAs) for navigation between "pages" (which are often groups shown/hidden on a single actual HTML page). Databuddy automatically detects URL changes in SPAs.
 
   - If your Bubble app uses actual URL route changes for different views, Databuddy tracks these automatically
   - If navigation primarily involves showing/hiding groups without URL changes, Databuddy will only track the initial page load. Track those "virtual" views as custom events instead: fire `window.databuddy.track('screen_viewed', { screen: 'dashboard' })` from a Bubble workflow action that runs JavaScript when a "page" (group) becomes visible
 </Callout>
 
-## Custom Event Tracking in Bubble
+## Custom event tracking in Bubble
 
 Track custom events in Bubble by using a workflow action that runs JavaScript.
 
 <Steps>
-  <Step title="Create a Workflow">
+  <Step title="Create a workflow">
     In the Bubble editor, go to the **Workflow** tab.
 
-    Create a new workflow triggered by the event you want to track (e.g., "When Button A is clicked", "When a user's data changes", "When a page is loaded" and a certain condition is met).
+    Create a new workflow triggered by the event you want to track (e.g. "When Button A is clicked", "When a user's data changes", "When a page is loaded" and a certain condition is met).
   </Step>
 
-  <Step title="Add Run JavaScript Action">
+  <Step title="Add Run JavaScript action">
     Within your workflow, add a new action.
 
     Search for and select the **"Run JavaScript"** action (this might be provided by a free official Bubble plugin or a community plugin if not available by default; ensure you have a way to execute arbitrary JS).
   </Step>
 
-  <Step title="Add Databuddy Tracking Code">
+  <Step title="Add Databuddy tracking code">
     In the "Run JavaScript" action's code block, add your Databuddy event tracking code:
 
     <CodeBlock
@@ -112,13 +112,13 @@ if (typeof window !== 'undefined' && window.databuddy) {
     />
   </Step>
 
-  <Step title="Test Your Event">
+  <Step title="Test your event">
     - Preview your Bubble app and trigger the workflow
     - Check your [Databuddy dashboard](https://app.databuddy.cc) to see if the custom event data is being received
   </Step>
 </Steps>
 
-## Configuration Options
+## Configuration options
 
 Enable additional tracking features by adding data attributes to your script tag:
 
@@ -136,9 +136,9 @@ Enable additional tracking features by adding data attributes to your script tag
 ></script>`}
 />
 
-## Common Use Cases
+## Common use cases
 
-### Tracking Button Clicks
+### Tracking button clicks
 
 Track when users click specific buttons:
 
@@ -154,7 +154,7 @@ if (typeof window !== 'undefined' && window.databuddy) {
 }`}
 />
 
-### Tracking Form Submissions
+### Tracking form submissions
 
 Track form submissions:
 
@@ -170,9 +170,9 @@ if (typeof window !== 'undefined' && window.databuddy) {
 }`}
 />
 
-### Tracking Virtual Page Views
+### Tracking virtual pageviews
 
-Bubble group swaps do not change the URL, so they cannot be tracked as page views. Track them as custom events instead:
+Bubble group swaps do not change the URL, so they cannot be tracked as pageviews. Track them as custom events instead:
 
 <CodeBlock
   language="javascript"
@@ -184,7 +184,7 @@ if (typeof window !== 'undefined' && window.databuddy) {
 }`}
 />
 
-### Tracking User Actions
+### Tracking user actions
 
 Track user interactions with dynamic data:
 
@@ -202,13 +202,13 @@ if (typeof window !== 'undefined' && window.databuddy) {
 }`}
 />
 
-## Why Not Data Attributes?
+## Why not data attributes?
 
 Databuddy supports automatic tracking via `data-track` attributes, but Bubble does not let you set custom attributes on its native elements. Use workflow-triggered "Run JavaScript" actions calling `window.databuddy.track()` instead, as shown above.
 
 ## Troubleshooting
 
-### Script Not Loading
+### Script not loading
 
 - Verify the script is in the **"Script/meta tags in header"** section
 - Check browser console for errors
@@ -216,7 +216,7 @@ Databuddy supports automatic tracking via `data-track` attributes, but Bubble do
 - Deploy your Bubble app to see changes take effect
 - Clear browser cache and reload
 
-### Events Not Tracking
+### Events not tracking
 
 - Confirm `window.databuddy` exists before calling tracking methods
 - Always check `typeof window !== 'undefined'` for safety
@@ -224,20 +224,20 @@ Databuddy supports automatic tracking via `data-track` attributes, but Bubble do
 - Verify events appear in your Databuddy dashboard after 2-3 minutes
 - Use browser dev tools Network tab to confirm requests are being sent
 
-### Virtual Page Views Not Tracked
+### Virtual pageviews not tracked
 
 - Bubble apps often use show/hide groups instead of URL changes
 - Track these as custom events with `window.databuddy.track('screen_viewed', { screen: '...' })`
 - Create workflows that trigger on group visibility changes
 
-### Dynamic Data Not Passing
+### Dynamic data not passing
 
 - Ensure Bubble's "Run JavaScript" action supports dynamic data
 - Check that variables are properly scoped and accessible
 - Test with hardcoded values first, then add dynamic data
 - Verify data types match what Databuddy expects (strings, numbers, etc.)
 
-## Related Integrations
+## Related
 
 <Cards>
   <Card title="Framer" href="/docs/Integrations/framer">
@@ -251,4 +251,4 @@ Databuddy supports automatic tracking via `data-track` attributes, but Bubble do
   </Card>
 </Cards>
 
-Need help with your Bubble.io integration? Contact us at [support@databuddy.cc](mailto:support@databuddy.cc).
+Need help with your Bubble integration? Contact us at [support@databuddy.cc](mailto:support@databuddy.cc).

@@ -6,6 +6,61 @@ const logger = createToolLogger("RPC");
 const MUTATION_METHOD_RE =
 	/^(add|archive|bulk|create|delete|detect|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
 
+function issuePath(path: unknown): string {
+	const segments = (Array.isArray(path) ? path : []).map((segment) =>
+		typeof segment === "object" && segment !== null && "key" in segment
+			? String(segment.key)
+			: String(segment)
+	);
+	return segments.length > 0 ? segments.join(".") : "input";
+}
+
+function validationIssueSummary(cause: unknown): string | null {
+	if (
+		!(
+			cause &&
+			typeof cause === "object" &&
+			"issues" in cause &&
+			Array.isArray(cause.issues)
+		) ||
+		cause.issues.length === 0
+	) {
+		return null;
+	}
+	return formatValidationIssues(cause.issues);
+}
+
+export function formatValidationIssues(issues: readonly unknown[]): string {
+	return issues
+		.map((issue) => {
+			if (!(issue && typeof issue === "object")) {
+				return "input: invalid value";
+			}
+			const path = "path" in issue ? issue.path : undefined;
+			const message =
+				"message" in issue && typeof issue.message === "string"
+					? issue.message
+					: "invalid value";
+			return `${issuePath(path)}: ${message}`;
+		})
+		.join("; ");
+}
+
+export function omitUndefined(
+	input: Record<string, unknown>
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(input).filter(([, value]) => value !== undefined)
+	);
+}
+
+function messageWithoutQueryParams(error: Error): string {
+	if (!("params" in error)) {
+		return error.message;
+	}
+	return error.cause instanceof Error ? error.cause.message : error.name;
+}
+
 export async function callRPCProcedure(
 	routerName: string,
 	method: string,
@@ -49,9 +104,7 @@ export async function callRPCProcedure(
 			);
 		}
 
-		return await (abortSignal
-			? clientFn(input, { signal: abortSignal })
-			: clientFn(input));
+		return await clientFn(input, { signal: abortSignal });
 	} catch (error) {
 		if (error instanceof ORPCError) {
 			logger.error("ORPC error", {
@@ -60,38 +113,48 @@ export async function callRPCProcedure(
 				message: error.message,
 			});
 
-			const userMessage =
+			const fallbackMessage =
 				error.code === "UNAUTHORIZED"
 					? "You don't have permission to perform this action."
 					: error.code === "NOT_FOUND"
 						? "The requested resource was not found."
-						: error.code === "BAD_REQUEST"
-							? `Invalid request: ${error.message}`
-							: error.code === "FORBIDDEN"
-								? "You don't have permission to access this resource."
-								: error.code === "CONFLICT"
-									? "This resource already exists or conflicts with an existing one."
-									: error.message ||
-										"An error occurred while processing your request.";
+						: error.code === "FORBIDDEN"
+							? "You don't have permission to access this resource."
+							: error.code === "CONFLICT"
+								? "This resource already exists or conflicts with an existing one."
+								: "An error occurred while processing your request.";
+			const hasSpecificMessage =
+				error.message !== "" &&
+				error.message !== new ORPCError(error.code).message;
+			const issues = validationIssueSummary(error.cause);
+			const userMessage =
+				error.code === "BAD_REQUEST"
+					? `Invalid request: ${issues ?? error.message}`
+					: hasSpecificMessage
+						? error.message
+						: fallbackMessage;
 
-			throw new ORPCError(error.code, { message: userMessage });
+			throw new ORPCError(error.code, {
+				message: userMessage,
+				data: error.data,
+				status: error.status,
+				cause: error.cause,
+			});
 		}
 
 		if (error instanceof Error) {
+			const message = messageWithoutQueryParams(error);
 			logger.error("RPC call error", {
 				procedure: `${routerName}.${method}`,
-				error: error.message,
-				stack: error.stack,
-				input,
+				error: message,
 			});
-			throw error;
+			throw "params" in error ? new Error(message) : error;
 		}
 
 		logger.error("Unknown error in RPC call", {
 			procedure: `${routerName}.${method}`,
-			error,
-			input,
+			error: typeof error,
 		});
-		throw new Error("An unexpected error occurred. Please try again.");
+		throw new Error("Internal server error. Try again shortly.");
 	}
 }

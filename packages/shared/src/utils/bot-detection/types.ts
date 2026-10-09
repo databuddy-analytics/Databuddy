@@ -1,35 +1,5 @@
 import type { AiAgent } from "./ai-agents";
 
-export const AI_PRODUCT_BY_OPERATOR: Record<string, string> = {
-	OpenAI: "ChatGPT",
-	Anthropic: "Claude",
-	Google: "Google Gemini",
-	Perplexity: "Perplexity",
-	Microsoft: "Microsoft Copilot",
-	Meta: "Meta AI",
-	"Moonshot AI": "Kimi",
-};
-
-export const FEATURED_AI_PRODUCTS = [
-	"ChatGPT",
-	"Claude",
-	"Google Gemini",
-	"Perplexity",
-	"Microsoft Copilot",
-	"Meta AI",
-];
-
-export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
-
-export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
-export type ContentFormat = (typeof CONTENT_FORMATS)[number];
-
-export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;
-export type RobotsAccess = (typeof ROBOTS_ACCESS)[number];
-
-export const UNIDENTIFIED_AGENT_PREFIX = "unidentified:";
-export const UNIDENTIFIED_AGENTS_PRODUCT = "Unidentified agents";
-
 export const BotCategory = {
 	AI_CRAWLER: "ai_crawler",
 	AI_ASSISTANT: "ai_assistant",
@@ -40,46 +10,24 @@ export const BotCategory = {
 	SCRAPER: "scraper",
 	UNKNOWN_BOT: "unknown_bot",
 } as const;
-
 export type BotCategory = (typeof BotCategory)[keyof typeof BotCategory];
+
 export const BotAction = {
 	ALLOW: "allow",
 	TRACK_ONLY: "track_only",
 	BLOCK: "block",
 } as const;
-
 export type BotAction = (typeof BotAction)[keyof typeof BotAction];
+
 export interface BotDetectionResult {
 	action: BotAction;
-	agent?: Pick<AiAgent, "id" | "operator" | "purpose">;
+	agent?: AiAgent;
 	category?: BotCategory;
-	confidence: number;
 	isBot: boolean;
 	name?: string;
-	reason?: string;
+	reason: string;
 }
-export interface BotDetectionConfig {
-	allowAICrawlers?: boolean;
-	allowedBots?: string[];
-	allowMonitoring?: boolean;
-	allowSEOTools?: boolean;
-	allowSearchEngines?: boolean;
-	allowSocialMedia?: boolean;
-	blockedBots?: string[];
-	blockMissingUserAgent?: boolean;
-	trackOnlyCategories?: BotCategory[];
-}
-export const DEFAULT_BOT_CONFIG: Required<BotDetectionConfig> = {
-	allowedBots: [],
-	blockedBots: [],
-	allowAICrawlers: false,
-	allowSearchEngines: true,
-	allowSocialMedia: true,
-	allowSEOTools: false,
-	allowMonitoring: true,
-	trackOnlyCategories: [BotCategory.AI_CRAWLER, BotCategory.AI_ASSISTANT],
-	blockMissingUserAgent: true,
-};
+
 export interface ParsedUserAgent {
 	browserName?: string;
 	browserVersion?: string;
@@ -88,5 +36,122 @@ export interface ParsedUserAgent {
 	deviceType?: string;
 	osName?: string;
 	osVersion?: string;
-	raw: string;
+}
+
+export type AgentPurpose = "training" | "search_index" | "user_fetch" | "agent";
+
+export const UNIDENTIFIED_AGENT_PREFIX = "unidentified:";
+export const UNIDENTIFIED_AGENTS_PRODUCT = "Unidentified agents";
+
+export const ROBOTS_ACCESS = ["allowed", "partial", "blocked"] as const;
+export type RobotsAccess = (typeof ROBOTS_ACCESS)[number];
+
+export const FEATURED_AI_PRODUCTS = [
+	"ChatGPT",
+	"Claude",
+	"Google Gemini",
+	"Perplexity",
+	"Microsoft Copilot",
+	"Meta AI",
+];
+
+export const AI_ICON_COLORS: Record<string, string | null> = {
+	Ai2: "#F0529C",
+	Amazon: "#FF9900",
+	Apple: null,
+	Atlassian: "#0052CC",
+	Bixel: null,
+	Brick: "#002FA7",
+	ByteDance: "#3C8CFF",
+	ChatGLM: "#504AF4",
+	ChatGPT: null,
+	Claude: "#D97757",
+	Cloudflare: "#F38020",
+	Cohere: "#FF7759",
+	CommonCrawl: null,
+	Copilot: "#0D91E1",
+	Cursor: null,
+	DeepSeek: "#5786FE",
+	Desearch: null,
+	Devin: "#0294DE",
+	Doubao: "#1E37FC",
+	DuckDuckGo: "#DE5833",
+	Exa: "#1F40ED",
+	Firecrawl: null,
+	Gemini: "#8E75B2",
+	Google: "#4285F4",
+	Grok: null,
+	Huawei: "#FF0000",
+	Hunter: "#FA5320",
+	Kagi: "#FFB319",
+	Kimi: "#1783FF",
+	Linkup: null,
+	Manus: null,
+	Meta: "#0467DF",
+	Mistral: "#FA520F",
+	Mozilla: null,
+	Nekuda: "#00BFFF",
+	OpenCode: null,
+	Parallel: null,
+	Perplexity: "#1FB8CD",
+	Phind: null,
+	Poe: "#5D5CDE",
+	Poke: "#2F6A9A",
+	Qwen: "#6F69F7",
+	Tavily: "#FE363B",
+	Trae: "#32F08C",
+	v0: null,
+	YouCom: "#596CED",
+	Zed: "#084CCF",
+};
+
+const PRODUCT_WORD_SEPARATOR = /[^a-z0-9]+/;
+
+export function aiProductIcon(product: string): string | undefined {
+	const words = product.toLowerCase().split(PRODUCT_WORD_SEPARATOR);
+	const name = words.join("");
+	const isDomain = product.includes(".");
+	const icons = Object.keys(AI_ICON_COLORS);
+	const domainLabel = product.toLowerCase().split(".").at(-2);
+	return (
+		icons.find((icon) => icon.toLowerCase() === name) ??
+		icons.find((icon) =>
+			isDomain
+				? icon.toLowerCase() === domainLabel
+				: words.includes(icon.toLowerCase())
+		)
+	);
+}
+
+export const CONTENT_FORMATS = ["markdown", "llms", "html"] as const;
+export type ContentFormat = (typeof CONTENT_FORMATS)[number];
+
+const ASSET_PATH =
+	/^\/_next\/|\.(?:js|mjs|css|map|png|jpe?g|gif|webp|avif|svg|ico|woff2?|ttf|otf|eot|mp4|webm|mp3|wav|pdf|zip)$/i;
+export const NON_PAGE_PATH =
+	/\/robots\.txt$|\/sitemap[^/]*\.txt$|\.(?:xml|json|webmanifest)$|\/\./i;
+const LLMS_TXT_PATH = /\/llms(-full)?\.txt$/i;
+const MARKDOWN_PATH = /\.mdx?$/i;
+const MARKDOWN_MEDIA_TYPE = /^\s*text\/(?:x-)?markdown\b/i;
+const ZERO_QUALITY = /;\s*q\s*=\s*0(?:\.0{0,3})?\s*$/i;
+
+export function isAssetPath(pathname: string): boolean {
+	return ASSET_PATH.test(pathname);
+}
+
+function acceptsMarkdown(mediaRange: string): boolean {
+	return MARKDOWN_MEDIA_TYPE.test(mediaRange) && !ZERO_QUALITY.test(mediaRange);
+}
+
+export function isMarkdownFirstAccept(accept: string): boolean {
+	return acceptsMarkdown(accept.split(",")[0] ?? "");
+}
+
+export function contentFormat(pathname: string, accept = ""): ContentFormat {
+	if (LLMS_TXT_PATH.test(pathname)) {
+		return "llms";
+	}
+	return MARKDOWN_PATH.test(pathname) || accept.split(",").some(acceptsMarkdown)
+		? "markdown"
+		: "html";
 }

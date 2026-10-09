@@ -67,7 +67,7 @@ function createRevenueMetrics(currency: string): RevenueChartMetric[] {
 		},
 		{
 			key: "avg_transaction",
-			label: "Avg Transaction",
+			label: "Avg transaction",
 			color: chartSeriesColorAtIndex(2),
 			formatValue: (v) => formatRevenueCurrency(v, currency),
 		},

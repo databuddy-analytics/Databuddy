@@ -72,7 +72,7 @@ export default function GoalsPage() {
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 	const [editingGoal, setEditingGoal] = useState<Goal | null>();
 
-	const { dateRange } = useDateFilters();
+	const { calendarDateRange: dateRange } = useDateFilters();
 	const globalFilters = useAtomValue(dynamicQueryFiltersAtom);
 	const goalFilters = useMemo(
 		() => toGoalFilters(globalFilters),
@@ -124,7 +124,7 @@ export default function GoalsPage() {
 
 		const goal = goals.find((candidate) => candidate.id === goalId);
 		if (!goal) {
-			toast.error("This goal no longer exists");
+			toast.error("This goal no longer exists. It may have been deleted.");
 		} else if (command === "edit-goal") {
 			const proposal = insightDefinitionEditChangesSchema.safeParse({
 				description: searchParams.get("description"),
@@ -145,7 +145,9 @@ export default function GoalsPage() {
 					setEditingGoal(proposedGoal);
 				}
 			} else {
-				toast.error("Databuddy's suggested changes could not be loaded");
+				toast.error(
+					"Databuddy's suggested changes could not be loaded. Open the recommendation again."
+				);
 			}
 		} else {
 			setDeletingGoalId(goal.id);
@@ -244,7 +246,7 @@ export default function GoalsPage() {
 					{!isDemoRoute && (
 						<Button onClick={openCreate} size="sm">
 							<PlusIcon className="size-4 shrink-0" />
-							Create Goal
+							Create goal
 						</Button>
 					)}
 				</TopBar.Actions>
@@ -264,7 +266,7 @@ export default function GoalsPage() {
 							title: "No goals yet",
 						}}
 						errorProps={{
-							action: { label: "Retry", onClick: () => refreshAction() },
+							action: { label: "Try again", onClick: () => refreshAction() },
 							description:
 								error?.message ??
 								"Something went wrong while loading goal data.",
@@ -300,7 +302,7 @@ export default function GoalsPage() {
 
 				{!isDemoRoute && deletingGoalId && (
 					<DeleteDialog
-						confirmLabel="Delete Goal"
+						confirmLabel="Delete goal"
 						description={`Delete ${deletingGoal?.name ?? "this goal"}? Historical events remain in your analytics, but the goal will no longer be available for reporting.`}
 						isOpen={!!deletingGoalId}
 						onClose={() => setDeletingGoalId(null)}

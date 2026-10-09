@@ -145,7 +145,7 @@ export default function CodeChurnChart({ data }: Props) {
 			<div>
 				<div className="mb-6 sm:mb-8">
 					<h3 className="mb-2 font-semibold text-xl sm:text-2xl lg:text-3xl xl:text-4xl">
-						Code Churn Activity
+						Code churn activity
 					</h3>
 					<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Weekly code additions and deletions over time
@@ -164,7 +164,7 @@ export default function CodeChurnChart({ data }: Props) {
 		<div>
 			<div className="mb-6 sm:mb-8">
 				<h3 className="mb-2 font-semibold text-xl sm:text-2xl lg:text-3xl xl:text-4xl">
-					Code Churn Activity
+					Code churn activity
 				</h3>
 				<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
 					Weekly code additions and deletions over the last 6 months •{" "}
@@ -181,7 +181,7 @@ export default function CodeChurnChart({ data }: Props) {
 						+{insights.totalAdditions.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
-						Total Added
+						Total added
 					</div>
 				</SciFiCard>
 
@@ -190,7 +190,7 @@ export default function CodeChurnChart({ data }: Props) {
 						-{insights.totalDeletions.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
-						Total Removed
+						Total removed
 					</div>
 				</SciFiCard>
 
@@ -205,7 +205,7 @@ export default function CodeChurnChart({ data }: Props) {
 						{insights.netGrowth.toLocaleString()}
 					</div>
 					<div className="text-muted-foreground text-xs sm:text-sm">
-						Net Growth
+						Net growth
 					</div>
 				</SciFiCard>
 

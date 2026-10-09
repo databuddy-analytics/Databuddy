@@ -7,16 +7,68 @@ export function paymentIntentIdExpression(alias = ""): string {
 )`;
 }
 
+export function explicitRevenueWebsiteExpression(alias = ""): string {
+	const prefix = alias ? `${alias}.` : "";
+	// Normalized Stripe rows match the validated metadata site; legacy rows preserve stored sites.
+	return `if(
+	${prefix}provider = 'stripe'
+	AND JSONExtractString(${prefix}metadata, 'stripe_event_type') != ''
+	AND JSONExtractString(${prefix}metadata, 'client_id') != ifNull(${prefix}website_id, ''),
+	NULL,
+	nullIf(${prefix}website_id, '')
+)`;
+}
+
 export function stripeContextAggregates(prefix = ""): string {
+	const invoiceId = "JSONExtractString(metadata, 'stripe_invoice_id')";
+	const canonicalInvoicePayment = `status = 'completed' AND type IN ('sale', 'subscription') AND JSONExtractString(metadata, 'stripe_record_kind') = 'money' AND ${invoiceId} != '' AND NOT startsWith(transaction_id, 'pi_')`;
+	const websiteId = "ifNull(revenue.website_id, '')";
+	const explicitWebsiteId = `ifNull(${explicitRevenueWebsiteExpression("revenue")}, '')`;
 	const latestNonEmpty = (column: string, value: string) =>
-		`argMaxIf(${value}, synced_at, ${value} != '') AS ${prefix}${column}`;
+		`argMaxIf(${value}, tuple(status IN ('completed', 'linked'), synced_at, transaction_id), ${value} != '') AS ${prefix}${column}`;
 	return [
-		latestNonEmpty("website_id", "ifNull(website_id, '')"),
+		`argMaxIf(tuple(${websiteId}, ${explicitWebsiteId}), tuple(${explicitWebsiteId} != '', ${canonicalInvoicePayment}, status IN ('completed', 'linked'), synced_at, transaction_id), ${websiteId} != '') AS ${prefix}website_context`,
+		`tupleElement(${prefix}website_context, 1) AS ${prefix}website_id`,
+		`tupleElement(${prefix}website_context, 2) AS ${prefix}explicit_website_id`,
+		`uniqExactIf(${invoiceId}, ${canonicalInvoicePayment}) AS ${prefix}payment_invoice_count`,
+		`if(${prefix}payment_invoice_count = 1, anyIf(${invoiceId}, ${canonicalInvoicePayment}), '') AS ${prefix}payment_invoice_id`,
 		latestNonEmpty("anonymous_id", "ifNull(anonymous_id, '')"),
 		latestNonEmpty("session_id", "ifNull(session_id, '')"),
 		latestNonEmpty("customer_id", "customer_id"),
+		latestNonEmpty("profile_id", "profile_id"),
 		latestNonEmpty("product_name", "ifNull(product_name, '')"),
 	].join(",\n\t\t\t\t");
+}
+
+export function linkedStripePaymentsCte(
+	scope: string,
+	name = "linked_payment_intents"
+): string {
+	const paymentIntentId = paymentIntentIdExpression();
+	return `${name} AS (
+		SELECT DISTINCT owner_id, ${paymentIntentId} AS payment_intent_id
+		FROM analytics.revenue FINAL
+		WHERE ${scope}
+			AND provider = 'stripe'
+			AND type IN ('sale', 'subscription') AND status = 'completed'
+			AND JSONExtractString(metadata, 'stripe_record_kind') = 'money'
+			AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
+			AND ${paymentIntentId} != ''
+			AND transaction_id != ${paymentIntentId}
+	)`;
+}
+
+export function canonicalStripePaymentCondition(
+	alias: string,
+	linkedPayments = "linked_payment_intents"
+): string {
+	return `NOT (
+		${alias}.provider = 'stripe'
+		AND startsWith(${alias}.transaction_id, 'pi_')
+		AND (${alias}.owner_id, ${alias}.transaction_id) IN (
+			SELECT owner_id, payment_intent_id FROM ${linkedPayments}
+		)
+	)`;
 }
 
 interface RevenueLatestCteOptions {

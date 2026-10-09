@@ -15,11 +15,10 @@ function expectBot(ua: string, category: BotCategory, action: BotAction) {
 	expect(result.isBot).toBe(true);
 	expect(result.category).toBe(category);
 	expect(result.action).toBe(action);
-	return result;
 }
 
 describe("detectBot", () => {
-	describe("AI crawlers — every major provider", () => {
+	describe("AI crawlers from every major provider", () => {
 		it.each([
 			[
 				"OpenAI GPTBot",
@@ -181,7 +180,7 @@ describe("detectBot", () => {
 		});
 	});
 
-	describe("human traffic — no false positives", () => {
+	describe("human traffic without false positives", () => {
 		it.each([
 			[
 				"Chrome Desktop",
@@ -243,85 +242,21 @@ describe("detectBot", () => {
 		});
 	});
 
-	describe("missing user agent", () => {
-		it("blocks an empty user agent by default", () => {
-			expect(detectBot("")).toMatchObject({
-				isBot: true,
-				category: BotCategory.UNKNOWN_BOT,
-				action: BotAction.BLOCK,
-				reason: "missing_user_agent",
-			});
-		});
-
-		it("allows an empty user agent when configured", () => {
-			const result = detectBot("", { blockMissingUserAgent: false });
-			expect(result.isBot).toBe(true);
-			expect(result.action).toBe(BotAction.ALLOW);
+	it("blocks an empty user agent", () => {
+		expect(detectBot("")).toMatchObject({
+			isBot: true,
+			category: BotCategory.UNKNOWN_BOT,
+			action: BotAction.BLOCK,
+			reason: "missing_user_agent",
 		});
 	});
 
-	describe("configuration overrides", () => {
-		it("allowlist overrides category action", () => {
-			const result = detectBot("AhrefsBot/7.0", { allowedBots: ["AhrefsBot"] });
-			expect(result.action).toBe(BotAction.ALLOW);
-			expect(result.reason).toBe("explicit_allowlist");
-		});
-
-		it("blocklist overrides category action", () => {
-			const result = detectBot("Googlebot/2.1", { blockedBots: ["Googlebot"] });
-			expect(result.action).toBe(BotAction.BLOCK);
-			expect(result.reason).toBe("explicit_blocklist");
-		});
-
-		it("allowAICrawlers changes AI action to ALLOW", () => {
-			const result = detectBot("GPTBot/1.0", {
-				allowAICrawlers: true,
-				trackOnlyCategories: [],
-			});
-			expect(result.action).toBe(BotAction.ALLOW);
-		});
-
-		it("allowSearchEngines=false blocks search bots", () => {
-			const result = detectBot("Googlebot/2.1", { allowSearchEngines: false });
-			expect(result.action).toBe(BotAction.BLOCK);
-		});
-
-		it("allowSocialMedia=false blocks social bots", () => {
-			const result = detectBot("Twitterbot/1.0", { allowSocialMedia: false });
-			expect(result.action).toBe(BotAction.BLOCK);
-		});
-
-		it("allowMonitoring=false blocks monitoring bots", () => {
-			const result = detectBot("UptimeRobot/2.0", { allowMonitoring: false });
-			expect(result.action).toBe(BotAction.BLOCK);
-		});
-
-		it("allowSEOTools=true allows SEO bots", () => {
-			const result = detectBot("AhrefsBot/7.0", { allowSEOTools: true });
-			expect(result.action).toBe(BotAction.ALLOW);
-		});
-	});
-
-	describe("caching", () => {
-		it("custom config bypasses the cache", () => {
-			const ua = "Googlebot/2.1";
-			expect(detectBot(ua).action).toBe(BotAction.ALLOW);
-			expect(detectBot(ua, { allowSearchEngines: false }).action).toBe(
-				BotAction.BLOCK
-			);
-		});
-	});
-
-	describe("generic isBot() fallback", () => {
-		it("respects trackOnlyCategories for bots only caught by ua-parser-js's generic isBot()", () => {
-			const result = detectBot("PowerShell/7.1.0", {
-				trackOnlyCategories: [BotCategory.UNKNOWN_BOT],
-			});
-
-			expect(result.isBot).toBe(true);
-			expect(result.category).toBe(BotCategory.UNKNOWN_BOT);
-			expect(result.reason).toBe("general_bot_pattern");
-			expect(result.action).toBe(BotAction.TRACK_ONLY);
+	it("blocks bots only caught by ua-parser-js's generic isBot()", () => {
+		expect(detectBot("PowerShell/7.1.0")).toMatchObject({
+			isBot: true,
+			category: BotCategory.UNKNOWN_BOT,
+			reason: "general_bot_pattern",
+			action: BotAction.BLOCK,
 		});
 	});
 });
@@ -394,8 +329,8 @@ describe("parseUserAgent", () => {
 		expect(result.browserVersion).toBe(version);
 	});
 
-	it("returns only the raw value for an empty string", () => {
-		expect(parseUserAgent("")).toEqual({ raw: "" });
+	it("returns no fields for an empty string", () => {
+		expect(parseUserAgent("")).toEqual({});
 	});
 });
 

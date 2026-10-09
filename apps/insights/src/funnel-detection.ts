@@ -43,6 +43,10 @@ const ZERO_COMPLETION_SUFFIX = "zero-completions";
 const FUNNEL_SIGNAL_KEY =
 	/^funnel:([^:]+)(?::step:(\d+)|:(zero-completions)|:referrer:([^:]+))?$/;
 const GOAL_SIGNAL_KEY = /^goal:([^:]+)(?::(zero-completions))?$/;
+const DESCRIPTION_LIMIT = 200;
+const TRAILING_PARTIAL_WORD = /\s+\S*$/;
+const ABSOLUTE_URL = /^https?:\/\//;
+const QUERY_OR_FRAGMENT = /[?#]/;
 
 export interface FunnelDef {
 	createdAt: Date;
@@ -136,9 +140,47 @@ function toAnalyticsSteps(steps: FunnelStep[]): AnalyticsStep[] {
 
 function definitionDescription(description: string | null): string {
 	const value = description?.trim();
-	return value
-		? `Business meaning: ${value}`
-		: "This saved definition has no description; its business purpose is not established by that field.";
+	if (!value) {
+		return "This saved definition has no description; its business purpose is not established by that field.";
+	}
+	if (value.length <= DESCRIPTION_LIMIT) {
+		return `Saved description: ${value}`;
+	}
+	const shortened = value
+		.slice(0, DESCRIPTION_LIMIT + 1)
+		.replace(TRAILING_PARTIAL_WORD, "")
+		.slice(0, DESCRIPTION_LIMIT);
+	return `Saved description: ${shortened}…`;
+}
+
+export function isUnmatchablePageTarget(target: string): boolean {
+	const trimmed = target.trim();
+	return (
+		!(ABSOLUTE_URL.test(trimmed) && URL.canParse(trimmed)) &&
+		QUERY_OR_FRAGMENT.test(trimmed)
+	);
+}
+
+function unmatchableTargetEvidence(
+	definition: FunnelDef | GoalDef
+): string | null {
+	if ("target" in definition) {
+		return definition.type === "PAGE_VIEW" &&
+			isUnmatchablePageTarget(definition.target)
+			? "Its page target contains ? or #, but recorded paths never include query strings or fragments, so it can never match."
+			: null;
+	}
+	const steps = definition.steps.flatMap((step, index) =>
+		step.type === "PAGE_VIEW" && isUnmatchablePageTarget(step.target)
+			? [`${index + 1} "${step.name}"`]
+			: []
+	);
+	if (steps.length === 0) {
+		return null;
+	}
+	return steps.length === 1
+		? `The page target of step ${steps[0]} contains ? or #, but recorded paths never include query strings or fragments, so it can never match.`
+		: `The page targets of steps ${new Intl.ListFormat("en", { type: "conjunction" }).format(steps)} contain ? or #, but recorded paths never include query strings or fragments, so they can never match.`;
 }
 
 function definitionFilters(filters: DataFilter[] | null): string {
@@ -389,17 +431,15 @@ function definitionPredatesComparison(
 }
 
 function definitionHistory(
-	definition: Pick<FunnelDef, "createdAt" | "updatedAt">,
-	comparisonStart: string,
-	timezone: string
-): string {
-	const createdAt = dayjs(definition.createdAt)
-		.tz(timezone)
-		.format("YYYY-MM-DD");
-	const updatedAt = dayjs(definition.updatedAt)
-		.tz(timezone)
-		.format("YYYY-MM-DD");
-	return `Definition history: created ${createdAt}; last updated ${updatedAt}; comparison started ${comparisonStart}.`;
+	definition: Pick<FunnelDef, "updatedAt">,
+	periods: ComparisonPeriods
+): string | null {
+	const edited = dayjs(definition.updatedAt).tz(periods.timezone);
+	const start = dayjs.tz(periods.previous.from, periods.timezone);
+	const end = dayjs.tz(periods.current.to, periods.timezone).endOf("day");
+	return edited.isAfter(start) && !edited.isAfter(end)
+		? `Definition last edited ${edited.format("YYYY-MM-DD")}, inside the comparison window.`
+		: null;
 }
 
 function funnelMeasurementKey(funnel: FunnelDef): string {
@@ -544,7 +584,14 @@ function definitionContext(
 	definition: FunnelDef | GoalDef,
 	periods: ComparisonPeriods
 ): string {
-	return `${definitionHistory(definition, periods.previous.from, periods.timezone)} ${definitionDescription(definition.description)} ${definitionFilters(definition.filters)}`;
+	return [
+		unmatchableTargetEvidence(definition),
+		definitionHistory(definition, periods),
+		definitionFilters(definition.filters),
+		definitionDescription(definition.description),
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
 function zeroCompletionSignal(
@@ -568,8 +615,9 @@ function zeroCompletionSignal(
 	signal.severity = "warning";
 	signal.subjectKey = `${type}:${definition.id}:${ZERO_COMPLETION_SUFFIX}`;
 	signal.entityLabel = definition.name;
-	signal.investigationObjective =
-		"Decide whether this definition is broken or nobody converts. Check whether the target (the goal target or final funnel step) is recorded at all, with an exact page or event lookup. If it is never recorded while visitors plainly reach that part of the site (a redirect, query string or renamed event), publish a measurement_definition with an executable fix. If the target is recorded but nobody converts, or the check is inconclusive, keep it private.";
+	signal.investigationObjective = unmatchableTargetEvidence(definition)
+		? "This definition is broken because a page target containing ? or # can never match. Publish a measurement_definition that proposes the exact target without the query string or fragment, or ask for the right target if it is unknown."
+		: "Decide whether this definition is broken or nobody converts. Check whether the target (the goal target or final funnel step) is recorded at all, with an exact page or event lookup. If it is never recorded while visitors plainly reach that part of the site (a redirect, query string or renamed event), publish a measurement_definition with an executable fix. If the target is recorded but nobody converts, or the check is inconclusive, keep it private.";
 	signal.definitionEvidence = `${item.type === "goal" ? `Goal "${item.definition.name}" tracks the ${item.definition.type} target "${item.definition.target}". It completed for 0 of ${current.entrants} observed website visitors` : `Funnel "${definition.name}" completed 0 of ${current.entrants} entrants`}, compared with ${previous.completions} of ${previous.entrants} previously. ${definitionContext(definition, periods)}`;
 	return signal;
 }
@@ -591,6 +639,22 @@ function goalRateSignal(
 	signal.entityLabel = goal.name;
 	signal.definitionEvidence = `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${current.completions} of ${current.entrants} observed website visitors, compared with ${previous.completions} previously. ${definitionContext(goal, periods)}`;
 	return signal;
+}
+
+function funnelRateSignal(
+	funnel: FunnelDef,
+	current: number,
+	previous: number,
+	detectedAt: string
+): DetectedSignal {
+	return makeWowSignal(
+		`funnel:${funnel.id}`,
+		`Funnel "${funnel.name}" conversion`,
+		current,
+		previous,
+		detectedAt,
+		{ round: true }
+	);
 }
 
 function describeFunnelSignal(
@@ -750,13 +814,11 @@ export async function remeasureFunnelGoalSignal(
 						periods
 					)
 				: describeFunnelSignal(
-						makeWowSignal(
-							`funnel:${funnel.id}`,
-							`Funnel "${funnel.name}" conversion`,
+						funnelRateSignal(
+							funnel,
 							currentStep?.rate ?? cur.rate,
 							previousStep?.rate ?? prev.rate,
-							current.to,
-							{ round: true }
+							current.to
 						),
 						funnel,
 						cur,
@@ -821,14 +883,7 @@ async function detectStoredDefinitionSignal(
 			? zeroCompletionSignal(item, cur, prev, context)
 			: null;
 	}
-	const detected = makeWowSignal(
-		`funnel:${funnel.id}`,
-		`Funnel "${funnel.name}" conversion`,
-		cur.rate,
-		prev.rate,
-		current.to,
-		{ round: true }
-	);
+	const detected = funnelRateSignal(funnel, cur.rate, prev.rate, current.to);
 	const changedStep = (cur.steps ?? [])
 		.flatMap((step) => {
 			const previousRate = prev.steps?.find(
@@ -847,17 +902,17 @@ async function detectStoredDefinitionSignal(
 				: [];
 		})
 		.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0];
-	if (changedStep) {
-		detected.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
+	if (!changedStep) {
+		return describeFunnelSignal(detected, funnel, cur, prev, context);
 	}
-	return describeFunnelSignal(
-		detected,
+	const step = funnelRateSignal(
 		funnel,
-		cur,
-		prev,
-		context,
-		changedStep
+		changedStep.rate,
+		changedStep.previousRate,
+		current.to
 	);
+	step.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
+	return describeFunnelSignal(step, funnel, cur, prev, context, changedStep);
 }
 
 async function detectFunnelReferrers(

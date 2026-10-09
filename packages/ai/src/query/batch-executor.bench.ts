@@ -1,9 +1,5 @@
 import { bench, describe } from "vitest";
-import {
-	buildUnionQuery,
-	getCompatibleQueries,
-	getSchemaGroups,
-} from "./batch-executor";
+import { buildUnionQuery, getSchemaGroups } from "./batch-executor";
 import type { QueryRequest } from "./types";
 
 const BASE: QueryRequest = {
@@ -20,10 +16,6 @@ function req(type: string): QueryRequest & { type: string } {
 describe("batch-executor schema discovery", () => {
 	bench("getSchemaGroups (cold cache)", () => {
 		getSchemaGroups();
-	});
-
-	bench("getCompatibleQueries('country')", () => {
-		getCompatibleQueries("country");
 	});
 });
 

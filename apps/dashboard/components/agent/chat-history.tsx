@@ -101,7 +101,7 @@ export function ChatHistory({
 							<Input
 								className="h-8 rounded border-border/60 pl-7 text-xs"
 								onChange={(e) => setQuery(e.target.value)}
-								placeholder="Search chats..."
+								placeholder="Search chats…"
 								value={query}
 							/>
 						</div>
@@ -118,7 +118,7 @@ export function ChatHistory({
 							if (isLoading) {
 								return (
 									<div className="p-4 text-center text-muted-foreground text-xs">
-										Loading...
+										Loading…
 									</div>
 								);
 							}
@@ -168,7 +168,7 @@ export function ChatHistory({
 				isOpen={pendingDelete !== null}
 				onClose={() => setPendingDelete(null)}
 				onConfirm={handleConfirmDelete}
-				title="Delete this conversation?"
+				title="Delete conversation"
 			/>
 		</>
 	);

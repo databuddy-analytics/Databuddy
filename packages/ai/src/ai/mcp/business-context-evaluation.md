@@ -6,7 +6,7 @@ Run from this checkout with Bun 1.4.1 and frozen dependencies:
 bun install --frozen-lockfile --ignore-scripts
 bun run sdk:build
 cd packages/ai
-bun run test src/ai/mcp/business-context-delivery.test.ts src/ai/mcp/tool-context.test.ts src/ai/mcp/run-agent.test.ts src/lib/business-context.test.ts src/ai/tools/utils/context.test.ts
+bun run test src/ai/mcp/business-context-delivery.test.ts src/ai/mcp/tool-context.test.ts src/lib/business-context.test.ts src/ai/tools/utils/context.test.ts
 ```
 
 Run the dashboard HTTP pair from `apps/api`:

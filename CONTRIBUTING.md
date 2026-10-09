@@ -39,8 +39,10 @@ Open [localhost:3000](http://localhost:3000). The dev command builds the SDK and
 devtools for you. Add provider keys only for the features you're working on;
 see [optional services](README.md#optional-services).
 
-To explore with sample data, create a website, copy its ID from its settings,
-and run `bun run db:seed YOUR_WEBSITE_ID 1000`.
+To explore with sample data, run `bun run workspace --reset`. It targets the
+local Docker services only and prints a login, a website and an API key. Add
+`--anomaly` for a traffic spike and error surge that Insights will flag, or
+`--website YOUR_WEBSITE_ID` to seed a website you already made.
 
 ## Check your changes
 

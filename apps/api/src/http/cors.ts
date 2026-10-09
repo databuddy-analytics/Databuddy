@@ -2,10 +2,21 @@ import { config } from "@databuddy/env/app";
 
 const DATABUDDY_HOST_RE = /(?:^|\.)databuddy\.cc$/;
 const allowedApiOrigins = new Set(config.cors.apiOrigins);
-const MCP_PATHS = new Set(["/v1/mcp", "/v1/mcp/", "/mcp", "/mcp/"]);
+export const MCP_PATHS = new Set(["/v1/mcp", "/v1/mcp/", "/mcp", "/mcp/"]);
+const BEARER_TOKEN_RE = /^bearer\s+(\S+)$/i;
 
 function isMcpRequest(request: Request): boolean {
 	return MCP_PATHS.has(new URL(request.url).pathname);
+}
+
+export function readMcpOAuthToken(request: Request): string | null {
+	if (!isMcpRequest(request)) {
+		return null;
+	}
+	const token = BEARER_TOKEN_RE.exec(
+		request.headers.get("authorization")?.trim() ?? ""
+	)?.[1];
+	return token && !token.startsWith("dbdy_") ? token : null;
 }
 
 export function isAllowedApiOrigin(request: Request): boolean {
@@ -36,7 +47,7 @@ export function rejectInvalidMcpOrigin(request: Request): Response | undefined {
 	return Response.json(
 		{
 			jsonrpc: "2.0",
-			error: { code: -32_000, message: "Forbidden Origin" },
+			error: { code: -32_000, message: "Forbidden origin" },
 			id: null,
 		},
 		{ status: 403 }

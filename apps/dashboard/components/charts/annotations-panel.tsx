@@ -111,7 +111,7 @@ export function AnnotationsPanel({
 															<Badge
 																className="h-4 gap-0.5 px-1 text-[10px]"
 																key={tag}
-																variant="default"
+																variant="muted"
 															>
 																<TagIcon className="size-2" />
 																{tag}
@@ -157,7 +157,7 @@ export function AnnotationsPanel({
 				isOpen={!!deleteId}
 				onClose={() => setDeleteId(null)}
 				onConfirm={handleDelete}
-				title="Delete Annotation"
+				title="Delete annotation"
 			>
 				{annotationToDelete ? (
 					<div className="flex items-start gap-2.5 rounded border bg-card p-3">

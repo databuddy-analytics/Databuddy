@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 import { Button, Field, FieldTriggerButton, Input } from "@databuddy/ui";
 import { Dialog, DropdownMenu } from "@databuddy/ui/client";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
 interface InviteMemberDialogProps {
 	onOpenChangeAction: (open: boolean) => void;
@@ -36,15 +37,20 @@ export function InviteMemberDialog({
 
 	const handleSubmit = async () => {
 		if (!email?.includes("@")) {
-			setError("Please enter a valid email address");
+			setError("Enter a valid email address.");
 			return;
 		}
 		setError("");
 		try {
 			await inviteMember({ email, role, organizationId });
 			handleClose();
-		} catch {
-			// Error handled by mutation toast
+		} catch (inviteError) {
+			setError(
+				getUserFacingErrorMessage(
+					inviteError,
+					"Failed to send the invitation. Try again."
+				)
+			);
 		}
 	};
 
@@ -58,7 +64,7 @@ export function InviteMemberDialog({
 							<UserPlusIcon className="size-3.5 text-primary" />
 						</div>
 						<div>
-							<Dialog.Title>Invite Member</Dialog.Title>
+							<Dialog.Title>Invite member</Dialog.Title>
 							<Dialog.Description>
 								Send an invitation to join this organization
 							</Dialog.Description>
@@ -111,7 +117,7 @@ export function InviteMemberDialog({
 						<Button variant="secondary">Cancel</Button>
 					</Dialog.Close>
 					<Button disabled={!email} loading={isInviting} onClick={handleSubmit}>
-						Send Invite
+						Send invite
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>

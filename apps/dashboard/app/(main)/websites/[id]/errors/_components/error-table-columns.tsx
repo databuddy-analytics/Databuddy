@@ -16,7 +16,7 @@ export const errorColumns = [
 	{
 		id: "errors",
 		accessorKey: "errors",
-		header: "Total Errors",
+		header: "Total errors",
 		cell: (info: CellInfo<number>) => (
 			<span className="font-medium tabular-nums">
 				{info.getValue()?.toLocaleString()}
@@ -26,7 +26,7 @@ export const errorColumns = [
 	{
 		id: "users",
 		accessorKey: "users",
-		header: "Affected Users",
+		header: "Affected users",
 		cell: (info: CellInfo<number>) => {
 			const users = info.getValue() ?? 0;
 			const errors = (info.row?.original?.errors as number) ?? 0;
@@ -51,7 +51,7 @@ export const createErrorTypeColumns = () => [
 	{
 		id: "name",
 		accessorKey: "name",
-		header: "Error Message",
+		header: "Error message",
 		cell: (info: CellInfo<string>) => {
 			const message = info.getValue();
 			if (!message) {
@@ -59,7 +59,7 @@ export const createErrorTypeColumns = () => [
 					<div className="flex flex-col gap-1">
 						<div className="flex items-center gap-2">
 							<BugIcon className="size-4 text-muted-foreground" />
-							<Badge variant="muted">Unknown Error</Badge>
+							<Badge variant="muted">Unknown error</Badge>
 						</div>
 						<p className="text-muted-foreground text-sm">
 							No error message available
@@ -98,7 +98,7 @@ export const createErrorTypeColumns = () => [
 	{
 		id: "users",
 		accessorKey: "users",
-		header: "Affected Users",
+		header: "Affected users",
 		cell: (info: CellInfo<number>) => (
 			<span className="font-medium tabular-nums">
 				{info.getValue()?.toLocaleString()}
@@ -108,7 +108,7 @@ export const createErrorTypeColumns = () => [
 	{
 		id: "last_seen",
 		accessorKey: "last_seen",
-		header: "Last Occurrence",
+		header: "Last occurrence",
 		cell: (info: CellInfo<string>) => {
 			const lastSeen = info.getValue();
 			const formatted = formatLocalTime(lastSeen, "MMM D, YYYY HH:mm");

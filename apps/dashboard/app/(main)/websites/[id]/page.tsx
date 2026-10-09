@@ -33,7 +33,7 @@ export default function WebsiteDetailsPage() {
 				<EmptyState
 					action={
 						<Link href="/websites">
-							<Button size="sm">Back to Websites</Button>
+							<Button size="sm">Back to websites</Button>
 						</Link>
 					}
 					description="The website you are looking for does not exist or you do not have access."

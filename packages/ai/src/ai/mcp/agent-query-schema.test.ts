@@ -12,7 +12,6 @@ const explicitQuery = {
 	timeUnit: null,
 	limit: null,
 	filters: null,
-	groupBy: null,
 	orderBy: null,
 };
 
@@ -32,7 +31,10 @@ it("accepts strict-provider nulls through the native SDK without changing the re
 				},
 			],
 			finishReason: { unified: "tool-calls", raw: "tool_calls" },
-			usage: { inputTokens: { total: 1 }, outputTokens: { total: 1 } },
+			usage: {
+				inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+				outputTokens: { total: 1, text: 1, reasoning: 0 },
+			},
 			warnings: [],
 		}),
 	});
@@ -59,13 +61,15 @@ it("accepts strict-provider nulls through the native SDK without changing the re
 				to: "2026-09-09",
 				timezone: "UTC",
 				filters: undefined,
-				groupBy: undefined,
 			},
 		],
 	});
 	const definition = model.doGenerateCalls[0]?.tools?.[0];
-	expect(definition?.strict).toBe(true);
-	expect(JSON.stringify(definition?.inputSchema)).toContain('"type":"null"');
+	if (definition?.type !== "function") {
+		throw new Error("Expected the get_data function definition");
+	}
+	expect(definition.strict).toBe(true);
+	expect(JSON.stringify(definition.inputSchema)).toContain('"type":"null"');
 });
 
 it("retains omitted-field compatibility and rejects conflicting dates and filter retargeting", () => {

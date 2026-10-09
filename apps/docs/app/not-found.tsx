@@ -1,10 +1,15 @@
 import { HouseIcon } from "@databuddy/ui/icons";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
 import { Navbar } from "@/components/navbar";
 import { NotFoundGoBackButton } from "@/components/not-found-go-back-button";
 import { getGithubStars } from "@/lib/utils";
+
+export const metadata: Metadata = {
+	robots: null,
+};
 
 export default async function NotFound() {
 	const stars = await getGithubStars();

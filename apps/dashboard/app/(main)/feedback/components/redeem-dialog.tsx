@@ -4,6 +4,7 @@ import { APP_EVENTS } from "@databuddy/shared/custom-events";
 import { trackAppEvent } from "@/lib/app-events";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { Button, Text } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { ArrowRightIcon, CreditCardIcon } from "@databuddy/ui/icons";
@@ -39,7 +40,7 @@ export function RedeemDialog({
 				tier: variables.tierIndex,
 			});
 			toast.success(
-				`Redeemed ${result.rewardAmount.toLocaleString()} ${rewardLabel.toLowerCase()}. ${result.remainingCredits.toLocaleString()} feedback credits remaining.`
+				`Redeemed ${result.rewardAmount.toLocaleString()} ${rewardLabel.toLowerCase()}. ${result.remainingCredits.toLocaleString()} feedback credits remaining`
 			);
 			queryClient.invalidateQueries({
 				queryKey: orpc.feedback.getCreditsBalance.queryOptions().queryKey,
@@ -47,8 +48,9 @@ export function RedeemDialog({
 			onOpenChangeAction(false);
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to redeem feedback credits");
+			showErrorToast(error, "Failed to redeem feedback credits");
 		},
+		meta: { suppressGlobalErrorToast: true },
 	});
 
 	return (

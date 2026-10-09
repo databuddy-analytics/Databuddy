@@ -14,6 +14,7 @@ import {
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useTraitKeys, useTraitValues } from "@/hooks/use-profiles";
 import { orpc } from "@/lib/orpc";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -42,7 +43,7 @@ import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatCurrency } from "@/lib/formatters";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
@@ -520,18 +521,28 @@ export default function UsersPage() {
 			{
 				id: "ltv",
 				header: () => (
-					<Tooltip content="Lifetime revenue, refunds netted" side="top">
+					<Tooltip
+						content="Lifetime revenue, refunds netted. Multiple currencies are not combined."
+						side="top"
+					>
 						<span>LTV</span>
 					</Tooltip>
 				),
 				cell: ({ row }) => {
-					const ltv = row.original.ltv ?? 0;
+					const { ltv } = row.original;
+					if (ltv === null) {
+						return (
+							<span className="text-muted-foreground text-sm">
+								Multiple currencies
+							</span>
+						);
+					}
 					if (ltv === 0) {
 						return <span className="text-muted-foreground text-sm">—</span>;
 					}
 					return (
 						<span className="font-medium tabular-nums">
-							{formatCurrency(ltv)}
+							{formatRevenueCurrency(ltv, row.original.ltv_currency)}
 						</span>
 					);
 				},
@@ -545,7 +556,7 @@ export default function UsersPage() {
 					const isReturning = sessionCount > 1;
 					return (
 						<Badge variant={isReturning ? "default" : "muted"}>
-							{isReturning ? "Return" : "New"}
+							{isReturning ? "Returning" : "New"}
 						</Badge>
 					);
 				},
@@ -753,8 +764,8 @@ export default function UsersPage() {
 						} else {
 							toast.info("No user found with that email");
 						}
-					} catch {
-						toast.error("Search failed, try again");
+					} catch (error) {
+						showErrorToast(error, "Failed to search users");
 					} finally {
 						setEmailSearching(false);
 					}

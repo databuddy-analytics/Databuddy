@@ -16,7 +16,7 @@ import {
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Free Link Shortener With Click Analytics";
+const TITLE = "Free link shortener with click analytics";
 const DESCRIPTION =
 	"Shorten links for free and see clicks by source, country, and device. Phones go to the right app store, and bots stay out of your counts.";
 

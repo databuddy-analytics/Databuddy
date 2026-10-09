@@ -1,5 +1,5 @@
 ---
-title: Uptime Monitoring
+title: Uptime monitoring
 description: Monitor your endpoints with HTTP checks, transition-based alerts, and public status pages
 ---
 
@@ -12,11 +12,11 @@ Databuddy includes uptime monitoring and public status pages on every plan. Moni
 
 Each monitor performs HTTP checks against a URL at a configurable frequency, from every 60 seconds up to once per day. Every check records:
 
-- **Status** - up or down based on the HTTP response
-- **HTTP status code** - the response code returned
-- **Latency** - time to first byte and total response time
-- **SSL certificate** - validity and expiry date
-- **Redirects and response size** - redirect count and bytes transferred
+- **Status**: up or down based on the HTTP response
+- **HTTP status code**: the response code returned
+- **Latency**: time to first byte and total response time
+- **SSL certificate**: validity and expiry date
+- **Redirects and response size**: redirect count and bytes transferred
 
 Monitors support a configurable request timeout (1 to 120 seconds), optional cache busting, and can be paused and resumed at any time.
 
@@ -26,42 +26,49 @@ Alerts fire on status transitions only: when a monitor goes from up to down, and
 
 Alerts can be delivered to:
 
-- **Slack** - via an incoming webhook URL
-- **Email** - to organization members
-- **Webhook** - any HTTPS endpoint you control
+- **Slack**: via an incoming webhook URL
+- **Email**: to organization members
+- **Webhook**: any HTTPS endpoint you control
 
-## Status Pages
+## Status pages
 
 Publish a public, branded status page for your monitors:
 
-- **Custom slug, logo, and theme** - light, dark, or system
-- **Per-monitor privacy controls** - hide the URL, hide the uptime percentage, or hide latency for any monitor
-- **90-day uptime history** - visitors see uptime bars for the last 90 days
-- **Incidents** - publish incidents manually with a severity (minor, major, critical), a status (investigating, identified, monitoring, resolved), affected monitors, and follow-up updates as the situation evolves
+- **Custom slug, logo, and theme**: light, dark, or system
+- **Per-monitor privacy controls**: hide the URL, hide the uptime percentage, or hide latency for any monitor
+- **90-day uptime history**: visitors see uptime bars for the last 90 days
+- **Incidents**: publish incidents manually with a severity (minor, major, critical), a status (investigating, identified, monitoring, resolved), affected monitors, and follow-up updates as the situation evolves
 
-## API Access
+## API access
 
 Uptime resources are covered by dedicated API key scopes:
 
-- `read:monitors` - read monitors and their check history
-- `write:monitors` - create, update, pause, and delete monitors
-- `read:status_pages` - read status pages and their configuration
-- `write:status_pages` - create, update, and delete status pages and incidents
+- `read:monitors`: read monitors and their check history
+- `write:monitors`: create, update, pause, and delete monitors
+- `read:status_pages`: read status pages and their configuration
+- `write:status_pages`: create, update, and delete status pages and incidents
 
-See [API Keys](/docs/api-keys) for how to create and scope keys.
+See [API keys](/docs/api-keys) for how to create and scope keys.
+
+## Manage from code
+
+Manage monitors and status pages with [Pulumi](/docs/infrastructure-as-code/pulumi). See [Infrastructure as code](/docs/infrastructure-as-code) for what's next.
 
 <Callout type="info">
   Monitors are available on every plan and their checks do not count toward
   your monthly event quota.
 </Callout>
 
-## What's Next?
+## Related
 
 <Cards>
-  <Card title="API Keys" href="/docs/api-keys">
+  <Card title="API keys" href="/docs/api-keys">
     Create scoped keys for programmatic monitor management
   </Card>
-  <Card title="Dashboard Guide" href="/docs/dashboard">
+  <Card title="Pulumi" href="/docs/infrastructure-as-code/pulumi">
+    Define monitors and status pages in code
+  </Card>
+  <Card title="Dashboard guide" href="/docs/dashboard">
     Navigate your analytics dashboard and its features
   </Card>
 </Cards>

@@ -136,7 +136,7 @@ export default function ArchivePage() {
 					itemName={flagToDelete?.name || flagToDelete?.key}
 					onClose={() => setFlagToDelete(null)}
 					onConfirm={handleConfirmDelete}
-					title="Delete Feature Flag"
+					title="Delete flag"
 				/>
 			</div>
 		</ErrorBoundary>

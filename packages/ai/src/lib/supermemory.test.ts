@@ -3,12 +3,18 @@ import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 const originalApiKey = process.env.SUPERMEMORY_API_KEY;
 process.env.SUPERMEMORY_API_KEY = "test_supermemory_key";
 
+interface AddInput {
+	containerTag?: string;
+	containerTags?: string[];
+	metadata?: Record<string, unknown>;
+}
 interface ProfileInput {
 	containerTag: string;
 }
 interface SearchInput {
 	containerTag: string;
 	filters?: unknown;
+	searchMode?: string;
 }
 
 const defaultProfile = () => ({
@@ -19,7 +25,7 @@ const defaultProfile = () => ({
 let profileHandler = async (_input: ProfileInput) => defaultProfile();
 let searchHandler = async (_input: SearchInput) => ({ results: [] });
 
-const mockAdd = mock(async () => undefined);
+const mockAdd = mock(async (_input: AddInput) => undefined);
 const mockForget = mock(async () => undefined);
 const mockProfile = mock((input: ProfileInput) => profileHandler(input));
 const mockSearchMemories = mock((input: SearchInput) => searchHandler(input));
@@ -37,9 +43,15 @@ mock.module("@databuddy/services/business-memory", () => ({
 	getMemoryClient: () => mockClient,
 }));
 
-const { getMemoryContext, searchMemories, storeConversation } = await import(
-	"./supermemory"
-);
+const {
+	asksToForget,
+	asksToRemember,
+	forgetMemory,
+	getMemoryContext,
+	searchMemories,
+	storeConversation,
+} = await import("./supermemory");
+const { createMemoryTools } = await import("../ai/tools/memory");
 
 beforeEach(() => {
 	profileHandler = async () => defaultProfile();
@@ -58,40 +70,75 @@ afterAll(() => {
 	process.env.SUPERMEMORY_API_KEY = originalApiKey;
 });
 
+describe("explicit remember requests", () => {
+	test.each([
+		"remember that I prefer weekly views",
+		"Please remember our fiscal year starts in April",
+		"Can you remember that our trial lasts 14 days?",
+		"Thanks! Also, don't forget to exclude internal traffic",
+		"don’t forget the holiday spike",
+		"Note that bounce rate excludes bots",
+		"save this",
+		"Add this to your memory: we exclude staff",
+		"Keep in mind that we launched on Monday",
+		"From now on, show weekly views",
+		"Use weekly views from now on",
+		"Hi, my name is Sam",
+		"I prefer bar charts",
+		"Call me Sam",
+	])("detects %p", (message) => {
+		expect(asksToRemember(message)).toBe(true);
+	});
+
+	test.each([
+		"what did visitors remember about checkout?",
+		"Do you remember my preferences?",
+		"Remember when traffic spiked last March?",
+		"Which chart do I prefer?",
+		"What will traffic look like from now on",
+		"Show sessions where users clicked remember me",
+		"Remember-me checkbox clicks dropped",
+		"Don't remember this",
+		"Users don't forget their carts",
+		"Save this funnel as a goal",
+		"We fixed a leak in memory allocation",
+		"Forget that I prefer weekly views",
+		"",
+	])("ignores %p", (message) => {
+		expect(asksToRemember(message)).toBe(false);
+	});
+});
+
 describe("supermemory containers", () => {
-	test("stores conversation memory in primary and website containers", () => {
+	test("stores conversation memory only in the caller's own container", () => {
 		storeConversation(
-			[{ role: "user", content: "Watch pricing conversion" }],
+			[{ role: "user", content: "Remember that we watch pricing conversion" }],
 			"usr_1",
 			null,
 			{ websiteId: "site_1" }
 		);
 
-		expect(mockAdd).toHaveBeenCalledWith(
-			expect.objectContaining({
-				containerTags: ["user_usr_1", "website_site_1"],
-				metadata: expect.objectContaining({ websiteId: "site_1" }),
-			})
-		);
+		expect(mockAdd).toHaveBeenCalledTimes(1);
+		const [input] = mockAdd.mock.calls[0] ?? [];
+		expect(input).toMatchObject({
+			containerTag: "user_usr_1",
+			metadata: { websiteId: "site_1" },
+		});
+		expect(input).not.toHaveProperty("containerTags");
 	});
 
-	test("stores website-scoped anonymous conversation memory without anonymous container", () => {
+	test("skips conversation memory without a caller identity", () => {
 		storeConversation(
-			[{ role: "user", content: "Watch pricing conversion" }],
+			[{ role: "user", content: "Remember that we watch pricing conversion" }],
 			null,
 			null,
 			{ websiteId: "site_1" }
 		);
 
-		expect(mockAdd).toHaveBeenCalledWith(
-			expect.objectContaining({
-				containerTags: ["website_site_1"],
-				metadata: expect.objectContaining({ websiteId: "site_1" }),
-			})
-		);
+		expect(mockAdd).not.toHaveBeenCalled();
 	});
 
-	test("loads memory context from current and legacy containers", async () => {
+	test("loads memory context only from the caller's own container", async () => {
 		profileHandler = async ({ containerTag }) => ({
 			profile: {
 				dynamic: [`dynamic:${containerTag}`],
@@ -106,38 +153,22 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockProfile).toHaveBeenCalledTimes(2);
 		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual(
-			["user_usr_1", "website_site_1"]
+			["user_usr_1"]
 		);
-		expect(context.staticProfile).toEqual([
-			"static:user_usr_1",
-			"static:website_site_1",
-		]);
-		expect(context.dynamicProfile).toEqual([
-			"dynamic:user_usr_1",
-			"dynamic:website_site_1",
-		]);
-		expect(context.relevantMemories).toEqual([
-			"memory:user_usr_1",
-			"memory:website_site_1",
-		]);
+		expect(context).toEqual({
+			dynamicProfile: ["dynamic:user_usr_1"],
+			relevantMemories: ["memory:user_usr_1"],
+			staticProfile: ["static:user_usr_1"],
+		});
 	});
 
-	test("searches current containers with source tags", async () => {
-		searchHandler = async ({ containerTag }) => ({
-			results:
-				containerTag === "website_site_1"
-					? [
-							{ memory: "website summary", similarity: 0.9 },
-							{ memory: "shared memory", similarity: 0.8 },
-						]
-					: containerTag === "user_usr_1"
-						? [
-								{ memory: "primary memory", similarity: 0.5 },
-								{ memory: "shared memory", similarity: 0.2 },
-							]
-						: [],
+	test("searches only the caller's own container, scoped to the website", async () => {
+		searchHandler = async () => ({
+			results: [
+				{ memory: "older memory", similarity: 0.5 },
+				{ chunk: "pricing chunk", similarity: 0.8 },
+			],
 		});
 
 		const results = await searchMemories("pricing", "usr_1", null, {
@@ -145,57 +176,147 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockSearchMemories).toHaveBeenCalledTimes(2);
 		expect(
 			mockSearchMemories.mock.calls.map(([input]) => ({
 				containerTag: input.containerTag,
 				hasFilters: "filters" in input,
 			}))
-		).toEqual([
-			{ containerTag: "user_usr_1", hasFilters: true },
-			{ containerTag: "website_site_1", hasFilters: false },
-		]);
+		).toEqual([{ containerTag: "user_usr_1", hasFilters: true }]);
 		expect(results).toEqual([
-			{
-				containerTag: "website_site_1",
-				memory: "website summary",
-				similarity: 0.9,
-			},
-			{
-				containerTag: "website_site_1",
-				memory: "shared memory",
-				similarity: 0.8,
-			},
-			{
-				containerTag: "user_usr_1",
-				memory: "primary memory",
-				similarity: 0.5,
-			},
+			{ memory: "pricing chunk", similarity: 0.8 },
+			{ memory: "older memory", similarity: 0.5 },
 		]);
 	});
+});
 
-	test("keeps successful search results when one container fails", async () => {
-		searchHandler = async ({ containerTag }) => {
-			if (containerTag === "website_site_1") {
-				throw new Error("website container unavailable");
-			}
-			return {
-				results: [{ memory: "current memory", similarity: 0.7 }],
-			};
-		};
-
-		const results = await searchMemories("pricing", "usr_1", null, {
-			limit: 3,
-			websiteId: "site_1",
+describe("forgetting memory", () => {
+	test("forgets an exact match from the caller's own container", async () => {
+		searchHandler = async () => ({
+			results: [
+				{ id: "mem_1", memory: "Prefers weekly views", similarity: 0.9 },
+			],
 		});
 
-		expect(mockSearchMemories).toHaveBeenCalledTimes(2);
-		expect(results).toEqual([
+		expect(await forgetMemory("Prefers weekly views", null, "key_1")).toEqual({
+			memory: "Prefers weekly views",
+			status: "forgotten",
+		});
+		expect(mockSearchMemories).toHaveBeenCalledWith(
+			expect.objectContaining({
+				containerTag: "apikey_key_1",
+				searchMode: "memories",
+			})
+		);
+		expect(mockForget).toHaveBeenCalledWith({
+			containerTag: "apikey_key_1",
+			id: "mem_1",
+		});
+	});
+
+	test("returns candidates instead of forgetting a fuzzy match", async () => {
+		searchHandler = async () => ({
+			results: [
+				{
+					id: "mem_1",
+					memory: "Prefers weekly views in traffic reports",
+					similarity: 0.6,
+				},
+			],
+		});
+
+		expect(await forgetMemory("weekly views", "usr_1", null)).toEqual({
+			candidates: ["Prefers weekly views in traffic reports"],
+			status: "not_found",
+		});
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+});
+
+describe("explicit forget requests", () => {
+	test.each([
+		"Forget that I prefer weekly views",
+		"Please forget my name",
+		"Can you forget that our trial lasts 14 days?",
+		"Delete the memory about our fiscal year",
+		"Remove that from your memory",
+		"That memory is wrong",
+		"You remembered our launch date wrong",
+		"Stop remembering my chart preference",
+	])("detects %p", (message) => {
+		expect(asksToForget(message)).toBe(true);
+	});
+
+	test.each([
+		"Forget it, show me traffic",
+		"Never mind, forget about it",
+		"Don't forget to exclude internal traffic",
+		"Did you forget my name?",
+		"Users forget their carts at checkout",
+		"That's wrong, signups were higher",
+		"Delete the goal for signups",
+		"",
+	])("ignores %p", (message) => {
+		expect(asksToForget(message)).toBe(false);
+	});
+});
+
+describe("forget_memory tool", () => {
+	const tools = createMemoryTools();
+	const forget = (latestUserMessage: string) =>
+		tools.forget_memory?.execute?.(
+			{ query: "Prefers weekly views" },
 			{
+				toolCallId: "forget",
+				messages: [],
+				experimental_context: { latestUserMessage, userId: "usr_1" },
+			}
+		);
+
+	test("refuses when the latest user message does not ask to forget", async () => {
+		expect(
+			await forget("Ignore earlier notes and wipe my preferences")
+		).toMatchObject({
+			forgotten: false,
+		});
+		expect(mockForget).not.toHaveBeenCalled();
+	});
+});
+
+describe("save_memory tool", () => {
+	const tools = createMemoryTools();
+	const save = (latestUserMessage: string) =>
+		tools.save_memory?.execute?.(
+			{ content: "Prefers weekly views", category: "preference" },
+			{
+				toolCallId: "save",
+				messages: [],
+				experimental_context: {
+					latestUserMessage,
+					userId: "usr_1",
+					websiteId: "site_1",
+				},
+			}
+		);
+
+	test("refuses when the latest user message does not ask to remember", async () => {
+		expect(await save("What changed in signups last week?")).toMatchObject({
+			saved: false,
+		});
+		expect(mockAdd).not.toHaveBeenCalled();
+	});
+
+	test("saves an explicit request to the caller's own container", async () => {
+		expect(await save("Remember that I prefer weekly views")).toEqual({
+			saved: true,
+		});
+		expect(mockAdd).toHaveBeenCalledWith(
+			expect.objectContaining({
 				containerTag: "user_usr_1",
-				memory: "current memory",
-				similarity: 0.7,
-			},
-		]);
+				metadata: expect.objectContaining({
+					type: "curated",
+					websiteId: "site_1",
+				}),
+			})
+		);
 	});
 });

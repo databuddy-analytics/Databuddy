@@ -123,7 +123,7 @@ export function LinkRow({
 						</span>
 						{link.deepLinkApp && (
 							<span className="flex shrink-0 items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs">
-								{getDeepLinkApp(link.deepLinkApp)?.name ?? "Deep Link"}
+								{getDeepLinkApp(link.deepLinkApp)?.name ?? "Deep link"}
 							</span>
 						)}
 						<ExpiryBadge link={link} />
@@ -166,7 +166,7 @@ export function LinkRow({
 						</DropdownMenu.Item>
 						<DropdownMenu.Item className="gap-2" onClick={() => onShowQr(link)}>
 							<QrCodeIcon className="size-4" />
-							QR Code
+							QR code
 						</DropdownMenu.Item>
 						<DropdownMenu.Separator />
 						<DropdownMenu.Item className="gap-2" onClick={() => onEdit(link)}>
@@ -216,7 +216,7 @@ export function LinksList({
 			<div className="px-5 py-12">
 				<EmptyState
 					action={{
-						label: "Create Your First Link",
+						label: "Create link",
 						onClick: onCreateLink,
 					}}
 					description="Create short links to track clicks and measure engagement across your marketing campaigns."

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import matter from "gray-matter";
+import { SITE_URL } from "@/app/util/constants";
 import { source } from "@/lib/source";
 
 function isUnsafeSegment(segment: string): boolean {
@@ -42,6 +43,7 @@ export async function GET(
 			"Content-Type": "text/markdown; charset=utf-8",
 			"Cache-Control": "public, max-age=3600, must-revalidate",
 			ETag: `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`,
+			Link: `<${SITE_URL}${page.url}>; rel="canonical"`,
 		},
 	});
 }

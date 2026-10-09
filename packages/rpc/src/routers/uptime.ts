@@ -166,7 +166,7 @@ export const uptimeRouter = {
 			const orgId = input.organizationId ?? context.organizationId;
 
 			if (!orgId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -245,7 +245,7 @@ export const uptimeRouter = {
 			const organizationId =
 				input.organizationId?.trim() || context.organizationId || null;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			if (input.websiteId) {
@@ -276,8 +276,8 @@ export const uptimeRouter = {
 			if (existing) {
 				throw rpcError.conflict(
 					existing.url === input.url
-						? "Monitor already exists for this URL in this organization"
-						: "This website already has a monitor"
+						? "A monitor for this URL already exists in this organization."
+						: "This website already has a monitor. Edit the existing one instead."
 				);
 			}
 
@@ -405,7 +405,7 @@ export const uptimeRouter = {
 			});
 
 			if (schedule.isPaused) {
-				throw rpcError.badRequest("Schedule is already paused");
+				throw rpcError.badRequest("This monitor is already paused.");
 			}
 
 			try {
@@ -415,7 +415,9 @@ export const uptimeRouter = {
 					{ scheduleId: input.scheduleId, error },
 					"Failed to pause"
 				);
-				throw rpcError.internal("Failed to pause monitor");
+				throw rpcError.internal(
+					"The monitor could not be paused. Try again in a moment."
+				);
 			}
 
 			await invalidateStatusPageCachesForSchedule(input.scheduleId);
@@ -524,7 +526,7 @@ export const uptimeRouter = {
 			});
 
 			if (!schedule.isPaused) {
-				throw rpcError.badRequest("Schedule is not paused");
+				throw rpcError.badRequest("This monitor is already running.");
 			}
 
 			try {
@@ -537,7 +539,9 @@ export const uptimeRouter = {
 					{ scheduleId: input.scheduleId, error },
 					"Failed to resume"
 				);
-				throw rpcError.internal("Failed to resume monitor");
+				throw rpcError.internal(
+					"The monitor could not be resumed. Try again in a moment."
+				);
 			}
 
 			await invalidateStatusPageCachesForSchedule(input.scheduleId);

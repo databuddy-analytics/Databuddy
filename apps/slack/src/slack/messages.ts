@@ -4,12 +4,12 @@ export const SLACK_SUGGESTED_PROMPTS = [
 		title: "Open investigations",
 	},
 	{
-		message: "Run a new investigation now.",
-		title: "Run an investigation",
+		message: "What changed on our sites this week, and why?",
+		title: "What changed",
 	},
 	{
-		message: "Send new investigations to this channel every week.",
-		title: "Weekly delivery",
+		message: "Where did our visitors come from in the last 7 days?",
+		title: "Traffic sources",
 	},
 ] as const;
 
@@ -23,19 +23,18 @@ export const SLACK_LOADING_MESSAGES = [
 
 export const SLACK_COPY = {
 	agentFailure:
-		"I couldn't finish that response. Try again in a moment. If it keeps happening, contact your Databuddy organization admin.",
+		"I couldn't finish that response. Try again shortly. If it keeps happening, contact your Databuddy organization admin.",
 	agentRestarted:
 		"I was restarted before I could finish. Mention me again and I'll take another look.",
 	agentTimeout:
 		"This took longer than expected, so I stopped. Try again with a narrower question.",
 	agentStopped:
 		"Stopping this response and clearing queued follow-ups in this thread.",
-	queueUnavailable:
-		"I couldn't safely process this thread. Please try again in a moment.",
+	queueUnavailable: "I couldn't safely process this thread. Try again shortly.",
 	queueFull:
 		"There are too many queued follow-ups in this thread. Please wait for my response before sending this again.",
 	assistantGreeting:
-		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
+		"I'm in. Ask what changed, where visitors came from, or what your open investigations mean.",
 	autoBindSuccess: "Ready here.",
 	blockFallback: "Open Slack to view this table.",
 	bindFailure:
@@ -47,7 +46,7 @@ export const SLACK_COPY = {
 		"I'm here. Ask after the mention, like `@Databuddy what changed this week?`",
 	help: [
 		"*Databuddy in Slack*",
-		"Mention `@Databuddy`, DM me, or use the Slack assistant to list, run, configure, or continue investigations. You can also ask about traffic, pages, conversions, campaigns, errors, and product usage.",
+		"Mention `@Databuddy`, DM me, or use the Slack assistant to check open investigations or ask about traffic, pages, conversions, campaigns, errors, and product usage.",
 		"Databuddy reads messages in approved channels and DMs to understand the current question and thread. Answers posted in a channel are visible to that channel's members.",
 		"Channels usually connect on first mention from the workspace where Databuddy is installed. Slack Connect may need approval from the installed side, or Databuddy connected in both workspaces.",
 		"Commands: `/databuddy-status`, `/databuddy-help`, `/databuddy-bind`.",
@@ -64,14 +63,14 @@ export const SLACK_COPY = {
 	missingSlackScopes:
 		"I'm missing a Slack permission in this workspace. Reconnect Slack from Databuddy settings so the new scopes are granted, then try again.",
 	noAnswer:
-		"That took too long or came back empty. Try a narrower question — one site, or a shorter range like `traffic for the last 7 days`.",
+		"That took too long or came back empty. Try a narrower question: one website, or a shorter range like `traffic for the last 7 days`.",
 	processingReaction: "rabbit",
 	responseInterrupted:
 		"Response interrupted. The information above may be incomplete. Try again before acting on it.",
 	streamOpening: "Thinking...",
 	statusConnected: "*Workspace connected.*",
 	statusFailure:
-		"I couldn't check Databuddy's Slack status right now. Try again in a moment.",
+		"I couldn't check Databuddy's Slack status right now. Try again shortly.",
 	statusReady: "*Ready here.* Mention `@Databuddy` or DM me with a question.",
 	suggestedPromptsTitle: "Start with Databuddy",
 } as const;

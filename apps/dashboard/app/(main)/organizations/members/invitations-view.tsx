@@ -55,7 +55,7 @@ export function InvitationsView({
 						}
 						description="Something went wrong while loading invitations"
 						icon={<EnvelopeIcon />}
-						title="Failed to load"
+						title="Failed to load invitations"
 					/>
 				</Card.Content>
 			</Card>

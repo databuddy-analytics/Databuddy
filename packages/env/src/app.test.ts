@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { assertConfigured, createConfig, readBooleanEnv } from "./app";
+import {
+	assertConfigured,
+	billingMode,
+	createConfig,
+	dataUrl,
+	isLocalHost,
+	readBooleanEnv,
+} from "./app";
 
 const HOSTED = {
 	AUTUMN_SECRET_KEY: "am_sk_test",
@@ -15,7 +22,7 @@ describe("createConfig", () => {
 			basket: "https://basket.databuddy.cc",
 			dashboard: "https://app.databuddy.cc",
 			links: "https://dby.sh",
-			mcp: "https://api.databuddy.cc/v1/mcp/",
+			mcp: "https://api.databuddy.cc/v1/mcp",
 			status: "https://status.databuddy.cc",
 		});
 		expect(
@@ -26,7 +33,7 @@ describe("createConfig", () => {
 			basket: "http://localhost:4000",
 			dashboard: "http://localhost:3000",
 			links: "http://localhost:2500",
-			mcp: "http://localhost:3001/v1/mcp/",
+			mcp: "http://localhost:3001/v1/mcp",
 			status: "http://localhost:3002",
 		});
 	});
@@ -43,8 +50,19 @@ describe("createConfig", () => {
 			urls: {
 				api: "https://api.example.com",
 				dashboard: "https://app.example.com",
-				mcp: "https://api.example.com/v1/mcp/",
+				mcp: "https://api.example.com/v1/mcp",
 			},
+		});
+		expect(
+			createConfig({
+				API_URL: "https://api.example.com",
+				MCP_URL: "https://app.example.com/",
+				NODE_ENV: "production",
+				SELFHOST: "true",
+			}).urls
+		).toMatchObject({
+			api: "https://api.example.com",
+			mcp: "https://app.example.com/v1/mcp",
 		});
 	});
 
@@ -196,6 +214,102 @@ describe("assertConfigured", () => {
 
 	it("leaves development environments alone", () => {
 		expect(() => assertConfigured({})).not.toThrow();
+	});
+});
+
+describe("isLocalHost", () => {
+	it("accepts loopback hosts and compose service names", () => {
+		for (const url of [
+			"postgres://u:p@localhost:5432/databuddy",
+			"http://default:@127.0.0.1:8123",
+			"redis://[::1]:6379",
+			"redis://redis:6379",
+			"redpanda:9092",
+		]) {
+			expect(isLocalHost(url)).toBe(true);
+		}
+	});
+
+	it("rejects dotted remote hosts", () => {
+		expect(isLocalHost("postgres://u:p@db.example.com:5432/x")).toBe(false);
+		expect(isLocalHost("broker.example.com:9092")).toBe(false);
+	});
+});
+
+describe("dataUrl", () => {
+	const REMOTE = "postgres://u:p@db.example.com:5432/databuddy";
+
+	it("defaults unset URLs to the local Docker services in development", () => {
+		const env = { NODE_ENV: "development" };
+		expect(dataUrl("DATABASE_URL", env)).toBe(
+			"postgres://databuddy:databuddy_dev_password@localhost:5432/databuddy"
+		);
+		expect(dataUrl("BULLMQ_REDIS_URL", env)).toBe("redis://localhost:6379");
+		expect(dataUrl("CLICKHOUSE_URL", env)).toBe(
+			"http://default:@localhost:8123/databuddy_analytics"
+		);
+	});
+
+	it("uses an explicit URL as is in every environment", () => {
+		for (const NODE_ENV of ["development", "production", "test"]) {
+			expect(dataUrl("DATABASE_URL", { DATABASE_URL: REMOTE, NODE_ENV })).toBe(
+				REMOTE
+			);
+		}
+	});
+
+	it("leaves unset URLs unset outside development", () => {
+		for (const NODE_ENV of ["production", "test", undefined]) {
+			expect(dataUrl("REDIS_URL", { NODE_ENV })).toBeUndefined();
+		}
+	});
+});
+
+describe("services", () => {
+	it("reads trimmed keys live and treats blanks as unset", () => {
+		const env: Record<string, string | undefined> = {
+			NODE_ENV: "development",
+			RESEND_API_KEY: "  ",
+			SLACK_WEBHOOK_URL: " https://hooks.slack.com/services/x ",
+		};
+		const config = createConfig(env);
+		expect(config.services.slackWebhookUrl).toBe(
+			"https://hooks.slack.com/services/x"
+		);
+		expect(config.services.resendApiKey).toBeUndefined();
+		env.RESEND_API_KEY = "re_live";
+		expect(config.services.resendApiKey).toBe("re_live");
+	});
+
+	it("keeps development logs out of Axiom even with a token set", () => {
+		const env: Record<string, string | undefined> = {
+			NODE_ENV: "development",
+			AXIOM_TOKEN: "xaat-dev",
+		};
+		const config = createConfig(env);
+		expect(config.services.axiomToken).toBeUndefined();
+		env.NODE_ENV = "production";
+		expect(config.services.axiomToken).toBe("xaat-dev");
+	});
+});
+
+describe("billingMode", () => {
+	it("keeps self-hosting unmetered even with a copied billing key", () => {
+		expect(billingMode({ ...HOSTED, SELFHOST: "true" })).toBe("selfhost");
+	});
+
+	it("bills hosted production even when the key is missing", () => {
+		expect(billingMode(HOSTED)).toBe("live");
+		expect(billingMode({ NODE_ENV: "production" })).toBe("live");
+	});
+
+	it("bills elsewhere only when a billing key is set", () => {
+		for (const NODE_ENV of ["development", "test"]) {
+			expect(billingMode({ NODE_ENV })).toBe("disabled");
+			expect(billingMode({ NODE_ENV, AUTUMN_SECRET_KEY: "am_sk" })).toBe(
+				"live"
+			);
+		}
 	});
 });
 

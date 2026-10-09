@@ -6,10 +6,7 @@ import {
 	registerSlackActiveRun,
 } from "@/slack/active-runs";
 import type { SlackInstallationServices } from "@/slack/installations";
-import {
-	registerSlackListeners,
-	type SlackInvestigationReplyHandler,
-} from "@/slack/listeners";
+import { registerSlackListeners } from "@/slack/listeners";
 import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
 import type { shouldReplyToSlackThreadFollowUp } from "@/slack/thread-relevance";
 import type { SlackThreadQueueStore } from "@/slack/thread-queue";
@@ -182,16 +179,14 @@ function registerFakeSlackListeners(
 	agent: Pick<DatabuddyAgentClient, "stream">,
 	installations: SlackInstallationServices,
 	queue: SlackThreadQueueStore,
-	shouldReply?: typeof shouldReplyToSlackThreadFollowUp,
-	investigationReplyHandler: SlackInvestigationReplyHandler = async () => false
+	shouldReply?: typeof shouldReplyToSlackThreadFollowUp
 ): void {
 	registerSlackListeners(
 		app as unknown as App,
 		agent,
 		installations,
 		queue,
-		shouldReply,
-		investigationReplyHandler
+		shouldReply
 	);
 }
 
@@ -335,7 +330,6 @@ describe("Slack listeners", () => {
 		const queue = createQueue();
 		const responses: unknown[] = [];
 		const readinessCalls: unknown[] = [];
-		const investigationRuns: SlackAgentRun[] = [];
 		const { apiCalls, client, reactionAdds } = createClient();
 		registerFakeSlackListeners(
 			app,
@@ -346,12 +340,7 @@ describe("Slack listeners", () => {
 					return { message: "", ok: true };
 				},
 			}),
-			queue,
-			undefined,
-			async ({ run }) => {
-				investigationRuns.push(run);
-				return false;
-			}
+			queue
 		);
 
 		for (const text of ["<@UBOT>", "<@UBOT> show me traffic"]) {
@@ -375,7 +364,6 @@ describe("Slack listeners", () => {
 		}
 
 		expect(runs).toEqual([]);
-		expect(investigationRuns).toEqual([]);
 		expect(readinessCalls).toEqual([]);
 		expect(queue.enqueuedRuns).toEqual([]);
 		expect(apiCalls).toEqual([]);
@@ -490,118 +478,13 @@ describe("Slack listeners", () => {
 		]);
 	});
 
-	it("routes mentions in delivered investigation threads before the general agent", async () => {
-		const app = new FakeSlackApp();
-		const { agent, runs } = createAgent();
-		const queue = createQueue();
-		const { client } = createClient();
-		const investigationRuns: SlackAgentRun[] = [];
-		registerFakeSlackListeners(
-			app,
-			agent,
-			createInstallations(),
-			queue,
-			undefined,
-			async ({ run }) => {
-				investigationRuns.push(run);
-				return true;
-			}
-		);
-
-		await app.events.get("app_mention")?.({
-			body: {},
-			client,
-			context: { botUserId: "UBOT", teamId: "T123" },
-			event: {
-				channel: "C123",
-				text: "<@UBOT> that deploy happened on Friday",
-				thread_ts: "171234.000",
-				ts: "171234.568",
-				type: "app_mention",
-				user: "U123",
-			},
-			logger,
-			say: async () => undefined,
-		});
-
-		expect(investigationRuns).toMatchObject([
-			{
-				channelId: "C123",
-				messageTs: "171234.568",
-				text: "that deploy happened on Friday",
-				threadTs: "171234.000",
-				trigger: "app_mention",
-			},
-		]);
-		expect(runs).toEqual([]);
-	});
-
-	it("routes plain investigation replies before engagement and relevance gates", async () => {
-		const app = new FakeSlackApp();
-		const { agent, runs } = createAgent();
-		const queue = createQueue({
-			isEngaged: async () => {
-				throw new Error(
-					"investigation replies do not use the generic thread gate"
-				);
-			},
-		});
-		const { client } = createClient();
-		const investigationRuns: SlackAgentRun[] = [];
-		registerFakeSlackListeners(
-			app,
-			agent,
-			createInstallations(),
-			queue,
-			{
-				shouldReply: async () => {
-					throw new Error("investigation replies do not use relevance scoring");
-				},
-			},
-			async ({ run }) => {
-				investigationRuns.push(run);
-				return true;
-			}
-		);
-
-		await app.messages[0]?.({
-			client,
-			context: { botUserId: "UBOT", teamId: "T123" },
-			logger,
-			message: {
-				channel: "C123",
-				channel_type: "channel",
-				text: "yes, payment means a completed charge",
-				thread_ts: "171234.000",
-				ts: "171234.568",
-				user: "U123",
-			},
-			say: async () => undefined,
-		});
-
-		expect(investigationRuns).toHaveLength(1);
-		expect(runs).toEqual([]);
-		expect(queue.enqueuedRuns).toEqual([]);
-	});
-
-	it("blocks plain investigation replies from external Slack Connect users", async () => {
+	it("blocks plain thread replies from external Slack Connect users", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();
 		const queue = createQueue();
 		const { client } = createClient();
 		const responses: unknown[] = [];
-		let investigationCalls = 0;
-		registerFakeSlackListeners(
-			app,
-			agent,
-			createInstallations(),
-			queue,
-			undefined,
-			async () => {
-				investigationCalls += 1;
-				return true;
-			}
-		);
+		registerFakeSlackListeners(app, agent, createInstallations(), queue);
 
 		await app.messages[0]?.({
 			client,
@@ -621,7 +504,6 @@ describe("Slack listeners", () => {
 			},
 		});
 
-		expect(investigationCalls).toBe(0);
 		expect(runs).toEqual([]);
 		expect(responses).toEqual([
 			{
@@ -859,7 +741,7 @@ describe("Slack stop routing", () => {
 		}
 	});
 
-	it("handles stop before relevance and investigation continuation, while rejecting external speakers", async () => {
+	it("handles stop before relevance, while rejecting external speakers", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();
 		const { client } = createClient();
@@ -869,20 +751,11 @@ describe("Slack stop routing", () => {
 				stops.push(run);
 			},
 		});
-		registerFakeSlackListeners(
-			app,
-			agent,
-			createInstallations(),
-			queue,
-			{
-				shouldReply: async () => {
-					throw new Error("Stop must bypass relevance");
-				},
+		registerFakeSlackListeners(app, agent, createInstallations(), queue, {
+			shouldReply: async () => {
+				throw new Error("Stop must bypass relevance");
 			},
-			async () => {
-				throw new Error("Stop must bypass investigation replies");
-			}
-		);
+		});
 		for (const user_team of ["T123", "TEXTERNAL"]) {
 			await app.messages[0]?.({
 				client,

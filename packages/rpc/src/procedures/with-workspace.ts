@@ -7,13 +7,41 @@ import {
 	roleHasPermission,
 } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
+import { billingMode } from "@databuddy/env/app";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { normalizePlanId, type PlanId } from "@databuddy/shared/types/features";
+import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { hasHostedBilling } from "../lib/autumn-client";
 import { type Context, os } from "../orpc";
 import { getMemberRole, getOrganizationOwnerId } from "../utils/organization";
+
+const RESOURCE_NOUNS: Record<string, string> = {
+	audit_log: "the audit log",
+	flag: "feature flags",
+	llm: "AI features",
+	organization: "organization settings",
+	status_page: "status pages",
+	subscription: "billing",
+};
+
+const PERMISSION_VERBS: Record<string, string> = {
+	read: "view",
+	update: "edit",
+	view_analytics: "view analytics for",
+};
+
+function roleDeniedMessage(
+	role: string,
+	resource: string,
+	permission: string | undefined
+): string {
+	const noun = RESOURCE_NOUNS[resource] ?? `${resource.replaceAll("_", " ")}s`;
+	const verb = permission
+		? (PERMISSION_VERBS[permission] ?? permission)
+		: "change";
+	return `Your ${role} role can't ${verb} ${noun} in this organization. Ask an owner or admin for access.`;
+}
 
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
@@ -107,14 +135,10 @@ export type PublicWorkspaceWithPlan =
 	| DemoWorkspaceWithPlan;
 
 const getWebsiteById = cacheable(
-	async (id: string) => {
-		if (!id) {
-			return null;
-		}
-		return await db.query.websites.findFirst({
+	async (id: string) =>
+		await db.query.websites.findFirst({
 			where: { id },
-		});
-	},
+		}),
 	{
 		expireInSec: 600,
 		prefix: cacheNamespaces.websiteById,
@@ -123,13 +147,16 @@ const getWebsiteById = cacheable(
 	}
 );
 
-async function getPlanId(context: Context): Promise<PlanId> {
-	const billing = await context.getBilling();
+async function getPlanId(
+	context: Context,
+	organizationId: string
+): Promise<PlanId> {
+	const billing = await context.getBilling(organizationId);
 	return normalizePlanId(billing?.planId ?? null);
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!(hasHostedBilling() && requiredPlans?.length)) {
+	if (!(billingMode() === "live" && requiredPlans?.length)) {
 		return;
 	}
 	if (!requiredPlans.includes(plan)) {
@@ -139,7 +166,7 @@ function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
 
 async function requireWebsite(websiteId: string): Promise<Website> {
 	const website = await getWebsiteById(websiteId);
-	if (!website) {
+	if (!website || website.deletedAt) {
 		throw rpcError.notFound("website", websiteId);
 	}
 	return website;
@@ -167,6 +194,41 @@ async function resolveGrant(
 	}
 ): Promise<Grant> {
 	const { organizationId, resource, permissions, allowCrossOrg } = input;
+	const oauth = context.oauth;
+	if (oauth) {
+		if (oauth.grant.organizationId !== organizationId) {
+			return {
+				granted: false,
+				denied: rpcError.forbidden(
+					"This connection does not have access to this organization. Reconnect it and choose this organization."
+				),
+			};
+		}
+		const websiteIds = oauth.grant.websiteIds;
+		if (
+			websiteIds &&
+			(input.websiteId
+				? !websiteIds.includes(input.websiteId)
+				: resource !== "link")
+		) {
+			return {
+				granted: false,
+				denied: rpcError.forbidden(
+					"This connection only has access to the websites selected when it was connected."
+				),
+			};
+		}
+		for (const scope of requiredScopesForResource(resource, permissions)) {
+			if (!oauth.scopes.includes(scope)) {
+				return {
+					granted: false,
+					denied: rpcError.forbidden(
+						`This connection is missing the ${scope} scope. Reconnect it with that scope to continue.`
+					),
+				};
+			}
+		}
+	}
 
 	if (context.user) {
 		if (
@@ -177,7 +239,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"Resource does not belong to the active organization"
+					"This item belongs to a different organization. Switch organizations and try again."
 				),
 			};
 		}
@@ -186,7 +248,9 @@ async function resolveGrant(
 		if (!role) {
 			return {
 				granted: false,
-				denied: rpcError.forbidden("You are not a member of this organization"),
+				denied: rpcError.forbidden(
+					"You are not a member of this organization. Ask an owner or admin to invite you."
+				),
 			};
 		}
 
@@ -194,7 +258,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					`Missing required ${resource} permissions: ${permissions.join(", ")}`
+					roleDeniedMessage(role, resource, permissions[0])
 				),
 			};
 		}
@@ -207,7 +271,7 @@ async function resolveGrant(
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
-					"API key does not have access to this workspace"
+					"This API key does not have access to this organization."
 				),
 			};
 		}
@@ -223,7 +287,7 @@ async function resolveGrant(
 				return {
 					granted: false,
 					denied: rpcError.forbidden(
-						`API key missing required scope: ${scope}`
+						`This API key is missing the ${scope} scope. Create a key with that scope to continue.`
 					),
 				};
 			}
@@ -236,27 +300,25 @@ async function resolveGrant(
 }
 
 interface ResolveInput {
-	allowCrossOrg: boolean;
-	includePlan: boolean;
+	allowCrossOrg?: boolean;
+	includePlan?: boolean;
 	organizationId?: string | null;
 	permissions: readonly string[];
-	requiredPlans: PlanId[] | undefined;
+	requiredPlans?: PlanId[];
 	resource?: string;
 	websiteId?: string;
 }
 
 interface ResolvedAuthed {
 	kind: "authed";
-	plan: PlanId | null;
-	workspace: AuthedWorkspace;
+	workspace: AuthedWorkspace & { plan?: PlanId };
 }
 
 interface ResolvedDenied {
 	denied: Error;
 	kind: "denied";
 	organizationId: string;
-	permissions: readonly string[];
-	plan: PlanId | null;
+	plan: PromiseSettledResult<PlanId | null>;
 	website: Website | null;
 }
 
@@ -272,29 +334,37 @@ async function resolveWorkspace(
 		input.organizationId ?? website?.organizationId ?? context.organizationId;
 
 	if (!organizationId) {
-		throw rpcError.badRequest("Workspace is required");
+		throw rpcError.badRequest("Select an organization and try again.");
 	}
 	if (website && website.organizationId !== organizationId) {
-		throw rpcError.forbidden("Website does not belong to this organization");
+		throw rpcError.forbidden(
+			"This website belongs to a different organization. Switch organizations and try again."
+		);
 	}
 
 	const effectiveResource =
 		input.resource ?? (input.websiteId ? "website" : "organization");
 	const getCreatedBy = () => resolveCreatedBy(context, organizationId);
-	const planPromise = shouldResolvePlan(input)
-		? getPlanId(context)
-		: Promise.resolve(null);
+	const planPromise =
+		input.includePlan || input.requiredPlans !== undefined
+			? getPlanId(context, context.organizationId ?? organizationId)
+			: Promise.resolve(null);
 
-	const [grant, plan] = await Promise.all([
+	const [grantResult, planResult] = await Promise.allSettled([
 		resolveGrant(context, {
 			organizationId,
 			resource: effectiveResource,
 			permissions: input.permissions,
-			allowCrossOrg: input.allowCrossOrg,
+			allowCrossOrg: input.allowCrossOrg ?? false,
 			websiteId: website?.id,
 		}),
 		planPromise,
 	]);
+
+	if (grantResult.status === "rejected") {
+		throw grantResult.reason;
+	}
+	const grant = grantResult.value;
 
 	if (!grant.granted) {
 		return {
@@ -302,10 +372,14 @@ async function resolveWorkspace(
 			denied: grant.denied,
 			website,
 			organizationId,
-			plan,
-			permissions: input.permissions,
+			plan: planResult,
 		};
 	}
+
+	if (planResult.status === "rejected") {
+		throw planResult.reason;
+	}
+	const plan = planResult.value;
 
 	if (input.requiredPlans !== undefined) {
 		requirePlan(requireResolvedPlan(plan), input.requiredPlans);
@@ -313,7 +387,6 @@ async function resolveWorkspace(
 
 	return {
 		kind: "authed",
-		plan,
 		workspace: {
 			tier: "authed",
 			organizationId,
@@ -321,6 +394,7 @@ async function resolveWorkspace(
 			role: grant.role,
 			website,
 			getCreatedBy,
+			...(plan && { plan }),
 		},
 	};
 }
@@ -332,16 +406,9 @@ function requireResolvedPlan(plan: PlanId | null): PlanId {
 	return plan;
 }
 
-function shouldResolvePlan(options: {
-	includePlan?: boolean;
-	requiredPlans?: PlanId[];
-}): boolean {
-	return options.includePlan === true || options.requiredPlans !== undefined;
-}
-
-function requirePublicAuthedWorkspace(
-	workspace: AuthedWorkspace
-): AuthedWorkspace & { website: Website } {
+function requirePublicAuthedWorkspace<W extends AuthedWorkspace>(
+	workspace: W
+): W & { website: Website } {
 	if (!workspace.website) {
 		throw new Error("Public workspace website was not resolved");
 	}
@@ -386,28 +453,26 @@ export async function withWorkspace(
 		| OrgScopeOptions<ResourceType>
 		| OrgScopePlanOptions<ResourceType>
 ): Promise<AuthedWorkspace | AuthedWorkspaceWithPlan> {
-	const resolved = await resolveWorkspace(context, {
-		websiteId: options.websiteId,
-		organizationId: options.organizationId,
-		resource: options.resource,
-		permissions: options.permissions,
-		allowCrossOrg: options.allowCrossOrg ?? false,
-		includePlan: options.includePlan === true,
-		requiredPlans: options.requiredPlans,
-	});
-
+	const resolved = await resolveWorkspace(context, options);
 	if (resolved.kind === "denied") {
 		throw resolved.denied;
 	}
-
-	if (shouldResolvePlan(options)) {
-		return {
-			...resolved.workspace,
-			plan: requireResolvedPlan(resolved.plan),
-		};
-	}
-
 	return resolved.workspace;
+}
+
+export async function hasAccess(check: Promise<unknown>): Promise<boolean> {
+	try {
+		await check;
+		return true;
+	} catch (error) {
+		if (
+			error instanceof ORPCError &&
+			(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+		) {
+			return false;
+		}
+		throw error;
+	}
 }
 
 export function withPublicWorkspace<R extends ResourceType>(
@@ -434,35 +499,28 @@ export async function withPublicWorkspace(
 		| WebsiteExplicitOptions<ResourceType>
 		| WebsiteExplicitPlanOptions<ResourceType>
 ): Promise<PublicWorkspace | PublicWorkspaceWithPlan> {
-	const resolved = await resolveWorkspace(context, {
-		websiteId: options.websiteId,
-		organizationId: options.organizationId,
-		resource: options.resource,
-		permissions: options.permissions,
-		allowCrossOrg: options.allowCrossOrg ?? false,
-		includePlan: options.includePlan === true,
-		requiredPlans: options.requiredPlans,
-	});
-	const includePlan = shouldResolvePlan(options);
+	const resolved = await resolveWorkspace(context, options);
 
 	if (resolved.kind === "authed") {
-		const workspace = requirePublicAuthedWorkspace(resolved.workspace);
-		return includePlan
-			? { ...workspace, plan: requireResolvedPlan(resolved.plan) }
-			: workspace;
+		return requirePublicAuthedWorkspace(resolved.workspace);
 	}
 
-	if (resolved.website?.isPublic && isReadOnly(resolved.permissions)) {
-		const workspace: DemoWorkspace = {
+	if (
+		!context.oauth &&
+		resolved.website?.isPublic &&
+		isReadOnly(options.permissions)
+	) {
+		if (resolved.plan.status === "rejected") {
+			throw resolved.plan.reason;
+		}
+		return {
 			tier: "demo",
 			organizationId: resolved.organizationId,
 			user: null,
 			role: null,
 			website: resolved.website,
+			...(resolved.plan.value && { plan: resolved.plan.value }),
 		};
-		return includePlan
-			? { ...workspace, plan: requireResolvedPlan(resolved.plan) }
-			: workspace;
 	}
 
 	throw resolved.denied;
@@ -480,7 +538,7 @@ async function resolveCreatedBy(
 		const ownerId = await getOrganizationOwnerId(organizationId);
 		if (!ownerId) {
 			throw rpcError.forbidden(
-				"Could not resolve organization owner for API key"
+				"This API key's organization has no owner. Add an owner and try again."
 			);
 		}
 		return ownerId;

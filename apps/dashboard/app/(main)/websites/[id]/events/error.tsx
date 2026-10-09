@@ -25,7 +25,7 @@ export default function EventsError({
 				<LightningIcon className="size-6 text-destructive" />
 			</div>
 			<div className="max-w-sm space-y-2 text-center">
-				<h2 className="font-semibold text-lg">Error loading events</h2>
+				<h2 className="font-semibold text-lg">Failed to load events</h2>
 				<p className="text-balance text-muted-foreground text-sm">
 					We couldn&apos;t load events for this website. Try again or return to
 					the overview.

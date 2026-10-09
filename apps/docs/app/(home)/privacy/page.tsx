@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";
 
-const title = "Privacy Policy";
+const title = "Privacy policy";
 const description =
 	"How Databuddy collects and uses account information, analytics data, optional user profiles, and information processed by connected services.";
 const url = "https://www.databuddy.cc/privacy";
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-	const lastUpdated = new Date("2026-09-15");
+	const lastUpdated = new Date("2026-09-30");
 
 	return (
 		<>
@@ -45,7 +45,7 @@ export default function PrivacyPage() {
 						<ShieldIcon className="size-7 text-primary" />
 					</div>
 					<h1 className="mb-4 font-bold text-4xl md:text-5xl">
-						Privacy Policy
+						Privacy policy
 					</h1>
 					<p className="mb-4 text-pretty text-muted-foreground">
 						Last Updated{" "}
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							Who This Policy Applies To
+							Who this policy applies to
 						</h2>
 						<p className="mb-4">
 							This privacy policy covers two groups of people:
@@ -111,7 +111,7 @@ export default function PrivacyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 font-bold text-2xl">
-							Our Privacy-First Principles
+							Our privacy-first principles
 						</h2>
 						<ul className="mb-4 space-y-2">
 							<li>
@@ -144,10 +144,10 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Information We Collect</h2>
+						<h2 className="mb-4 font-bold text-2xl">Information we collect</h2>
 
 						<h3 className="mb-3 font-semibold text-xl">
-							From Our Customers (Website Owners)
+							From our customers (website owners)
 						</h3>
 						<p className="mb-3">When you sign up for Databuddy, we collect:</p>
 						<ul className="mb-6 space-y-2">
@@ -176,7 +176,7 @@ export default function PrivacyPage() {
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">
-							From End Users (Website Visitors)
+							From end users (website visitors)
 						</h3>
 						<p className="mb-4 text-pretty">
 							Depending on the enabled features and information the website
@@ -220,7 +220,7 @@ export default function PrivacyPage() {
 
 					<section className="mb-8">
 						<h2 className="mb-4 text-balance font-bold text-2xl">
-							Cookieless Analytics and Browser Storage
+							Cookieless analytics and browser storage
 						</h2>
 						<p className="mb-4 text-pretty">
 							The analytics tracker does not set analytics cookies. It stores a
@@ -238,9 +238,9 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">How We Use Information</h2>
+						<h2 className="mb-4 font-bold text-2xl">How we use information</h2>
 
-						<h3 className="mb-3 font-semibold text-xl">Customer Data Usage</h3>
+						<h3 className="mb-3 font-semibold text-xl">Customer data usage</h3>
 						<p className="mb-3">We use customer information to:</p>
 						<ul className="mb-6 space-y-2">
 							<li>Provide and maintain our analytics service</li>
@@ -249,13 +249,25 @@ export default function PrivacyPage() {
 							<li>Provide customer support and respond to inquiries</li>
 							<li>Improve our service based on usage patterns</li>
 							<li>
-								Measure sign-ups from our advertising and referral programs
+								Measure signups from our advertising and referral programs
 								through OpenAI and Dub
 							</li>
 							<li>Ensure compliance with legal obligations</li>
 						</ul>
 
-						<h3 className="mb-3 font-semibold text-xl">End User Data Usage</h3>
+						<h3 className="mb-3 font-semibold text-xl">Apps you connect</h3>
+						<p className="mb-6 text-pretty">
+							When you connect an app such as Claude to your account through our
+							MCP server, it receives the analytics data and results of the
+							actions you ask it to take, limited to the permissions you approve
+							and to the websites your account can access. Databuddy only sees
+							the requests the app sends, never your conversations in it. The
+							app handles what it receives under its own provider&apos;s terms.
+							You can disconnect it at any time from Connected apps in your
+							account settings.
+						</p>
+
+						<h3 className="mb-3 font-semibold text-xl">End user data usage</h3>
 						<p className="mb-4 text-pretty">
 							We process visitor information to provide the features the website
 							owner uses, including analytics reports, session and profile
@@ -279,10 +291,10 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">GDPR and Privacy Rights</h2>
+						<h2 className="mb-4 font-bold text-2xl">GDPR and privacy rights</h2>
 
 						<h3 className="mb-3 font-semibold text-xl">
-							Legal Basis for Processing
+							Legal basis for processing
 						</h3>
 						<p className="mb-3">
 							Under GDPR, our legal basis for processing data is:
@@ -302,7 +314,7 @@ export default function PrivacyPage() {
 						</ul>
 
 						<h3 className="mb-3 font-semibold text-xl">
-							Your Rights (Customers)
+							Your rights (customers)
 						</h3>
 						<p className="mb-3">As a customer, you have the right to:</p>
 						<ul className="mb-6 space-y-2">
@@ -329,7 +341,7 @@ export default function PrivacyPage() {
 							</li>
 						</ul>
 
-						<h3 className="mb-3 font-semibold text-xl">End User Rights</h3>
+						<h3 className="mb-3 font-semibold text-xl">End user rights</h3>
 						<p className="mb-3">
 							As an end user (website visitor), you have the right to:
 						</p>
@@ -359,7 +371,7 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Data Security</h2>
+						<h2 className="mb-4 font-bold text-2xl">Data security</h2>
 						<p className="mb-4 text-pretty">
 							Customer workspaces use authentication and permission controls.
 							Standard analytics event records omit the raw IP address after it
@@ -376,7 +388,7 @@ export default function PrivacyPage() {
 					</section>
 
 					<section className="mb-8">
-						<h2 className="mb-4 font-bold text-2xl">Contact Us</h2>
+						<h2 className="mb-4 font-bold text-2xl">Contact us</h2>
 						<p className="mb-4">
 							If you have any questions about this Privacy Policy, want to
 							exercise your privacy rights, or have concerns about how your data
@@ -403,10 +415,10 @@ export default function PrivacyPage() {
 								className="text-primary hover:text-primary/80"
 								href="/data-policy"
 							>
-								Data Policy →
+								Data policy →
 							</a>
 							<a className="text-primary hover:text-primary/80" href="/dpa">
-								Data Processing Agreement →
+								Data processing agreement →
 							</a>
 							<a
 								className="text-primary hover:text-primary/80"

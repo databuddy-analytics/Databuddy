@@ -17,6 +17,7 @@ import {
 	type WebsitesListData,
 } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { publicConfig } from "@databuddy/env/public";
 import { TOAST_MESSAGES } from "../../_components/constants/settings-constants";
 import {
@@ -76,6 +77,7 @@ export default function GeneralSettingsPage() {
 
 	const toggleMutation = useMutation({
 		...orpc.websites.togglePublic.mutationOptions(),
+		meta: { suppressGlobalErrorToast: true },
 		onMutate: async ({ id, isPublic: nextIsPublic }) => {
 			const getByIdKey = getWebsiteByIdKey(id);
 			const listKey = getWebsitesListKey();
@@ -196,9 +198,12 @@ export default function GeneralSettingsPage() {
 				domain: domain.trim(),
 			}),
 			{
-				loading: "Updating website details...",
+				loading: "Updating website details…",
 				success: "Website details updated",
-				error: "Failed to update website details",
+				error: (error: unknown) => ({
+					message: "Failed to update website details",
+					description: getUserFacingErrorMessage(error),
+				}),
 			}
 		);
 	}, [domain, hasChanges, name, updateWebsiteMutation, websiteData, websiteId]);
@@ -232,9 +237,12 @@ export default function GeneralSettingsPage() {
 			toast.promise(
 				toggleMutation.mutateAsync({ id: websiteId, isPublic: checked }),
 				{
-					loading: "Updating privacy settings...",
+					loading: "Updating privacy settings…",
 					success: "Privacy settings updated",
-					error: "Failed to update privacy settings",
+					error: (error: unknown) => ({
+						message: "Failed to update privacy settings",
+						description: getUserFacingErrorMessage(error),
+					}),
 				}
 			);
 		},
@@ -255,7 +263,7 @@ export default function GeneralSettingsPage() {
 				<div className="mx-auto max-w-4xl space-y-6 p-5">
 					<Card>
 						<Card.Header>
-							<Card.Title>Website Details</Card.Title>
+							<Card.Title>Website details</Card.Title>
 							<Card.Description>
 								Client identifier, display name, and registered domain
 							</Card.Description>
@@ -292,7 +300,7 @@ export default function GeneralSettingsPage() {
 									<Field.Label>Name</Field.Label>
 									<Input
 										onChange={(event) => setName(event.target.value)}
-										placeholder="e.g., Marketing Website"
+										placeholder="Marketing website"
 										value={name}
 									/>
 									<Field.Description>
@@ -318,7 +326,7 @@ export default function GeneralSettingsPage() {
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
 							<div className="space-y-1.5">
-								<Card.Title>Public Sharing</Card.Title>
+								<Card.Title>Public sharing</Card.Title>
 								<Card.Description>
 									Anyone with the link can view a read-only public analytics
 									page.
@@ -368,7 +376,7 @@ export default function GeneralSettingsPage() {
 							<NoticeBanner
 								description={
 									isPublic
-										? "This URL opens your public overview only. Visitors cannot access settings, private analytics sections, or delete your site."
+										? "This URL opens your public overview only. Visitors cannot access settings, private analytics sections, or delete your website."
 										: "Enable public sharing to publish a read-only overview link for this website."
 								}
 								icon={<InfoIcon />}
@@ -379,7 +387,7 @@ export default function GeneralSettingsPage() {
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
 							<div className="space-y-1.5">
-								<Card.Title>Transfer Website</Card.Title>
+								<Card.Title>Transfer website</Card.Title>
 								<Card.Description>
 									Move this website to another organization without deleting
 									analytics data.
@@ -431,21 +439,21 @@ export default function GeneralSettingsPage() {
 							onClick={handleSave}
 							size="sm"
 						>
-							Save Changes
+							Save changes
 						</Button>
 					</div>
 				</div>
 			)}
 
 			<DeleteDialog
-				confirmLabel="Delete Website"
+				confirmLabel="Delete website"
 				description={`Are you sure you want to delete ${websiteData.name || websiteData.domain}?`}
 				isDeleting={deleteWebsiteMutation.isPending}
 				isOpen={showDeleteDialog}
 				itemName={websiteData.name || websiteData.domain}
 				onClose={() => setShowDeleteDialog(false)}
 				onConfirm={handleDeleteWebsite}
-				title="Delete Website"
+				title="Delete website"
 			>
 				<div className="rounded border bg-secondary p-3 text-sm">
 					<div className="flex items-start gap-2">

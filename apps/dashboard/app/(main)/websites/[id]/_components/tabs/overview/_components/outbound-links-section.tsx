@@ -238,7 +238,7 @@ export function OutboundLinksSection({
 		(): TabConfig<OutboundLinkRow>[] => [
 			{
 				id: "outbound_links",
-				label: "Outbound Links",
+				label: "Outbound links",
 				data: linkRows,
 				columns: outboundLinksColumns,
 				getFilter: (row: OutboundLinkRow) => ({
@@ -248,7 +248,7 @@ export function OutboundLinksSection({
 			},
 			{
 				id: "outbound_domains",
-				label: "Outbound Domains",
+				label: "Outbound domains",
 				data: domainRows as unknown as OutboundLinkRow[],
 				columns: outboundDomainsColumns as ColumnDef<
 					OutboundLinkRow,
@@ -271,7 +271,7 @@ export function OutboundLinksSection({
 			onAddFilter={onAddFilterAction}
 			shareColumnTooltip="Share of outbound link clicks in this list."
 			tabs={eventsAndLinksTabs}
-			title="Events & Links"
+			title="Events & links"
 		/>
 	);
 }

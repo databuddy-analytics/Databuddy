@@ -16,7 +16,7 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { StructuredData } from "@/components/structured-data";
 import { TrackOnMount } from "@/components/track-on-mount";
 
-const TITLE = "Open Source JavaScript Error Tracking";
+const TITLE = "Open-source JavaScript error tracking";
 const DESCRIPTION =
 	"Track JavaScript errors in the script you already use for analytics. See the stack trace, page, browser, and how many people each error hit.";
 

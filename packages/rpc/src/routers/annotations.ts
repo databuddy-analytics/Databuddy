@@ -1,5 +1,5 @@
 import { successOutputSchema } from "../lib/schemas";
-import { and, desc, eq, isNull, or, type SQL } from "@databuddy/db";
+import { and, desc, eq, isNull, or } from "@databuddy/db";
 import { annotations } from "@databuddy/db/schema";
 import {
 	annotationChartContextSchema,
@@ -54,7 +54,7 @@ const annotationOutputSchema = z.object({
 	chartType: z.string(),
 	color: z.string(),
 	createdAt: z.coerce.date(),
-	createdBy: z.string(),
+	createdBy: z.string().nullable(),
 	deletedAt: z.nullable(z.coerce.date()),
 	id: z.string(),
 	isPublic: z.boolean(),
@@ -66,15 +66,6 @@ const annotationOutputSchema = z.object({
 	xValue: z.coerce.date(),
 	yValue: z.number().nullable(),
 });
-
-interface AnnotationWithCreator {
-	createdBy?: unknown;
-	[key: string]: unknown;
-}
-
-function sanitizeAnnotationForDemo<T extends AnnotationWithCreator>(row: T): T {
-	return { ...row, createdBy: "" };
-}
 
 export const annotationsRouter = {
 	list: publicProcedure
@@ -113,39 +104,31 @@ export const annotationsRouter = {
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
-					const baseConditions = [
-						eq(annotations.websiteId, input.websiteId),
-						eq(annotations.chartType, input.chartType),
-						isNull(annotations.deletedAt),
-					];
-
-					let visibilityCondition: SQL<unknown> | undefined;
-					if (workspace.tier === "demo") {
-						visibilityCondition = context.user
-							? or(
-									eq(annotations.isPublic, true),
-									eq(annotations.createdBy, context.user.id)
-								)
-							: eq(annotations.isPublic, true);
-					}
-
-					const whereCondition = visibilityCondition
-						? and(...baseConditions, visibilityCondition)
-						: and(...baseConditions);
-
 					const rows = await context.db
 						.select()
 						.from(annotations)
-						.where(whereCondition)
+						.where(
+							and(
+								eq(annotations.websiteId, input.websiteId),
+								eq(annotations.chartType, input.chartType),
+								isNull(annotations.deletedAt),
+								workspace.tier === "demo"
+									? or(
+											eq(annotations.isPublic, true),
+											context.user
+												? eq(annotations.createdBy, context.user.id)
+												: undefined
+										)
+									: undefined
+							)
+						)
 						.orderBy(desc(annotations.createdAt));
 
 					if (workspace.tier !== "demo") {
 						return rows;
 					}
 					return rows.map((row) =>
-						context.user?.id === row.createdBy
-							? row
-							: sanitizeAnnotationForDemo(row)
+						context.user?.id === row.createdBy ? row : { ...row, createdBy: "" }
 					);
 				},
 			});
@@ -162,7 +145,7 @@ export const annotationsRouter = {
 		})
 		.input(z.object({ id: z.string() }))
 		.output(annotationOutputSchema)
-		.handler(async ({ context, input, errors }) => {
+		.handler(async ({ context, input }) => {
 			const annotationRow = await context.db.query.annotations.findFirst({
 				where: { id: input.id, deletedAt: { isNull: true } },
 				columns: {
@@ -173,10 +156,7 @@ export const annotationsRouter = {
 			});
 
 			if (!annotationRow) {
-				throw errors.NOT_FOUND({
-					message: "Annotation not found",
-					data: { resourceType: "annotation", resourceId: input.id },
-				});
+				throw rpcError.notFound("annotation", input.id);
 			}
 
 			const workspace = await withPublicWorkspace(context, {
@@ -187,10 +167,7 @@ export const annotationsRouter = {
 			if (workspace.tier === "demo") {
 				const isOwner = context.user?.id === annotationRow.createdBy;
 				if (!(isOwner || annotationRow.isPublic)) {
-					throw errors.NOT_FOUND({
-						message: "Annotation not found",
-						data: { resourceType: "annotation", resourceId: input.id },
-					});
+					throw rpcError.notFound("annotation", input.id);
 				}
 			}
 
@@ -208,17 +185,14 @@ export const annotationsRouter = {
 						where: { id: input.id, deletedAt: { isNull: true } },
 					});
 					if (!r) {
-						throw errors.NOT_FOUND({
-							message: "Annotation not found",
-							data: { resourceType: "annotation", resourceId: input.id },
-						});
+						throw rpcError.notFound("annotation", input.id);
 					}
 					return r;
 				},
 			});
 
 			if (workspace.tier === "demo" && context.user?.id !== row.createdBy) {
-				return sanitizeAnnotationForDemo(row);
+				return { ...row, createdBy: "" };
 			}
 			return row;
 		}),
@@ -275,7 +249,9 @@ export const annotationsRouter = {
 				.returning();
 
 			if (!newAnnotation) {
-				throw rpcError.internal("Failed to create annotation");
+				throw rpcError.internal(
+					"The annotation could not be created. Try again in a moment."
+				);
 			}
 
 			await invalidateAnnotationCaches(input.websiteId);
@@ -318,34 +294,15 @@ export const annotationsRouter = {
 				permissions: ["update"],
 			});
 
-			const updateData: {
-				text?: string;
-				tags?: string[];
-				color?: string;
-				isPublic?: boolean;
-				updatedAt: Date;
-			} = { updatedAt: new Date() };
-			if (input.text !== undefined) {
-				updateData.text = input.text;
-			}
-			if (input.tags !== undefined) {
-				updateData.tags = input.tags;
-			}
-			if (input.color !== undefined) {
-				updateData.color = input.color;
-			}
-			if (input.isPublic !== undefined) {
-				updateData.isPublic = input.isPublic;
-			}
-
+			const { id, ...updates } = input;
 			const [updatedAnnotation] = await context.db
 				.update(annotations)
-				.set(updateData)
-				.where(eq(annotations.id, input.id))
+				.set({ ...updates, updatedAt: new Date() })
+				.where(eq(annotations.id, id))
 				.returning();
 
 			if (!updatedAnnotation) {
-				throw rpcError.notFound("annotation", input.id);
+				throw rpcError.notFound("annotation", id);
 			}
 
 			await invalidateAnnotationCaches(annotation.websiteId);

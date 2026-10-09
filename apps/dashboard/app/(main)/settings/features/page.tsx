@@ -11,12 +11,12 @@ export default function FeaturesSettingsPage() {
 				<ComingSoon
 					description="Get early access to new features, beta UI experiments, and experimental performance optimizations. We're working on bringing these options to you soon."
 					icon={<RocketIcon className="size-8 text-muted-foreground" />}
-					title="Feature Access Coming Soon"
+					title="Feature access coming soon"
 				/>
 			</div>
 
 			<RightSidebar className="gap-0 p-0">
-				<RightSidebar.Section border title="Planned Features">
+				<RightSidebar.Section border title="Planned features">
 					<div className="space-y-2 text-muted-foreground text-sm">
 						<p>• Early access program</p>
 						<p>• Beta UI toggle</p>

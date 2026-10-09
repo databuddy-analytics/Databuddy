@@ -57,6 +57,9 @@ export type TrackingAlertBlockReason =
 export type TrackingAlertKind = "blocked_spike" | "tracking_zero";
 
 export interface OrganizationEmailNotificationSettings {
+	aiAgents?: {
+		weeklyDigest?: boolean;
+	};
 	billing?: {
 		usageWarnings?: boolean;
 	};

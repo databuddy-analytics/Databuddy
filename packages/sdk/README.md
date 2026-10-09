@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/npm/l/@databuddy/sdk?style=flat-square)](./LICENSE)
 [![Docs](https://img.shields.io/badge/docs-databuddy.cc-blue?style=flat-square)](https://www.databuddy.cc/docs)
 
-> **The easiest, privacy-first way to add analytics to your web app.**
+> **Open-source product analytics for your web app: pageviews, custom events, funnels, feature flags, and errors, without cookies.**
 
 ---
 
@@ -16,6 +16,7 @@
 - 🧩 **Drop-in React/Next.js and Vue components**
 - 🖥️ **Node.js server-side event tracking**
 - 🚩 **Client and server-side feature flags**
+- 🔌 **MCP server analytics: tool calls, clients, latency, and errors**
 - 🛡️ **Privacy-first: anonymized by default, sampling, batching, and more**
 - 🛠️ **Type-safe config and autocompletion**
 - 📋 **Observability: logging, error tracking, and distributed tracing**
@@ -76,6 +77,17 @@ if (!result.success) {
   console.error("Failed to flush analytics:", result.error);
 }
 ```
+
+## 🔌 MCP Servers
+
+```ts
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { trackMcp } from "@databuddy/sdk/mcp";
+
+const server = trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }));
+```
+
+Records each tool call with its client, duration, result size, error code and error message. Needs only `DATABUDDY_API_KEY`; for a stdio server, set it in the `env` of the client config that starts the server. Arguments and successful results never leave your server; only the length of the text a tool returns is recorded. Failed calls send their error message, and Databuddy stores up to 512 characters of it, unless you [keep error messages private](https://www.databuddy.cc/docs/sdk/mcp#keep-error-messages-private) with `beforeSend`. On serverless platforms, pass your platform's `waitUntil`: `trackMcp(server, { waitUntil })`. See the [MCP docs](https://www.databuddy.cc/docs/sdk/mcp).
 
 ## 🚩 Server-Side Flags
 

@@ -7,9 +7,9 @@ import type {
 export const roadmapItems: RoadmapItem[] = [
 	{
 		id: "core-analytics",
-		title: "Core Analytics",
+		title: "Core analytics",
 		description:
-			"Page views, clicks, conversions, funnels, goals, and retention tracking",
+			"Pageviews, clicks, conversions, funnels, goals, and retention tracking",
 		status: "completed",
 		priority: "critical",
 		category: "analytics",
@@ -27,7 +27,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "lightweight-sdks",
-		title: "Lightweight SDKs",
+		title: "SDKs for every stack",
 		description: "JavaScript, React, Next.js, Vue, Nuxt, Bun, and Node.js SDKs",
 		status: "completed",
 		priority: "critical",
@@ -46,7 +46,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "error-tracking",
-		title: "Error Tracking",
+		title: "Error tracking",
 		description: "JavaScript error capture, analysis, and trend visualization",
 		status: "completed",
 		priority: "high",
@@ -64,7 +64,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "user-tracking",
-		title: "User Analytics",
+		title: "User analytics",
 		description: "Individual user behavior tracking with sessions and profiles",
 		status: "completed",
 		priority: "high",
@@ -77,7 +77,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "feature-flags",
-		title: "Feature Flags",
+		title: "Feature flags",
 		description:
 			"Type-safe feature flags with targeting, rollouts, and schedules",
 		status: "completed",
@@ -98,7 +98,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "data-export",
-		title: "Data Export",
+		title: "Data export",
 		description: "Export analytics data in multiple formats",
 		status: "completed",
 		priority: "low",
@@ -111,7 +111,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "annotations",
-		title: "Chart Annotations",
+		title: "Chart annotations",
 		description: "Add context to charts with annotations and markers",
 		status: "completed",
 		priority: "low",
@@ -124,7 +124,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "web-vitals",
-		title: "Web Vitals & Performance",
+		title: "Web Vitals & performance",
 		description:
 			"Core Web Vitals monitoring with LCP, FCP, CLS, INP, and TTFB tracking",
 		status: "completed",
@@ -138,7 +138,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "sso",
-		title: "SSO Authentication",
+		title: "SSO authentication",
 		description: "Enterprise SSO with OIDC and SAML support",
 		status: "completed",
 		priority: "medium",
@@ -151,7 +151,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "uptime-monitoring",
-		title: "Uptime Monitoring",
+		title: "Uptime monitoring",
 		description: "Endpoint monitoring with configurable check intervals",
 		status: "completed",
 		priority: "medium",
@@ -169,7 +169,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "notifications",
-		title: "Notification System",
+		title: "Notification system",
 		description: "Multi-channel notifications for alerts and reports",
 		status: "completed",
 		priority: "medium",
@@ -182,7 +182,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "llm-analytics",
-		title: "LLM Analytics",
+		title: "LLM analytics",
 		description: "Track and analyze AI/LLM API calls with cost and performance",
 		status: "completed",
 		priority: "high",
@@ -202,7 +202,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "link-shortener",
-		title: "Link Shortener",
+		title: "Link shortener",
 		description:
 			"Full-featured link shortening with analytics and device targeting",
 		status: "completed",
@@ -223,7 +223,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "smart-insights",
-		title: "Automatic Investigations",
+		title: "Automatic investigations",
 		description:
 			"An intelligence agent investigates signals from your data and reports its findings in a case timeline",
 		status: "completed",
@@ -244,7 +244,7 @@ export const roadmapItems: RoadmapItem[] = [
 
 	{
 		id: "insights-brief",
-		title: "Insights Brief",
+		title: "Insights brief",
 		description:
 			"A chronological brief of agent observations, including improvements and recoveries, with investigations as a smaller durable work queue",
 		status: "in-progress",
@@ -260,7 +260,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "investigation-quality",
-		title: "Investigation Quality",
+		title: "Investigation quality",
 		description:
 			"Grading agent output against real production data until root cause, impact, next action, and verification are consistently useful",
 		status: "in-progress",
@@ -277,7 +277,7 @@ export const roadmapItems: RoadmapItem[] = [
 
 	{
 		id: "deeper-website-runs",
-		title: "Deeper Website Runs",
+		title: "Deeper website runs",
 		description:
 			"Let a website run continue past the first useful signal, with a cost cap and one independent agent turn per subject",
 		status: "planned",
@@ -292,7 +292,7 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "investigation-to-pr",
-		title: "Investigation to Pull Request",
+		title: "Investigation to pull request",
 		description:
 			"The agent proposes a patch and verification plan, Databuddy validates it and opens one linked PR, then verifies the signal after merge",
 		status: "planned",
@@ -312,7 +312,7 @@ export const roadmapItems: RoadmapItem[] = [
 const roadmapMilestones: RoadmapMilestone[] = [
 	{
 		id: "core-platform",
-		title: "Core Platform",
+		title: "Core platform",
 		description: "Analytics, SDKs, performance monitoring, and error tracking",
 		targetDate: "2025-12-02",
 		status: "completed",
@@ -326,7 +326,7 @@ const roadmapMilestones: RoadmapMilestone[] = [
 	},
 	{
 		id: "developer-tools",
-		title: "Developer Tools",
+		title: "Developer tools",
 		description: "Feature flags, SSO, exports, and notifications",
 		targetDate: "2026-01-13",
 		status: "completed",
@@ -335,7 +335,7 @@ const roadmapMilestones: RoadmapMilestone[] = [
 	},
 	{
 		id: "ai-observability",
-		title: "AI Observability",
+		title: "AI observability",
 		description: "LLM analytics, automatic investigations, and cost tracking",
 		targetDate: "2026-03-27",
 		status: "completed",
@@ -344,7 +344,7 @@ const roadmapMilestones: RoadmapMilestone[] = [
 	},
 	{
 		id: "intelligence-quality",
-		title: "Intelligence Quality",
+		title: "Intelligence quality",
 		description:
 			"A useful insights brief and investigations graded against production data",
 		status: "current",
@@ -353,7 +353,7 @@ const roadmapMilestones: RoadmapMilestone[] = [
 	},
 	{
 		id: "investigation-to-fix",
-		title: "Investigation to Fix",
+		title: "Investigation to fix",
 		description:
 			"Deeper website runs and agent-proposed patches verified after merge",
 		status: "upcoming",

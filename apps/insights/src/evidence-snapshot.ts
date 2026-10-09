@@ -231,14 +231,13 @@ export function createEvidenceSnapshot(input: {
 	websiteId: string;
 	capturedAt: string;
 	signal: InvestigationSignal;
-	evidence: string[];
+	evidence: readonly unknown[];
 	reads: {
 		toolName: string;
 		toolCallId: string;
 		input: unknown;
 		output: unknown;
 	}[];
-	descriptions: Record<string, string | undefined>;
 }): InvestigationEvidenceSnapshot {
 	const snapshot: InvestigationEvidenceSnapshot = {
 		version: 1,

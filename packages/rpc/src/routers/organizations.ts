@@ -5,17 +5,23 @@ import {
 	eq,
 	gt,
 	lt,
+	mergeEmailNotificationSettings,
 	normalizeEmailNotificationSettings,
 	or,
 } from "@databuddy/db";
 import { invitation, organization } from "@databuddy/db/schema";
+import { billingMode } from "@databuddy/env/app";
 import {
 	clearExpiredInvitationsSchema,
 	getPendingInvitationsSchema,
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { getAutumn, hasHostedBilling } from "../lib/autumn-client";
+import {
+	autumnCall,
+	getAutumn,
+	isBillingUnavailable,
+} from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
@@ -30,8 +36,8 @@ import {
 } from "../procedures/with-workspace";
 
 const updateAvatarSeedSchema = z.object({
-	organizationId: z.string().min(1, "Organization ID is required"),
-	seed: z.string().min(1, "Seed is required"),
+	organizationId: z.string().min(1, "Select an organization and try again."),
+	seed: z.string().min(1, "Pick an avatar and try again."),
 });
 
 const orgOutputSchema = z.record(z.string(), z.unknown());
@@ -54,10 +60,11 @@ const ignoredOriginSchema = z
 	.max(255)
 	.transform((value) => value.toLowerCase())
 	.refine((value) => value !== "*" && !broadWildcardOriginRegex.test(value), {
-		message: "Use a specific host or wildcard like *.example.com.",
+		message: "Use a specific host or a wildcard like *.example.com.",
 	});
 
-const emailNotificationSettingsSchema = z.object({
+const emailNotificationSections = {
+	aiAgents: z.object({ weeklyDigest: z.boolean() }),
 	billing: z.object({ usageWarnings: z.boolean() }),
 	trackingHealth: z.object({
 		cooldownMinutes: z
@@ -73,10 +80,22 @@ const emailNotificationSettingsSchema = z.object({
 		downEmails: z.boolean(),
 		recoveryEmails: z.boolean(),
 	}),
+};
+
+const emailNotificationSettingsSchema = z.object(emailNotificationSections);
+
+const emailNotificationSettingsPatchSchema = z.object({
+	aiAgents: emailNotificationSections.aiAgents.partial().optional(),
+	billing: emailNotificationSections.billing.partial().optional(),
+	trackingHealth: emailNotificationSections.trackingHealth.partial().optional(),
+	uptime: emailNotificationSections.uptime.partial().optional(),
 });
 
 export type EmailNotificationSettingsOutput = z.infer<
 	typeof emailNotificationSettingsSchema
+>;
+export type EmailNotificationSettingsPatch = z.infer<
+	typeof emailNotificationSettingsPatchSchema
 >;
 
 export const organizationsRouter = {
@@ -134,7 +153,7 @@ export const organizationsRouter = {
 		.handler(async ({ input, context }) => {
 			const organizationId = input.organizationId ?? context.organizationId;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -167,14 +186,14 @@ export const organizationsRouter = {
 		.input(
 			z.object({
 				organizationId: z.string().optional(),
-				settings: emailNotificationSettingsSchema,
+				settings: emailNotificationSettingsPatchSchema,
 			})
 		)
 		.output(emailNotificationSettingsSchema)
 		.handler(async ({ input, context }) => {
 			const organizationId = input.organizationId ?? context.organizationId;
 			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
+				throw rpcError.badRequest("Select an organization and try again.");
 			}
 
 			await withWorkspace(context, {
@@ -184,15 +203,21 @@ export const organizationsRouter = {
 			});
 
 			setTrackProperties({
-				tracking_health_mode: input.settings.trackingHealth.mode,
+				changed_fields: Object.entries(input.settings)
+					.flatMap(([section, fields]) =>
+						Object.keys(fields ?? {}).map((field) => `${section}.${field}`)
+					)
+					.join(","),
+				tracking_health_mode: input.settings.trackingHealth?.mode,
 				ignored_origin_count:
-					input.settings.trackingHealth.ignoredOrigins.length,
+					input.settings.trackingHealth?.ignoredOrigins?.length,
 			});
 
-			const settings = emailNotificationSettingsSchema.parse(input.settings);
 			const [row] = await db
 				.update(organization)
-				.set({ emailNotifications: settings })
+				.set({
+					emailNotifications: mergeEmailNotificationSettings(input.settings),
+				})
 				.where(eq(organization.id, organizationId))
 				.returning({ emailNotifications: organization.emailNotifications });
 
@@ -254,7 +279,9 @@ export const organizationsRouter = {
 
 				return invitations;
 			} catch {
-				throw rpcError.internal("Failed to fetch pending invitations");
+				throw rpcError.internal(
+					"Pending invitations could not be loaded. Try again in a moment."
+				);
 			}
 		}),
 
@@ -359,7 +386,7 @@ export const organizationsRouter = {
 		})
 		.output(z.record(z.string(), z.unknown()))
 		.handler(async ({ context }) => {
-			if (!hasHostedBilling()) {
+			if (billingMode() !== "live") {
 				return { unlimited: true, canUserUpgrade: false };
 			}
 			const billing = await context.getBilling();
@@ -367,35 +394,37 @@ export const organizationsRouter = {
 			const isOrganization = billing?.isOrganization ?? false;
 			const canUserUpgrade = billing?.canUserUpgrade ?? true;
 
-			try {
-				const response = await getAutumn().check({
-					customerId,
-					featureId: "events",
-				});
-
-				const b = response.balance;
-				const unlimited = b?.unlimited ?? false;
-				const used = b?.usage ?? 0;
-				const granted = b?.granted ?? 0;
-				const includedUsage = granted;
-				const overageAllowed = b?.overageAllowed ?? false;
-				const remaining = unlimited ? null : Math.max(0, b?.remaining ?? 0);
-
+			const response = await autumnCall("check", () =>
+				getAutumn().check({ customerId, featureId: "events" })
+			).catch((error: unknown) => {
+				if (isBillingUnavailable(error)) {
+					logger.warn({ error }, "Usage is unavailable while billing is down");
+					return null;
+				}
+				throw error;
+			});
+			if (!response) {
 				return {
-					used,
-					limit: unlimited ? null : granted,
-					unlimited,
-					balance: b?.remaining ?? 0,
-					remaining,
-					includedUsage,
-					overageAllowed,
+					unavailable: true,
 					isOrganizationUsage: isOrganization,
 					canUserUpgrade,
 				};
-			} catch (error) {
-				logger.error({ error }, "Failed to check usage");
-				throw rpcError.internal("Failed to retrieve usage data");
 			}
+
+			const b = response.balance;
+			const unlimited = b?.unlimited ?? false;
+			const granted = b?.granted ?? 0;
+			return {
+				used: b?.usage ?? 0,
+				limit: unlimited ? null : granted,
+				unlimited,
+				balance: b?.remaining ?? 0,
+				remaining: unlimited ? null : Math.max(0, b?.remaining ?? 0),
+				includedUsage: granted,
+				overageAllowed: b?.overageAllowed ?? false,
+				isOrganizationUsage: isOrganization,
+				canUserUpgrade,
+			};
 		}),
 
 	getBillingContext: publicProcedure
@@ -443,7 +472,7 @@ export const organizationsRouter = {
 				}
 			}
 
-			if (!hasHostedBilling()) {
+			if (billingMode() !== "live") {
 				return {
 					planId: null,
 					isOrganization: Boolean(context.organizationId),

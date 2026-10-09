@@ -9,16 +9,23 @@ import {
 	CodeBlock,
 	CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
+import type { ToolApprovalField } from "@/lib/tool-display";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
+import { Badge, Button, Card } from "@databuddy/ui";
 import {
 	CaretRightIcon,
 	CheckCircleIcon,
+	CheckIcon,
 	CircleNotchIcon,
+	ProhibitIcon,
+	ShieldWarningIcon,
+	TrashIcon,
 	XCircleIcon,
+	XMarkIcon,
 } from "@databuddy/ui/icons";
 
-export type ToolStatus = "running" | "complete" | "error";
+export type ToolStatus = "running" | "complete" | "error" | "denied";
 
 const PREVIEW_ROW_LIMIT = 5;
 const PREVIEW_VALUE_MAX_LEN = 80;
@@ -63,6 +70,8 @@ export const Tool = ({
 					<CircleNotchIcon className="size-3.5 shrink-0 animate-spin text-primary" />
 				) : isError ? (
 					<XCircleIcon className="size-3.5 shrink-0 text-destructive" />
+				) : status === "denied" ? (
+					<ProhibitIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
 				) : (
 					<CheckCircleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
 				)}
@@ -80,6 +89,88 @@ export const Tool = ({
 				{children}
 			</CollapsibleContent>
 		</Collapsible>
+	);
+};
+
+export interface ToolApprovalProps {
+	destructive?: boolean;
+	disabled?: boolean;
+	fields: ToolApprovalField[];
+	onApprove: () => void;
+	onDeny: () => void;
+	title: string;
+}
+
+export const ToolApproval = ({
+	destructive = false,
+	disabled = false,
+	fields,
+	onApprove,
+	onDeny,
+	title,
+}: ToolApprovalProps) => {
+	const ApproveIcon = destructive ? TrashIcon : CheckIcon;
+
+	return (
+		<Card className="gap-0 overflow-hidden border-0 bg-secondary p-1">
+			<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+					<div className="flex size-6 shrink-0 items-center justify-center rounded bg-accent">
+						<ShieldWarningIcon className="size-3.5 text-muted-foreground" />
+					</div>
+					<p className="truncate font-medium text-sm">{title}</p>
+					<Badge
+						className="ml-auto shrink-0 rounded text-[10px]"
+						variant="warning"
+					>
+						Needs approval
+					</Badge>
+				</div>
+
+				{fields.length > 0 ? (
+					<dl className="space-y-2 rounded-md bg-background px-3 py-3">
+						{fields.map((field) => (
+							<div key={field.key}>
+								<dt className="text-muted-foreground text-xs">{field.label}</dt>
+								<dd
+									className={cn(
+										"mt-0.5 max-h-40 overflow-y-auto whitespace-pre-wrap break-words",
+										field.code ? "font-mono text-xs" : "text-pretty text-sm"
+									)}
+								>
+									{field.value}
+								</dd>
+							</div>
+						))}
+					</dl>
+				) : null}
+
+				<div className="rounded-md bg-background">
+					<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
+						<Button
+							disabled={disabled}
+							onClick={onDeny}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							<XMarkIcon className="size-3.5" />
+							Deny
+						</Button>
+						<Button
+							disabled={disabled}
+							onClick={onApprove}
+							size="sm"
+							tone={destructive ? "destructive" : undefined}
+							type="button"
+						>
+							<ApproveIcon className="size-3.5" />
+							Approve
+						</Button>
+					</div>
+				</div>
+			</div>
+		</Card>
 	);
 };
 

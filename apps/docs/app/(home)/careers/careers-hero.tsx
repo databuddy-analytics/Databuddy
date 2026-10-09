@@ -48,7 +48,7 @@ export default function CareersHero() {
 					</h1>
 					<p className="mx-auto max-w-3xl text-balance font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base lg:text-lg">
 						We're a small, remote team building Databuddy in the open. We're
-						hiring a Founding Engineer and an SDR — and we still want to hear
+						hiring a founding engineer and an SDR, and we still want to hear
 						from sharp builders who care about privacy-first analytics.
 					</p>
 				</div>

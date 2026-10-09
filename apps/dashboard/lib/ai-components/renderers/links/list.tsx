@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { showErrorToast } from "@/lib/user-facing-error";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { type Link, useDeleteLink } from "@/hooks/use-links";
@@ -50,10 +51,10 @@ function formatUrl(url: string, maxLen = 40): string {
 		const { host, pathname } = new URL(url);
 		const display = host + (pathname === "/" ? "" : pathname);
 		return display.length > maxLen
-			? `${display.slice(0, maxLen - 3)}...`
+			? `${display.slice(0, maxLen - 1)}…`
 			: display;
 	} catch {
-		return url.length > maxLen ? `${url.slice(0, maxLen - 3)}...` : url;
+		return url.length > maxLen ? `${url.slice(0, maxLen - 1)}…` : url;
 	}
 }
 
@@ -75,7 +76,7 @@ function ExpirationBadge({
 	return (
 		<Badge
 			className={cn("gap-1 text-[10px]", className)}
-			variant={isExpired ? "destructive" : isSoon ? "warning" : "muted"}
+			variant={isExpired || isSoon ? "warning" : "muted"}
 		>
 			<ClockCountdownIcon className="size-3" />
 			{isExpired ? "Expired" : expires.fromNow(true)}
@@ -220,8 +221,8 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 			await deleteMutation.mutateAsync({ id: deletingId });
 			toast.success("Link deleted");
 			setDeletingId(null);
-		} catch {
-			toast.error("Failed to delete");
+		} catch (error) {
+			showErrorToast(error, "Failed to delete link");
 		}
 	}, [deletingId, deleteMutation]);
 
@@ -247,7 +248,7 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 							variant="secondary"
 						>
 							<PlusIcon className="size-4" />
-							Create Link
+							Create link
 						</Button>
 					</div>
 				</div>
@@ -277,7 +278,7 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 						<div className="ml-auto flex items-center gap-2">
 							<Button onClick={openCreate} size="sm" variant="primary">
 								<PlusIcon className="size-3.5" />
-								New
+								Create link
 							</Button>
 						</div>
 					</div>
@@ -305,13 +306,13 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 			/>
 
 			<DeleteDialog
-				confirmLabel="Delete Link"
+				confirmLabel="Delete link"
 				description="This action cannot be undone and will permanently remove all click data."
 				isDeleting={deleteMutation.isPending}
 				isOpen={!!deletingId}
 				onClose={() => setDeletingId(null)}
 				onConfirm={confirmDelete}
-				title="Delete Link"
+				title="Delete link"
 			/>
 		</>
 	);

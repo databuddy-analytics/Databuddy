@@ -46,21 +46,21 @@ interface ModeConfig {
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
 	create: {
-		title: "Create Link",
+		title: "Create link",
 		confirmLabel: "Create",
 		confirmMessage: "Yes, create it",
 		accent: "",
 		ButtonIcon: CheckIcon,
 	},
 	update: {
-		title: "Update Link",
+		title: "Update link",
 		confirmLabel: "Update",
 		confirmMessage: "Yes, update it",
 		accent: "border-amber-500/30",
 		ButtonIcon: CheckIcon,
 	},
 	delete: {
-		title: "Delete Link",
+		title: "Delete link",
 		confirmLabel: "Delete",
 		confirmMessage: "Yes, delete it",
 		accent: "border-destructive/30",
@@ -161,7 +161,7 @@ export function LinkPreviewRenderer({
 										)}
 									>
 										<p className="text-muted-foreground text-xs">
-											Social Preview
+											Social preview
 										</p>
 										<p className="mt-0.5 text-sm">
 											{link.ogTitle ?? "Custom OG data set"}

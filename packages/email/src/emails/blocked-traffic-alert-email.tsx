@@ -158,7 +158,7 @@ BlockedTrafficAlertEmail.PreviewProps = {
 	blockReason: "origin_not_authorized",
 	blockedCount: 42,
 	dashboardUrl: "https://app.databuddy.cc/websites/ws_123/settings/general",
-	fix: "Update the website domain to example.com, or add example.com under Security → Allowed Origins if this is an additional trusted domain.",
+	fix: "Update the website domain to example.com, or add example.com under Security → Allowed origins if this is an additional trusted domain.",
 	origin: "https://example.com",
 	previousBlockedCount: 0,
 	recentEvents: 0,

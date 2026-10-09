@@ -122,7 +122,7 @@ export function Feedback({
 								size="sm"
 								variant="secondary"
 							>
-								Submit Again
+								Submit again
 							</Button>
 						</div>
 					) : (

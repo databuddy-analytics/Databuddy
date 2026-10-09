@@ -39,11 +39,10 @@ const ltSuperiorMono = localFont({
 export const metadata: Metadata = {
 	title: {
 		template: "%s | Databuddy",
-		default:
-			"Databuddy - Lightweight Developer Analytics, Error Tracking & Feature Flags",
+		default: "Databuddy: product analytics for startups",
 	},
 	description:
-		"Cookieless analytics, errors, web vitals, feature flags, and AI analysis in one dashboard. Open source, with 10,000 monthly events free.",
+		"Track visitors, events, funnels, and goals without cookies. Ask Databunny, the built-in AI analyst, about your numbers and see the query. Free up to 10,000 events.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",
@@ -116,6 +115,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 					disabled={process.env.NODE_ENV === "development"}
 					trackAttributes
 					trackErrors
+					trackInteractions
 					trackOutgoingLinks
 					trackWebVitals
 				/>

@@ -13,9 +13,11 @@ import { db, eq, inArray, shutdownPostgres } from "@databuddy/db";
 import {
 	account,
 	auditEvents,
+	goals,
 	member,
 	organization,
 	user,
+	websites,
 } from "@databuddy/db/schema";
 import {
 	readOrganizationBusinessContext,
@@ -143,7 +145,7 @@ integration("native Better Auth organization metadata protection", () => {
 			});
 			expect(response.status).toBe(400);
 			expect(await response.json()).toMatchObject({
-				message: "Organization metadata is managed by the server.",
+				message: "Organization metadata is managed by the server",
 			});
 			expect(await metadata()).toEqual(original);
 		}
@@ -160,7 +162,7 @@ integration("native Better Auth organization metadata protection", () => {
 			});
 			expect(response.status).toBe(400);
 			expect(await response.json()).toMatchObject({
-				message: "Organization metadata is managed by the server.",
+				message: "Organization metadata is managed by the server",
 			});
 			expect(
 				await db.query.organization.findFirst({ where: { slug } })
@@ -200,5 +202,140 @@ integration("native Better Auth organization metadata protection", () => {
 			origin: "team",
 			revision: 1,
 		});
+	});
+});
+
+integration("account deletion refusals", () => {
+	let auth: typeof import("./auth").auth;
+	let userId: string;
+	let otherId: string;
+	let soloOrg: string;
+	let sharedOrg: string;
+	const baseURL = "http://localhost:3001";
+	const password = "SyntheticTestPassword123!";
+
+	const insertUser = async (id: string) => {
+		const now = new Date();
+		await db.insert(user).values({
+			id,
+			name: id,
+			email: `${id}@example.com`,
+			emailVerified: true,
+			createdAt: now,
+			updatedAt: now,
+		});
+		await db.insert(account).values({
+			id: randomUUID(),
+			accountId: id,
+			userId: id,
+			providerId: "credential",
+			password: await (await auth.$context).password.hash(password),
+			createdAt: now,
+			updatedAt: now,
+		});
+	};
+	const insertOrg = async (id: string, members: [string, string][]) => {
+		await db
+			.insert(organization)
+			.values({ id, name: id, slug: id, createdAt: new Date() });
+		await db.insert(websites).values({
+			id,
+			domain: `${id}.example.com`,
+			organizationId: id,
+		});
+		for (const [memberUserId, role] of members) {
+			await db.insert(member).values({
+				id: randomUUID(),
+				organizationId: id,
+				userId: memberUserId,
+				role,
+				createdAt: new Date(),
+			});
+		}
+	};
+	const requestDeletion = async () => {
+		const signIn = await auth.handler(
+			new Request(`${baseURL}/api/auth/sign-in/email`, {
+				method: "POST",
+				headers: { "content-type": "application/json", origin: baseURL },
+				body: JSON.stringify({ email: `${userId}@example.com`, password }),
+			})
+		);
+		expect(signIn.status).toBe(200);
+		return auth.handler(
+			new Request(`${baseURL}/api/auth/delete-user`, {
+				method: "POST",
+				headers: {
+					cookie: signIn.headers
+						.getSetCookie()
+						.map((value) => value.split(";")[0])
+						.join("; "),
+					origin: baseURL,
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({ password, callbackURL: "/login" }),
+			})
+		);
+	};
+
+	beforeAll(async () => {
+		auth = (await import("./auth")).auth;
+	});
+	beforeEach(async () => {
+		userId = `synthetic-delete-${randomUUID()}`;
+		otherId = `synthetic-delete-other-${randomUUID()}`;
+		soloOrg = `synthetic-delete-solo-${randomUUID()}`;
+		sharedOrg = `synthetic-delete-shared-${randomUUID()}`;
+		await insertUser(userId);
+		await insertUser(otherId);
+		await insertOrg(soloOrg, [[userId, "owner"]]);
+	});
+	afterEach(async () => {
+		await db.delete(goals).where(inArray(goals.createdBy, [userId, otherId]));
+		await db
+			.delete(organization)
+			.where(inArray(organization.id, [soloOrg, sharedOrg]));
+		await db.delete(user).where(inArray(user.id, [userId, otherId]));
+	});
+	afterAll(() => shutdownPostgres());
+
+	test.each([
+		"owner",
+		"admin,owner",
+	])("last owner stored as %s is refused before any email is sent", async (role) => {
+		await insertOrg(sharedOrg, [
+			[userId, role],
+			[otherId, "member"],
+		]);
+		const response = await requestDeletion();
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			message: `Transfer ownership of ${sharedOrg} or delete it before deleting your account`,
+		});
+		expect(
+			await db.query.organization.findFirst({ where: { id: soloOrg } })
+		).toBeDefined();
+	});
+
+	test("content created in a shared organization outlives the account", async () => {
+		await insertOrg(sharedOrg, [
+			[otherId, "owner"],
+			[userId, "member"],
+		]);
+		const goalId = randomUUID();
+		await db.insert(goals).values({
+			id: goalId,
+			websiteId: sharedOrg,
+			type: "PAGE_VIEW",
+			target: "/",
+			name: "Synthetic goal",
+			createdBy: userId,
+		});
+		const response = await requestDeletion();
+		expect(response.status).not.toBe(400);
+		await db.delete(user).where(eq(user.id, userId));
+		expect(
+			await db.query.goals.findFirst({ where: { id: goalId } })
+		).toMatchObject({ createdBy: null });
 	});
 });

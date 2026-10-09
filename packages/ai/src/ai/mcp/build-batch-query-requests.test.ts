@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { buildBatchQueryRequests, formatMcpQueryResults } from "./mcp-utils";
+import {
+	buildBatchQueryRequests,
+	capRowArrays,
+	formatMcpQueryResults,
+	getFilteredQueryTypes,
+} from "./mcp-utils";
 
 describe("buildBatchQueryRequests", () => {
 	it("defaults to 30 inclusive calendar days using the supplied clock and timezone", () => {
@@ -49,7 +54,7 @@ describe("buildBatchQueryRequests", () => {
 		expect(
 			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
 		).toMatch(
-			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| groupBy=default \| timeUnit=default \| orderBy=default \| limit=default$/
+			/^top_pages \| \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} \| timezone=UTC \| filters=none \| timeUnit=default \| orderBy=default \| limit=default$/
 		);
 	});
 
@@ -93,7 +98,7 @@ describe("buildBatchQueryRequests", () => {
 			returnedRows: 20,
 			rowCount: 25,
 			summary:
-				'summary_metrics | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=[{"field":"trait:plan","op":"eq","value":"pro"}] | groupBy=default | timeUnit=default | orderBy=default | limit=default',
+				'summary_metrics | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=[{"field":"trait:plan","op":"eq","value":"pro"}] | timeUnit=default | orderBy=default | limit=default',
 			truncated: true,
 		});
 		expect(formatted[0]?.data).toHaveLength(20);
@@ -103,14 +108,14 @@ describe("buildBatchQueryRequests", () => {
 			returnedRows: 0,
 			rowCount: 0,
 			summary:
-				"not_real | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=none | groupBy=default | timeUnit=default | orderBy=default | limit=default",
+				"not_real | 2026-07-01 to 2026-07-07 | timezone=Asia/Hebron | filters=none | timeUnit=default | orderBy=default | limit=default",
 			truncated: false,
 		});
 		expect(formatted[2]).toMatchObject({
 			returnedRows: 1,
 			rowCount: 1,
 			summary:
-				"summary_metrics | 2026-06-24 to 2026-06-30 | timezone=Asia/Hebron | filters=none | groupBy=default | timeUnit=default | orderBy=default | limit=default",
+				"summary_metrics | 2026-06-24 to 2026-06-30 | timezone=Asia/Hebron | filters=none | timeUnit=default | orderBy=default | limit=default",
 			truncated: false,
 		});
 	});
@@ -119,13 +124,17 @@ describe("buildBatchQueryRequests", () => {
 		const plan = buildBatchQueryRequests(
 			[
 				{
+					type: "events_by_date",
+					from: "2026-07-01",
+					to: "2026-07-07",
+					timeUnit: "hour",
+					limit: 50,
+				},
+				{
 					type: "top_pages",
 					from: "2026-07-01",
 					to: "2026-07-07",
-					groupBy: ["country"],
-					timeUnit: "day",
 					orderBy: "visitors DESC",
-					limit: 50,
 				},
 			],
 			"website-1",
@@ -133,10 +142,14 @@ describe("buildBatchQueryRequests", () => {
 		);
 
 		expect(
-			formatMcpQueryResults(plan, [{ type: "top_pages", data: [] }])[0]?.summary
-		).toBe(
-			'top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | groupBy=["country"] | timeUnit=day | orderBy=visitors DESC | limit=50'
-		);
+			formatMcpQueryResults(plan, [
+				{ type: "events_by_date", data: [] },
+				{ type: "top_pages", data: [] },
+			]).map((result) => result.summary)
+		).toEqual([
+			"events_by_date | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | timeUnit=hour | orderBy=default | limit=50",
+			"top_pages | 2026-07-01 to 2026-07-07 | timezone=UTC | filters=none | timeUnit=default | orderBy=visitors DESC | limit=default",
+		]);
 	});
 
 	it("keeps the newest rows when an ascending time series is truncated", () => {
@@ -202,6 +215,40 @@ describe("buildBatchQueryRequests", () => {
 		expect(invalid[0]?.error).toContain("secret_col");
 		expect(invalid[0]?.error).toContain("Allowed fields");
 		expect(invalid[0]?.error).toContain("trait:<key>");
+	});
+
+	it("says a query type takes no filters instead of listing none", () => {
+		const { invalid } = buildBatchQueryRequests(
+			[
+				{
+					type: "ai_crawlers",
+					preset: "last_7d",
+					filters: [{ field: "path", op: "eq", value: "/pricing" }],
+				},
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(invalid[0]?.error).toBe(
+			"ai_crawlers accepts no filters; remove the filter on 'path'."
+		);
+	});
+
+	it("rejects ordering by a column the query type does not return", () => {
+		const { requests, invalid } = buildBatchQueryRequests(
+			[
+				{ type: "top_pages", preset: "last_7d", orderBy: "revenue DESC" },
+				{ type: "realtime_feed", preset: "last_7d", orderBy: "time ASC" },
+			],
+			"website-1",
+			"UTC"
+		);
+
+		expect(invalid[0]?.error).toBe(
+			"top_pages cannot be ordered by 'revenue'. Use one of pageviews, visitors, or omit orderBy."
+		);
+		expect(requests.map((request) => request.type)).toEqual(["realtime_feed"]);
 	});
 
 	it("keeps trait filters for the query execution layer to resolve", () => {
@@ -271,5 +318,52 @@ describe("buildBatchQueryRequests", () => {
 		);
 		expect(plan.requests).toHaveLength(0);
 		expect(plan.invalid[0]?.error).toContain("Invalid timezone");
+	});
+
+	it("keeps short-link click types out of website queries and the catalog", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "link_total_clicks", preset: "last_7d" }],
+			"website-1",
+			"UTC"
+		);
+
+		expect(plan.requests).toHaveLength(0);
+		expect(plan.invalid[0]?.error).toContain("Databuddy dashboard");
+		expect(plan.invalid[0]?.error).not.toContain("search_links");
+		expect(
+			Object.keys(getFilteredQueryTypes({ detail: "summary" })).filter((key) =>
+				key.startsWith("link_")
+			)
+		).toEqual([]);
+	});
+
+	it("keeps the leaders of ranked arrays and the newest history entries", () => {
+		const values = Array.from({ length: 60 }, (_, index) => index);
+		expect(
+			capRowArrays({ agents: values, senders: values, events: values })
+		).toEqual({
+			agents: values.slice(0, 50),
+			senders: values.slice(0, 50),
+			events: values.slice(10),
+			truncatedArrays: { agents: 60, senders: 60, events: 60 },
+		});
+	});
+
+	it("keeps the latest 50 items of list values inside a row and reports the full count", () => {
+		const plan = buildBatchQueryRequests(
+			[{ type: "session_list", preset: "last_7d" }],
+			"website-1",
+			"UTC"
+		);
+		const events = Array.from({ length: 60 }, (_, index) => index);
+		const [result] = formatMcpQueryResults(plan, [
+			{ type: "session_list", data: [{ session_id: "s1", events }] },
+		]);
+
+		expect(result?.data[0]).toEqual({
+			session_id: "s1",
+			events: events.slice(10),
+			truncatedArrays: { events: 60 },
+		});
 	});
 });

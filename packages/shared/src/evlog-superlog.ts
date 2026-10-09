@@ -1,9 +1,10 @@
+import { config } from "@databuddy/env/app";
 import type { DrainContext } from "evlog";
 import { createOTLPDrain } from "evlog/otlp";
 import { createDrainPipeline } from "evlog/pipeline";
 
 export function createBatchedSuperlogDrain() {
-	const apiKey = process.env.SUPERLOG_API_KEY;
+	const apiKey = config.services.superlogApiKey;
 	if (!apiKey) {
 		return null;
 	}
