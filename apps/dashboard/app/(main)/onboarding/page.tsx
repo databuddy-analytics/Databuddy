@@ -471,10 +471,21 @@ function OnboardingFlow() {
 	const reviewFailed =
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
+	const planStepFlagEligible =
+		!(isSelfHosted || isDashboardE2E) && isOn("onboarding-plan-step");
 	const offersPlans =
-		!(isSelfHosted || isDashboardE2E || billing.isLoading || billing.isError) &&
-		billing.canUserUpgrade &&
-		isOn("onboarding-plan-step");
+		planStepFlagEligible &&
+		!billing.isLoading &&
+		!billing.isError &&
+		billing.canUserUpgrade;
+	// Resuming at step=plan (checkout return, reload) shouldn't fall back to
+	// the setup checklist just because billing hasn't finished its first
+	// fetch yet; only bail once it resolves and says the user can't upgrade.
+	const showPlanStep =
+		step === "plan" &&
+		Boolean(websiteId) &&
+		planStepFlagEligible &&
+		(billing.isLoading || (!billing.isError && billing.canUserUpgrade));
 
 	function choosePlan() {
 		setRequestedWebsiteId(websiteId);
@@ -545,7 +556,7 @@ function OnboardingFlow() {
 		onRetry: reviewFailed ? billing.refetch : undefined,
 	};
 
-	if (step === "plan" && websiteId && offersPlans) {
+	if (showPlanStep) {
 		return (
 			<ChoosePlan
 				finish={{ ...leaveAction, onClick: finishWithPlan }}
