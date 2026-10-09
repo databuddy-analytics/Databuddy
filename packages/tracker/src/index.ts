@@ -119,7 +119,7 @@ export class Databuddy extends BaseTracker {
 		}
 		const scrollCleanup = initScrollDepthTracking(this);
 		this.cleanupFns.push(scrollCleanup);
-		if (this.options.trackInteractions) {
+		if (this.options.trackInteractions !== false) {
 			const interactionCleanup = initInteractionTracking(this);
 			this.cleanupFns.push(interactionCleanup);
 		}
