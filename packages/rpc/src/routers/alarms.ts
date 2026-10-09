@@ -410,14 +410,13 @@ export const alarmsRouter = {
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
-			const updateData = Object.fromEntries(
-				Object.entries(fields).filter(([_, v]) => v !== undefined)
-			);
-
 			const resolvedTrigger = resolveTriggerUpdate(input, current);
-			if (resolvedTrigger) {
-				Object.assign(updateData, resolvedTrigger);
-			}
+			const updateData = {
+				...Object.fromEntries(
+					Object.entries(fields).filter(([_, v]) => v !== undefined)
+				),
+				...resolvedTrigger,
+			};
 
 			await withTransaction(async (tx) => {
 				await tx
