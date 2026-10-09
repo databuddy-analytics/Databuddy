@@ -322,7 +322,7 @@ export function FunnelsListRenderer({
 							<div className="ml-auto flex items-center gap-2">
 								<Button onClick={openCreate} size="sm" variant="primary">
 									<PlusIcon className="size-3.5" />
-									Create
+									Create funnel
 								</Button>
 							</div>
 						</div>

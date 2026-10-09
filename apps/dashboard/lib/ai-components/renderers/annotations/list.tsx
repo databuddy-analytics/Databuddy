@@ -187,7 +187,7 @@ export function AnnotationsListRenderer({
 					<div className="ml-auto flex items-center gap-2">
 						<Button onClick={goToWebsiteOverview} size="sm" variant="primary">
 							<PlusIcon className="size-3.5" />
-							Create
+							Create annotation
 						</Button>
 					</div>
 				</div>

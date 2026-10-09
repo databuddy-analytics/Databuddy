@@ -98,7 +98,7 @@ function MonitorsEmptyState({ onAdd }: { onAdd: () => void }) {
 						onClick={onAdd}
 						type="button"
 					>
-						Create your first monitor
+						Start monitoring a site
 					</button>
 				</p>
 			</div>
@@ -149,7 +149,7 @@ export function MonitorsSection({
 						variant="ghost"
 					>
 						<PlusIcon className="size-3" />
-						Add
+						Start monitoring
 					</Button>
 				)}
 			</Card.Header>

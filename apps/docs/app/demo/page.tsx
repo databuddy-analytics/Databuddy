@@ -71,7 +71,7 @@ export default async function DemoPage() {
 							rel="noopener"
 							target="_blank"
 						>
-							Create free account
+							Start free
 							<ArrowLeftIcon className="size-4 rotate-180 transition-transform" />
 						</Link>
 					</div>

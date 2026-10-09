@@ -404,7 +404,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					},
 					{
 						id: "action:create-monitor",
-						name: "Create monitor",
+						name: "Start monitoring",
 						subtitle: "Add an uptime monitor",
 						path: "/monitors?command=create-monitor",
 						icon: HeartbeatIcon,

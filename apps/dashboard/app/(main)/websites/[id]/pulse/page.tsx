@@ -54,7 +54,7 @@ export default function PulsePage() {
 		content = (
 			<EmptyState
 				action={{
-					label: "Create a monitor",
+					label: "Start monitoring",
 					onClick: () => setIsSheetOpen(true),
 				}}
 				className="h-full py-0"
