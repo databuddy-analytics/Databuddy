@@ -292,14 +292,12 @@ export function primaryWant(wants: OnboardingWant[]) {
 
 interface WhatMattersProps {
 	onContinue: () => void;
-	onSkipSetup: () => void;
 	onToggle: (want: OnboardingWant) => void;
 	selected: OnboardingWant[];
 }
 
 export function WhatMatters({
 	onContinue,
-	onSkipSetup,
 	onToggle,
 	selected,
 }: WhatMattersProps) {
@@ -316,9 +314,6 @@ export function WhatMatters({
 							Pick what you care about. We set up those first.
 						</p>
 					</div>
-					<Button onClick={onSkipSetup} size="sm" variant="ghost">
-						Skip setup
-					</Button>
 				</div>
 				<div className="flex flex-wrap justify-center gap-4">
 					{options.map((option) => {
