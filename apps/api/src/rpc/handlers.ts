@@ -90,11 +90,7 @@ async function handleOrpcRequest(
 			{ rpc: "handler" }
 		);
 		return handleAppError({
-			error: createError({
-				code: "INTERNAL_SERVER_ERROR",
-				message: "Internal server error",
-				status: 500,
-			}),
+			error,
 			request,
 			requestId,
 		});
