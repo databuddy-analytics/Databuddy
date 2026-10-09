@@ -146,7 +146,7 @@ export default function HomePage() {
 				</Button>
 				<Button onClick={() => setDialogOpen(true)} size="sm">
 					<PlusIcon className="size-4 shrink-0" />
-					Create website
+					Add website
 				</Button>
 			</TopBar.Actions>
 
@@ -184,7 +184,7 @@ export default function HomePage() {
 							</Button>
 						) : (
 							<Button onClick={() => setDialogOpen(true)} size="sm">
-								Add website
+								Add your website
 							</Button>
 						)}
 					</Card>
@@ -222,7 +222,12 @@ export default function HomePage() {
 					/>
 				</div>
 
-				<div className="space-y-4">
+				<div
+					className={cn(
+						"space-y-4",
+						!(isLoading || isError) && websites.length === 0 && "hidden"
+					)}
+				>
 					<div className="flex items-center justify-between">
 						<h2 className="font-semibold text-foreground text-sm">
 							Website snapshot
@@ -255,19 +260,6 @@ export default function HomePage() {
 							icon={<GlobeIcon />}
 							title="Failed to load websites"
 							variant="error"
-						/>
-					)}
-
-					{!(isLoading || isError) && websites.length === 0 && (
-						<EmptyState
-							action={{
-								label: "Create your first website",
-								onClick: () => setDialogOpen(true),
-							}}
-							description="Start tracking your website analytics by adding your first website."
-							icon={<GlobeIcon />}
-							title="No websites yet"
-							variant="minimal"
 						/>
 					)}
 

@@ -72,7 +72,7 @@ test("sets up a fresh account from the onboarding checklist", {
 	await domain.fill(`https://www.onboard-${suffix}.local/pricing?utm=e2e`);
 	await expect(domain).toHaveValue(`onboard-${suffix}.local`);
 	await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue(name);
-	await page.getByRole("button", { name: "Create website" }).click();
+	await page.getByRole("button", { name: "Add website" }).click();
 
 	await expect(
 		page.getByRole("heading", { name: `Set up ${name}` })
