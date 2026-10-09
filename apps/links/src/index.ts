@@ -163,10 +163,10 @@ const app = new Elysia()
 				status:
 					state === "connected"
 						? ("ok" as const)
-						: state === "cooldown"
-							? ("error" as const)
-							: state === "disabled"
-								? ("disabled" as const)
+						: state === "disabled"
+							? ("disabled" as const)
+							: probeResult.status === "error" || state === "cooldown"
+								? ("error" as const)
 								: ("pending" as const),
 				latency_ms: probeResult.latency_ms,
 				state,
