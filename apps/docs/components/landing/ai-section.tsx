@@ -244,8 +244,8 @@ export function McpTerminalDemo() {
 		() => scenarioTimeline(scenario),
 		[scenario]
 	);
-	const { ref, step, cycle } = useTimeline(events, seconds);
-	const typing = step === 0 && !reduce;
+	const { ref, step, cycle, visible } = useTimeline(events, seconds);
+	const typing = visible && step === 0 && !reduce;
 	const typed = useTyped(scenario.question, typing);
 	const answerStep = 2 + scenario.calls.length * 2;
 	const spinner = useSpinnerFrame(step >= 1 && step < answerStep);
