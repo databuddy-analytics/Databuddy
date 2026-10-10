@@ -68,7 +68,7 @@ const TERMINAL_SCENARIOS: TerminalScenario[] = [
 				tool: "get_data",
 				args: 'websiteDomain: "databuddy.cc", preset: "last_7d", type: "error_segments"',
 				result:
-					'{"data":[{"dimension":"browser_name","value":"Safari","errors":412,"sessions":187},{"dimension":"browser_name","value":"Chrome","errors":96,"sessions":61}]}',
+					'{"data":[{"dimension":"browser","value":"Safari","errors":412,"sessions":187},{"dimension":"browser","value":"Chrome","errors":96,"sessions":61}]}',
 				more: 18,
 			},
 			{
