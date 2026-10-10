@@ -42,7 +42,7 @@ import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { generateMcpAgentPrompt } from "@/app/(main)/websites/[id]/_components/utils/code-generators";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { showErrorToast } from "@/lib/user-facing-error";
-import { ChoosePlan } from "./_components/billing-checkpoint";
+import { ChoosePlan } from "./_components/choose-plan";
 import type { WebsiteFormValues } from "./_components/add-website";
 import { suggestionKey } from "./_components/read-site";
 import {
@@ -472,9 +472,9 @@ function OnboardingFlow() {
 		verifiedWebsiteId !== null && billing.isError && !billingPending;
 	const opensInsights = verifiedWebsiteId !== null && canReview;
 	const offersPlans =
-		!(isSelfHosted || billing.isLoading || billing.isError) &&
+		!(isSelfHosted || isDashboardE2E || billing.isLoading || billing.isError) &&
 		billing.canUserUpgrade &&
-		(isDashboardE2E || isOn("onboarding-plan-step"));
+		isOn("onboarding-plan-step");
 
 	function choosePlan() {
 		setRequestedWebsiteId(websiteId);

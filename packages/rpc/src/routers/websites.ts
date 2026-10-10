@@ -302,7 +302,10 @@ const websiteService = new WebsiteService(db);
 
 function handleServiceError(error: unknown): never {
 	if (error instanceof BusinessMemoryRetirementError) {
-		throw rpcError.serviceUnavailable(4, error.message);
+		throw rpcError.serviceUnavailable(
+			4,
+			"We couldn't finish updating this website. Try again in a moment."
+		);
 	}
 	if (error instanceof ValidationError) {
 		throw rpcError.badRequest(error.message);

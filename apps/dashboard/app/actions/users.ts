@@ -3,6 +3,7 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { account } from "@databuddy/db/schema";
+import { APIError } from "better-auth/api";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { cache } from "react";
@@ -65,9 +66,9 @@ export async function setPasswordForOAuthUser(newPassword: string) {
 		return { success: true };
 	} catch (error) {
 		console.error("Set password error:", error);
-		if (error instanceof Error) {
+		if (error instanceof APIError) {
 			return { error: error.message };
 		}
-		return { error: "Failed to set password" };
+		return { error: "We couldn't set your password. Try again in a moment." };
 	}
 }

@@ -2,7 +2,7 @@ import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { readBooleanEnv } from "@databuddy/env/app";
+import { isHostedCloud, readBooleanEnv } from "@databuddy/env/app";
 import {
 	closeImportQueue,
 	closeInsightsQueue,
@@ -17,14 +17,15 @@ import {
 	INSIGHTS_QUEUE_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
-import { PermanentImportError, runImportJob } from "@databuddy/services/import";
 import {
 	createDatabuddyEvlogEnv,
 	databuddyEvlogRedaction,
 } from "@databuddy/shared/evlog-redaction";
-import { UnrecoverableError, Worker } from "bullmq";
+import { Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
+import { isStorageConfigured } from "@databuddy/services/storage";
+import { processImportJob } from "./import-job";
 import { processInsightsJob } from "./jobs";
 import {
 	captureInsightsError,
@@ -135,17 +136,15 @@ async function startRuntime() {
 	emitInsightsEvent("info", "lifecycle.starting", {
 		worker_enabled: workerEnabled,
 	});
+	if (isHostedCloud() && !isStorageConfigured()) {
+		throw new Error(
+			"The import worker needs object storage. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY on this service."
+		);
+	}
 	importWorker = new Worker<ImportRunJobData>(
 		IMPORT_QUEUE_NAME,
 		async (job) => {
-			const result = await runImportJob(job.data, ({ rows }) =>
-				job.updateProgress(rows)
-			).catch((error) => {
-				if (error instanceof PermanentImportError) {
-					throw new UnrecoverableError(error.message);
-				}
-				throw error;
-			});
+			const result = await processImportJob(job);
 			emitInsightsEvent("info", "import.completed", {
 				run_id: job.data.runId,
 				website_id: job.data.websiteId,
@@ -168,9 +167,10 @@ async function startRuntime() {
 		}
 	);
 	importWorker.on("failed", (job, error) => {
-		captureInsightsError(error, "import.failed", {
+		emitInsightsEvent("warn", "import.failed", {
 			run_id: job?.data.runId,
 			website_id: job?.data.websiteId,
+			failed_reason: error.message,
 		});
 	});
 	if (workerEnabled) {

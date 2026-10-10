@@ -8,6 +8,7 @@ import { INVESTIGATION_USAGE } from "@databuddy/shared/billing";
 import {
 	allowanceText,
 	DISPLAYED_PLAN_IDS,
+	formatPriceAmount,
 	PLAN_TAGLINES,
 	PlanButton,
 } from "@/components/autumn/pricing-table";
@@ -36,7 +37,7 @@ function priceLabel(price: Plan["price"]) {
 	if (!price) {
 		return "Free";
 	}
-	const amount = `$${price.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+	const amount = formatPriceAmount(price.amount);
 	if (price.interval === "one_off") {
 		return amount;
 	}

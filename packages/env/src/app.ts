@@ -92,7 +92,7 @@ export interface Config {
 const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
 const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
 
-function isHostedCloud(env: Env): boolean {
+export function isHostedCloud(env: Env = process.env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
 }
 

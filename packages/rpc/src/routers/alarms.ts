@@ -15,6 +15,7 @@ import {
 	sendNotificationTarget,
 	toNotificationTargets,
 } from "../lib/alarm-notifications";
+import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
@@ -424,11 +425,24 @@ export const alarmsRouter = {
 				)
 			).flat();
 
+			for (const result of raw) {
+				if (!result.success) {
+					logger.warn({
+						event: "alarm.test_delivery_failed",
+						alarm_id: alarm.id,
+						channel: result.channel,
+						error_message: result.error,
+					});
+				}
+			}
+
 			return {
 				results: raw.map((r) => ({
 					success: r.success,
 					channel: r.channel,
-					error: r.error,
+					error: r.success
+						? undefined
+						: "Delivery failed. Check this destination's settings and try again.",
 				})),
 			};
 		}),
