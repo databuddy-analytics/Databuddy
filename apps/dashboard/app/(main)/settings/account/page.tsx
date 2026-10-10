@@ -778,7 +778,10 @@ export default function AccountSettingsPage() {
 													) : (
 														<Button
 															disabled={linkSocial.isPending}
-															loading={linkSocial.isPending}
+															loading={
+																linkSocial.isPending &&
+																linkSocial.variables === provider
+															}
 															onClick={() => linkSocial.mutate(provider)}
 															size="sm"
 															variant="secondary"
