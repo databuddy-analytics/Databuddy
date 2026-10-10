@@ -33,7 +33,7 @@ export function Avatar({
 	fallback,
 	...rest
 }: AvatarProps) {
-	const [failed, setFailed] = useState(false);
+	const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
 	const safeSrc = (() => {
 		if (!src || typeof src !== "string") {
@@ -63,6 +63,14 @@ export function Avatar({
 					.toUpperCase()
 			: "?");
 
+	// Forget a previous failure once the source changes, so retrying that
+	// URL later gets a fresh load attempt instead of staying on fallback.
+	if (failedSrc !== null && failedSrc !== src) {
+		setFailedSrc(null);
+	}
+
+	const failed = failedSrc !== null && failedSrc === src;
+
 	if (!safeSrc || failed) {
 		return <span className={cn(avatar({ size }), className)}>{initials}</span>;
 	}
@@ -73,7 +81,11 @@ export function Avatar({
 		<img
 			alt={alt}
 			className={cn(avatar({ size }), "object-cover", className)}
-			onError={() => setFailed(true)}
+			onError={() => {
+				if (typeof src === "string") {
+					setFailedSrc(src);
+				}
+			}}
 			src={safeSrc}
 			{...rest}
 		/>

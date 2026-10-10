@@ -162,7 +162,7 @@ const nextConfig: NextConfig = {
 			`script-src ${scriptSources}`,
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
-			"img-src 'self' data: blob: https://cdn.databuddy.cc https://bzr.openai.com https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
+			"img-src 'self' data: blob: https://cdn.databuddy.cc https://bzr.openai.com https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
 			`connect-src ${connectSources}`,
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
@@ -174,7 +174,7 @@ const nextConfig: NextConfig = {
 			`script-src ${scriptSources}`,
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
-			"img-src 'self' data: blob: https://cdn.databuddy.cc https://bzr.openai.com https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
+			"img-src 'self' data: blob: https://cdn.databuddy.cc https://bzr.openai.com https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com https://images.unsplash.com",
 			`connect-src ${connectSources}`,
 			`frame-ancestors ${joinCspSources(
 				"'self'",
