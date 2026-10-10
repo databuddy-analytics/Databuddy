@@ -92,6 +92,10 @@ const destinationSchema = z.discriminatedUnion("type", [
 ]);
 
 const jsonRecord = z.record(z.string(), z.unknown());
+// Read paths stay permissive: rows written before this change (or by another
+// path) may carry an unevaluated trigger type or a conditions shape that
+// wouldn't pass the stricter write-side schema below. They must stay
+// readable even though they can no longer be created or updated as-is.
 const alarmOutputSchema = createSelectSchema(alarms, {
 	triggerConditions: jsonRecord,
 }).extend({
@@ -99,6 +103,109 @@ const alarmOutputSchema = createSelectSchema(alarms, {
 		createSelectSchema(alarmDestinations, { config: jsonRecord })
 	),
 });
+
+const uptimeTriggerConditionsSchema = z.object({
+	monitorIds: z.array(z.string()).default([]),
+});
+
+// Shapes proposed in issue #958 for the trigger types that have no evaluator
+// yet. They're typed here so the write-side schema is honest about the full
+// intended contract, but `EVALUATED_TRIGGER_TYPES` below keeps them rejected
+// until an evaluator actually exists for them.
+const trafficSpikeTriggerConditionsSchema = z.object({
+	metric: z.enum(["pageviews", "visitors"]),
+	direction: z.enum(["up", "down", "both"]),
+	window: z.enum(["15m", "1h"]),
+	sensitivity: z.enum(["low", "medium", "high"]),
+	minBaseline: z.number().nonnegative(),
+});
+
+const errorRateTriggerConditionsSchema = z.object({
+	window: z.enum(["15m", "1h"]),
+	thresholdPercent: z.number().min(0).max(100),
+	minSessions: z.number().nonnegative(),
+});
+
+const triggerConditionsSchema = z.discriminatedUnion("triggerType", [
+	z.object({
+		triggerType: z.literal("uptime"),
+		triggerConditions: uptimeTriggerConditionsSchema,
+	}),
+	z.object({
+		triggerType: z.literal("traffic_spike"),
+		triggerConditions: trafficSpikeTriggerConditionsSchema,
+	}),
+	z.object({
+		triggerType: z.literal("error_rate"),
+		triggerConditions: errorRateTriggerConditionsSchema,
+	}),
+]);
+
+const EVALUATED_TRIGGER_TYPES: ReadonlySet<string> = new Set(["uptime"]);
+
+export function parseTriggerConditions(
+	triggerType: string,
+	triggerConditions: Record<string, unknown>
+): Record<string, unknown> {
+	if (!EVALUATED_TRIGGER_TYPES.has(triggerType)) {
+		throw rpcError.badRequest(
+			`Alarms with trigger type "${triggerType}" can't be created or updated yet: there is no evaluator for it, so it would save but never fire. Only "uptime" alarms are supported today (see issue #958).`
+		);
+	}
+
+	const result = triggerConditionsSchema.safeParse({
+		triggerType,
+		triggerConditions,
+	});
+	if (!result.success) {
+		throw rpcError.badRequest(
+			`Invalid trigger conditions for "${triggerType}": ${result.error.issues
+				.map((issue) => issue.message)
+				.join("; ")}`
+		);
+	}
+
+	return result.data.triggerConditions;
+}
+
+interface TriggerUpdateInput {
+	triggerConditions?: Record<string, unknown>;
+	triggerType?: string;
+}
+
+interface CurrentTrigger {
+	triggerConditions: Record<string, unknown>;
+	triggerType: string;
+}
+
+/**
+ * An update can send just one of triggerType/triggerConditions (e.g. the
+ * monitor-linking flow only patches triggerConditions), so the other side
+ * has to be resolved from the stored row before re-validating the pair.
+ * Returns undefined when neither field was part of the update at all.
+ */
+export function resolveTriggerUpdate(
+	input: TriggerUpdateInput,
+	current: CurrentTrigger
+):
+	| { triggerConditions: Record<string, unknown>; triggerType?: string }
+	| undefined {
+	if (
+		input.triggerType === undefined &&
+		input.triggerConditions === undefined
+	) {
+		return;
+	}
+
+	const triggerType = input.triggerType ?? current.triggerType;
+	const triggerConditions =
+		input.triggerConditions ?? current.triggerConditions;
+
+	return {
+		triggerConditions: parseTriggerConditions(triggerType, triggerConditions),
+		...(input.triggerType === undefined ? {} : { triggerType }),
+	};
+}
 
 function maskTail(value: string, keep = 4): string {
 	if (value.length <= keep) {
@@ -219,6 +326,11 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
+			const triggerConditions = parseTriggerConditions(
+				input.triggerType,
+				input.triggerConditions
+			);
+
 			setTrackProperties({
 				trigger_type: input.triggerType,
 				destination_count: input.destinations.length,
@@ -241,7 +353,7 @@ export const alarmsRouter = {
 					description: input.description ?? null,
 					enabled: input.enabled,
 					triggerType: input.triggerType,
-					triggerConditions: input.triggerConditions,
+					triggerConditions,
 					createdAt: now,
 					updatedAt: now,
 				});
@@ -293,7 +405,7 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withResource(context, {
+			const current = await withResource(context, {
 				resource: "alarm",
 				id: input.alarmId,
 				permissions: ["update"],
@@ -301,9 +413,13 @@ export const alarmsRouter = {
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
-			const updateData = Object.fromEntries(
-				Object.entries(fields).filter(([_, v]) => v !== undefined)
-			);
+			const resolvedTrigger = resolveTriggerUpdate(input, current);
+			const updateData = {
+				...Object.fromEntries(
+					Object.entries(fields).filter(([_, v]) => v !== undefined)
+				),
+				...resolvedTrigger,
+			};
 
 			await withTransaction(async (tx) => {
 				await tx
