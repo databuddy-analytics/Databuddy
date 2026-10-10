@@ -245,15 +245,15 @@ export function McpTerminalDemo() {
 		[scenario]
 	);
 	const { ref, step, cycle, visible } = useTimeline(events, seconds);
+	const nextScenarioIndex = cycle % TERMINAL_SCENARIOS.length;
+	if (nextScenarioIndex !== scenarioIndex) {
+		setScenarioIndex(nextScenarioIndex);
+	}
 	const typing = visible && step === 0 && !reduce;
 	const typed = useTyped(scenario.question, typing);
 	const answerStep = 2 + scenario.calls.length * 2;
 	const spinner = useSpinnerFrame(step >= 1 && step < answerStep);
 	const fading = !reduce && step > answerStep;
-
-	useEffect(() => {
-		setScenarioIndex(cycle % TERMINAL_SCENARIOS.length);
-	}, [cycle]);
 
 	return (
 		<div aria-hidden className="relative w-full min-w-0" ref={ref}>
