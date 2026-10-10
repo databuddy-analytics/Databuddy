@@ -1,8 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import {
 	generateAgentPrompt,
+	generateNextJsCode,
 	generateNpmCode,
 	generateScriptTag,
+	generateTanStackCode,
 } from "./code-generators";
 import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
 
@@ -81,6 +83,28 @@ assert.ok(prompt.includes("## Common issues"));
 		expect(generateNpmCode("example-client-id", off)).toContain(
 			"trackInteractions={false}"
 		);
+	});
+
+	it("generates valid Next.js root layout snippet with options", () => {
+		const nextJs = generateNextJsCode(
+			"example-client-id",
+			RECOMMENDED_DEFAULTS
+		);
+		expect(nextJs).toContain("RootLayout");
+		expect(nextJs).toContain('clientId="example-client-id"');
+		expect(nextJs).toContain("trackWebVitals={true}");
+		expect(nextJs).toContain("@databuddy/sdk/react");
+	});
+
+	it("generates valid TanStack Router root route snippet with options", () => {
+		const tanStack = generateTanStackCode(
+			"example-client-id",
+			RECOMMENDED_DEFAULTS
+		);
+		expect(tanStack).toContain("createRootRoute");
+		expect(tanStack).toContain("@tanstack/react-router");
+		expect(tanStack).toContain('clientId="example-client-id"');
+		expect(tanStack).toContain("trackWebVitals={true}");
 	});
 
 	it("asks for optional install feedback without code or secrets, and only names real options", () => {

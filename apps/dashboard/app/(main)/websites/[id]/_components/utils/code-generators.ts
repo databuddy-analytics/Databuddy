@@ -413,6 +413,101 @@ ${isSelfHosted ? `        apiUrl="${publicConfig.urls.basket}"\n` : ""}        c
 }`;
 }
 
+export function generateNextJsCode(
+	websiteId: string,
+	trackingOptions: TrackingOptions
+): string {
+	const meaningfulProps = Object.entries(trackingOptions)
+		.filter(([key, value]) => {
+			const actualDefault =
+				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === "boolean" && !value && !actualDefault) {
+				return false;
+			}
+			return true;
+		})
+		.map(([key, value]) => {
+			if (typeof value === "boolean") {
+				return `        ${key}={${value}}`;
+			}
+			if (typeof value === "string") {
+				return `        ${key}="${value}"`;
+			}
+			return `        ${key}={${value}}`;
+		});
+
+	const propsString =
+		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}\n      ` : "";
+
+	return `import { Databuddy } from '@databuddy/sdk/react';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Databuddy
+${isSelfHosted ? `          apiUrl="${publicConfig.urls.basket}"\n` : ""}          clientId="${websiteId}"${propsString}/>
+      </body>
+    </html>
+  );
+}`;
+}
+
+export function generateTanStackCode(
+	websiteId: string,
+	trackingOptions: TrackingOptions
+): string {
+	const meaningfulProps = Object.entries(trackingOptions)
+		.filter(([key, value]) => {
+			const actualDefault =
+				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
+			if (value === actualDefault) {
+				return false;
+			}
+			if (typeof value === "boolean" && !value && !actualDefault) {
+				return false;
+			}
+			return true;
+		})
+		.map(([key, value]) => {
+			if (typeof value === "boolean") {
+				return `        ${key}={${value}}`;
+			}
+			if (typeof value === "string") {
+				return `        ${key}="${value}"`;
+			}
+			return `        ${key}={${value}}`;
+		});
+
+	const propsString =
+		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}\n      ` : "";
+
+	return `import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { Databuddy } from '@databuddy/sdk/react';
+
+export const Route = createRootRoute({
+  component: RootComponent,
+});
+
+function RootComponent() {
+  return (
+    <>
+      <Outlet />
+      <Databuddy
+${isSelfHosted ? `        apiUrl="${publicConfig.urls.basket}"\n` : ""}        clientId="${websiteId}"${propsString}/>
+    </>
+  );
+}`;
+}
+
 export function generateNodeCode(websiteId: string): string {
 	return `import { Databuddy } from '@databuddy/sdk/node';
 
