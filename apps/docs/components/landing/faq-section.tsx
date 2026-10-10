@@ -87,7 +87,7 @@ export function FaqSection({
 							{subtitle}
 						</p>
 					) : null}
-					<p className="mt-6 text-muted-foreground text-sm">
+					<p className="mt-6 text-pretty text-muted-foreground text-sm">
 						Have a question that isn't listed here? Email{" "}
 						<a
 							className="text-foreground underline-offset-4 hover:underline"
@@ -126,35 +126,39 @@ export function FaqSection({
 						const answerId = `${uid}-${index}-answer`;
 
 						return (
-							<div className="flex flex-col gap-2" key={questionId}>
-								<motion.button
-									aria-controls={open ? answerId : undefined}
-									aria-expanded={open}
-									className={cn(
-										"group flex max-w-[88%] cursor-pointer items-center gap-3 self-start rounded-[20px] rounded-bl-[6px] py-2.5 pr-2.5 pl-4 text-left text-[15px] text-foreground leading-snug transition-colors duration-200 ease-in-out hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:max-w-[80%] sm:pl-5 sm:text-base",
-										open ? "bg-accent" : "bg-muted"
-									)}
-									data-slot="faq-question"
-									id={questionId}
-									layout="position"
-									layoutDependency={openQuestion}
-									onClick={() => setOpenQuestion(open ? null : faq.question)}
-									onKeyDown={focusSiblingQuestion}
-									transition={reduced ? INSTANT : SHIFT}
-									type="button"
-									whileTap={reduced ? undefined : { scale: 0.97 }}
-								>
-									<span>{faq.question}</span>
-									<span
-										aria-hidden
+							<div className="flex flex-col gap-2" key={faq.question}>
+								<h3 className="flex max-w-[88%] self-start sm:max-w-[80%]">
+									<motion.button
+										aria-controls={open ? answerId : undefined}
+										aria-expanded={open}
 										className={cn(
-											"flex size-7 shrink-0 items-center justify-center rounded-full bg-background/60 transition-[color,transform] duration-200 ease-in-out group-hover:text-foreground",
-											open ? "rotate-45 text-foreground" : "text-foreground/70"
+											"group flex cursor-pointer items-center gap-3 rounded-[20px] rounded-bl-[6px] py-2.5 pr-2.5 pl-4 text-left text-[15px] text-foreground leading-snug transition-colors duration-200 ease-in-out hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:pl-5 sm:text-base",
+											open ? "bg-accent" : "bg-muted"
 										)}
+										data-slot="faq-question"
+										id={questionId}
+										layout="position"
+										layoutDependency={openQuestion}
+										onClick={() => setOpenQuestion(open ? null : faq.question)}
+										onKeyDown={focusSiblingQuestion}
+										transition={reduced ? INSTANT : SHIFT}
+										type="button"
+										whileTap={reduced ? undefined : { scale: 0.97 }}
 									>
-										<PlusIcon className="size-4" />
-									</span>
-								</motion.button>
+										<span>{faq.question}</span>
+										<span
+											aria-hidden
+											className={cn(
+												"flex size-7 shrink-0 items-center justify-center rounded-full bg-background/60 transition-[color,transform] duration-200 ease-in-out group-hover:text-foreground",
+												open
+													? "rotate-45 text-foreground"
+													: "text-foreground/70"
+											)}
+										>
+											<PlusIcon className="size-4" />
+										</span>
+									</motion.button>
+								</h3>
 								<AnimatePresence initial={false} mode="popLayout">
 									{open ? (
 										<motion.div
@@ -173,7 +177,7 @@ export function FaqSection({
 										>
 											<section
 												aria-labelledby={questionId}
-												className="max-w-[88%] rounded-[20px] rounded-br-[6px] bg-primary px-4 py-3 text-[15px] text-primary-foreground leading-relaxed sm:max-w-[80%] sm:px-5 sm:text-base"
+												className="max-w-[88%] text-pretty rounded-[20px] rounded-br-[6px] bg-primary px-4 py-3 text-[15px] text-primary-foreground leading-relaxed sm:max-w-[80%] sm:px-5 sm:text-base"
 												id={answerId}
 											>
 												{faq.answer}
