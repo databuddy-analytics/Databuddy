@@ -111,6 +111,19 @@ describe("buildAlarmNotificationTargets", () => {
 		});
 	});
 
+	test("skips a malformed destination type instead of throwing on an inherited object property", () => {
+		const targets = buildAlarmNotificationTargets([
+			// @ts-expect-error - deliberately malformed DB row for the defensive check
+			{ type: "__proto__", identifier: "x", config: {} },
+			{
+				type: "slack",
+				identifier: "https://hooks.slack.com/services/T000/B000/x",
+				config: {},
+			},
+		]);
+		expect(targets.map((target) => target.channel)).toEqual(["slack"]);
+	});
+
 	test("skips the email delivery target when Resend is not configured", () => {
 		const previousApiKey = process.env.RESEND_API_KEY;
 		delete process.env.RESEND_API_KEY;

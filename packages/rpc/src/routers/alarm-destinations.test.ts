@@ -1,0 +1,65 @@
+import { describe, expect, test } from "bun:test";
+import { alarmDestinationTypeValues } from "@databuddy/db/schema";
+import { ALARM_DESTINATION_BUILDERS } from "@databuddy/notifications/alarm-config";
+import { ALARM_DESTINATION_TYPES } from "@databuddy/shared/alarm-destinations";
+import { destinationSchema } from "./alarms";
+
+function sorted(values: Iterable<string>): string[] {
+	return [...new Set(values)].sort();
+}
+
+describe("alarm destination type registry", () => {
+	test("DB values, RPC discriminated union, and delivery builder handle the exact same set of types", () => {
+		const canonical = sorted(ALARM_DESTINATION_TYPES);
+
+		const dbTypes = sorted(alarmDestinationTypeValues);
+		const rpcTypes = sorted(
+			destinationSchema.options.map((option) => option.shape.type.value)
+		);
+		const deliveryTypes = sorted(Object.keys(ALARM_DESTINATION_BUILDERS));
+
+		expect(dbTypes).toEqual(canonical);
+		expect(rpcTypes).toEqual(canonical);
+		expect(deliveryTypes).toEqual(canonical);
+	});
+});
+
+describe("webhook destination header validation", () => {
+	test("drops a Content-Type header instead of blocking the whole save", () => {
+		const result = destinationSchema.safeParse({
+			type: "webhook",
+			identifier: "https://example.com/hook",
+			config: {
+				headers: { "Content-Type": "application/xml", "X-Alarm": "keep-me" },
+			},
+		});
+		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({ "X-Alarm": "keep-me" });
+		}
+	});
+
+	test("drops an X-Original-URL header instead of blocking the whole save", () => {
+		const result = destinationSchema.safeParse({
+			type: "webhook",
+			identifier: "https://example.com/hook",
+			config: { headers: { "X-Original-URL": "/admin" } },
+		});
+		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({});
+		}
+	});
+
+	test("accepts an allowed custom header", () => {
+		const result = destinationSchema.safeParse({
+			type: "webhook",
+			identifier: "https://example.com/hook",
+			config: { headers: { "X-Alarm": "keep-me" } },
+		});
+		expect(result.success).toBe(true);
+		if (result.success && result.data.type === "webhook") {
+			expect(result.data.config.headers).toEqual({ "X-Alarm": "keep-me" });
+		}
+	});
+});

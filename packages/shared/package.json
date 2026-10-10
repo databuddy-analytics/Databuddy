@@ -6,6 +6,7 @@
   "exports": {
     "./agent-credits": "./src/agent-credits.ts",
     "./agent-discovery": "./src/agent-discovery.ts",
+    "./alarm-destinations": "./src/alarm-destinations.ts",
     "./analytics-filters": "./src/analytics-filters.ts",
     "./api-scopes": "./src/api-scopes.ts",
     "./audit": "./src/audit.ts",

@@ -1,3 +1,4 @@
+import { ALARM_DESTINATION_TYPES } from "@databuddy/shared/alarm-destinations";
 import {
 	boolean,
 	foreignKey,
@@ -199,11 +200,7 @@ export const alarmTriggerTypeValues = [
 ] as const;
 export type AlarmTriggerTypeValue = (typeof alarmTriggerTypeValues)[number];
 
-export const alarmDestinationTypeValues = [
-	"slack",
-	"email",
-	"webhook",
-] as const;
+export const alarmDestinationTypeValues = ALARM_DESTINATION_TYPES;
 export type AlarmDestinationTypeValue =
 	(typeof alarmDestinationTypeValues)[number];
 
