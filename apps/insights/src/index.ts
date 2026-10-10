@@ -152,6 +152,7 @@ async function startRuntime() {
 				rows: result.rows,
 				dates: result.dates,
 				skipped_rollups: result.skippedRollups,
+				overlap_skipped: result.overlapSkipped,
 				dropped_visits: result.adjustments.droppedVisits,
 				duration_delta_seconds: result.adjustments.durationDeltaSeconds,
 			});

@@ -266,7 +266,9 @@ export default function ImportPage() {
 						<Card.Header>
 							<Card.Title>Export file</Card.Title>
 							<Card.Description>
-								{GRAIN_HINT[selectedProvider.grain]}
+								{GRAIN_HINT[selectedProvider.grain]} Days Databuddy was already
+								tracking keep their tracked data, and the import fills in
+								everything before that.
 							</Card.Description>
 						</Card.Header>
 						<Card.Content className="space-y-4">

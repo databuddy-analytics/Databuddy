@@ -8,6 +8,7 @@ import {
 	type ImportProvider,
 	type ImportResult,
 	type ImportSource,
+	loadLiveDayStarts,
 	runImport,
 } from "./pipeline";
 import { plausibleProvider } from "./providers/plausible";
@@ -146,9 +147,11 @@ export async function runImportJob(
 		);
 	}
 
+	const liveDayStarts = await loadLiveDayStarts(data.websiteId, data.timezone);
 	const result = await runImport({
 		provider,
 		source,
+		liveDayStarts,
 		context: {
 			websiteId: data.websiteId,
 			runId: data.runId,

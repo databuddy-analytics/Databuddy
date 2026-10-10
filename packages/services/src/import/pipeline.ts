@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
+	chQuery,
 	clickHouse,
+	EXCLUDE_IMPORTED_ROWS,
 	type EventsInsert,
 	IMPORTED_VISITOR_PREFIX,
 	TABLE_NAMES,
@@ -19,6 +21,33 @@ const BOUNCE_DURATION_SECONDS = 1;
 const BOUNCE_DURATION_CEILING_SECONDS = 9;
 const NON_BOUNCE_DURATION_FLOOR_SECONDS = 10;
 const WWW_PREFIX = /^www\./;
+const COUNTRY_CODE = /^[A-Za-z]{2}$/;
+
+const MAXMIND_COUNTRY_NAMES: Record<string, string> = {
+	AG: "Antigua and Barbuda",
+	BA: "Bosnia and Herzegovina",
+	BL: "Saint Barthélemy",
+	BQ: "Bonaire, Sint Eustatius and Saba",
+	CD: "Congo (DRC)",
+	CG: "Congo Republic",
+	CI: "Ivory Coast",
+	CN: "China",
+	CV: "Cabo Verde",
+	FM: "Federated States of Micronesia",
+	KN: "Saint Kitts and Nevis",
+	LC: "Saint Lucia",
+	MF: "Saint Martin",
+	MM: "Myanmar",
+	NL: "The Netherlands",
+	PM: "Saint Pierre and Miquelon",
+	PS: "Palestine",
+	ST: "São Tomé and Príncipe",
+	TC: "Turks and Caicos Islands",
+	TT: "Trinidad and Tobago",
+	VC: "Saint Vincent and the Grenadines",
+};
+
+const regionNames = new Intl.DisplayNames("en", { type: "region" });
 
 type ImportGrain = "event" | "rollup";
 
@@ -116,9 +145,12 @@ export interface ImportAdjustments {
 export interface ImportResult {
 	adjustments: ImportAdjustments;
 	dates: number;
+	overlapSkipped: number;
 	rows: number;
 	skippedRollups: number;
 }
+
+export type LiveDayStarts = ReadonlyMap<string, number>;
 
 export function parseCsv(text: string): Record<string, string>[] {
 	const rows: string[][] = [];
@@ -233,6 +265,55 @@ export function endOfLocalDay(at: Date, timeZone: string): Date {
 	const offset = timeZoneOffsetMs(at, timeZone);
 	const local = at.getTime() + offset;
 	return new Date(Math.floor(local / dayMs) * dayMs + dayMs - 1 - offset);
+}
+
+export function countryName(value: string | null | undefined): string | null {
+	if (!value) {
+		return null;
+	}
+	if (!COUNTRY_CODE.test(value)) {
+		return value;
+	}
+	const code = value.toUpperCase();
+	return MAXMIND_COUNTRY_NAMES[code] ?? regionNames.of(code) ?? value;
+}
+
+function localDayFormatter(timeZone: string): Intl.DateTimeFormat {
+	const options = {
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	} as const;
+	try {
+		return new Intl.DateTimeFormat("en-CA", { ...options, timeZone });
+	} catch {
+		return new Intl.DateTimeFormat("en-CA", { ...options, timeZone: "UTC" });
+	}
+}
+
+export function liveOverlapFilter(
+	liveDayStarts: LiveDayStarts,
+	timeZone: string
+): (time: Date) => boolean {
+	const localDay = localDayFormatter(timeZone);
+	return (time) => {
+		const firstLive = liveDayStarts.get(localDay.format(time));
+		return firstLive !== undefined && time.getTime() >= firstLive;
+	};
+}
+
+export async function loadLiveDayStarts(
+	websiteId: string,
+	timeZone: string
+): Promise<LiveDayStarts> {
+	const rows = await chQuery<{ day: string; first_live_ms: string }>(
+		`SELECT toString(toDate(time, {timeZone:String})) AS day, toString(toUnixTimestamp64Milli(min(time))) AS first_live_ms
+		FROM ${TABLE_NAMES.events}
+		WHERE client_id = {websiteId:String} AND ${EXCLUDE_IMPORTED_ROWS}
+		GROUP BY day`,
+		{ websiteId, timeZone }
+	);
+	return new Map(rows.map((row) => [row.day, Number(row.first_live_ms)]));
 }
 
 export function isSameSite(
@@ -566,7 +647,7 @@ function toEventRow(
 		device_type: event.deviceType ?? null,
 		language: event.language ?? null,
 		timezone: context.timezone,
-		country: event.country ?? null,
+		country: countryName(event.country),
 		region: event.region ?? null,
 		city: event.city ?? null,
 		utm_source: event.utmSource ?? null,
@@ -640,13 +721,19 @@ export async function runImport(options: {
 	provider: ImportProvider;
 	source: ImportSource;
 	context: ImportContext;
+	liveDayStarts?: LiveDayStarts;
 	onProgress?: (progress: { rows: number }) => void | Promise<void>;
 }): Promise<ImportResult> {
 	const { provider, source, context, onProgress } = options;
+	const overlapsLiveData = liveOverlapFilter(
+		options.liveDayStarts ?? new Map(),
+		context.timezone
+	);
 	const buckets = new Map<string, DateBucket>();
 	const pending: EventsInsert[] = [];
 	let rows = 0;
 	let skippedRollups = 0;
+	let overlapSkipped = 0;
 	const adjustments: ImportAdjustments = {
 		droppedVisits: 0,
 		durationDeltaSeconds: 0,
@@ -666,6 +753,10 @@ export async function runImport(options: {
 
 	const emit = async (events: ImportedEvent[]) => {
 		for (const event of events) {
+			if (overlapsLiveData(event.time)) {
+				overlapSkipped += 1;
+				continue;
+			}
 			pending.push(toEventRow(event, context, provider.id));
 		}
 		await flush(false);
@@ -716,5 +807,11 @@ export async function runImport(options: {
 	}
 	await flush(true);
 
-	return { rows, dates: buckets.size, skippedRollups, adjustments };
+	return {
+		rows,
+		dates: buckets.size,
+		skippedRollups,
+		overlapSkipped,
+		adjustments,
+	};
 }
