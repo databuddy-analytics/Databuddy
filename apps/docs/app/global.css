@@ -714,33 +714,3 @@ body {
 .animate-marquee {
   animation: marquee 25s linear infinite;
 }
-
-/* FAQ section hover and open state styles  */
-.accordion-item {
-  position: relative;
-  background: color-mix(in oklab, var(--background) 50%, transparent);
-  border-top: 1px solid var(--border);
-  transition: background 0.2s;
-}
-
-.accordion-item:hover {
-  background: color-mix(in oklab, var(--background) 80%, transparent);
-}
-
-.accordion-item::before {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  content: "";
-  background: linear-gradient(to bottom, #facc15, #ec4899, #6366f1);
-
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.accordion-item:hover::before,
-.accordion-item[data-state="open"]::before {
-  opacity: 1;
-}
