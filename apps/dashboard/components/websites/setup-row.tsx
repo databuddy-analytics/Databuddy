@@ -17,7 +17,7 @@ function RowMarker({ status }: { status: SetupRowStatus }) {
 		<span className="relative mt-0.5 flex size-4 shrink-0 items-center justify-center">
 			<span
 				className={cn(
-					"absolute inset-0 flex items-center justify-center rounded-full bg-success text-success-foreground transition-[opacity,transform] duration-200 ease-out",
+					"absolute inset-0 flex items-center justify-center rounded-full bg-success text-success-foreground transition-[opacity,transform] duration-200 ease-in-out",
 					status === "done" ? "scale-100 opacity-100" : "scale-50 opacity-0"
 				)}
 			>
@@ -26,7 +26,7 @@ function RowMarker({ status }: { status: SetupRowStatus }) {
 			<svg
 				aria-hidden="true"
 				className={cn(
-					"size-4 transition-[opacity,color] duration-200 ease-out",
+					"size-4 transition-[opacity,color] duration-200 ease-in-out",
 					status === "done" && "opacity-0",
 					status === "pending" && "text-muted-foreground/50",
 					status === "active" && "text-foreground",
@@ -116,14 +116,15 @@ export function SetupRow({
 			)}
 			<div
 				className={cn(
-					"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+					"grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",
 					expanded && children ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
 				)}
+				inert={!expanded}
 			>
 				<div className="min-h-0 overflow-hidden">
 					<div
 						className={cn(
-							"pt-2 pr-6 pb-6 pl-12 transition-opacity duration-200 ease-out",
+							"pt-2 pr-6 pb-6 pl-12 transition-opacity duration-200 ease-in-out",
 							expanded ? "opacity-100" : "opacity-0"
 						)}
 					>

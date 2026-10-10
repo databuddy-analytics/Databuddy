@@ -11,7 +11,9 @@ import {
 import { useMemo, useState } from "react";
 import { createHighlighterCoreSync } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import bash from "shiki/langs/bash.mjs";
 import html from "shiki/langs/html.mjs";
+import json from "shiki/langs/json.mjs";
 import tsx from "shiki/langs/tsx.mjs";
 import vue from "shiki/langs/vue.mjs";
 import vesper from "shiki/themes/vesper.mjs";
@@ -36,9 +38,81 @@ function agentName(id: string): string {
 
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper],
-	langs: [html, tsx, vue],
+	langs: [bash, html, json, tsx, vue],
 	engine: createJavaScriptRegexEngine(),
 });
+
+export function SnippetBlock({
+	code,
+	isCopied,
+	lang,
+	onCopy,
+}: {
+	code: string;
+	isCopied: boolean;
+	lang: "bash" | "html" | "json" | "tsx" | "vue";
+	onCopy: () => void;
+}) {
+	const markup = useMemo(
+		() => highlighter.codeToHtml(code, { lang, theme: "vesper" }),
+		[code, lang]
+	);
+	return (
+		<div className="group relative overflow-hidden rounded border border-border">
+			<div
+				className={cn(
+					"overflow-x-auto font-mono text-[13px] leading-relaxed",
+					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+					"[&>pre>code]:block [&>pre>code]:w-full"
+				)}
+				dangerouslySetInnerHTML={{ __html: markup }}
+			/>
+			<Button
+				className="absolute top-2 right-2"
+				onClick={onCopy}
+				size="sm"
+				variant="secondary"
+			>
+				{isCopied ? "Copied" : "Copy"}
+			</Button>
+		</div>
+	);
+}
+
+export function CodingAgentButtons({
+	copied,
+	onCopy,
+}: {
+	copied: string | null;
+	onCopy: (agentId: string) => void;
+}) {
+	return (
+		<div className="flex flex-wrap gap-2">
+			{CODING_AGENTS.map((agent) => (
+				<Button
+					className="border border-border bg-background hover:bg-accent"
+					key={agent.id}
+					onClick={() => onCopy(agent.id)}
+					size="sm"
+					variant="ghost"
+				>
+					{copied === agent.id ? (
+						<CheckIcon className="size-4 text-success" />
+					) : (
+						<img
+							alt=""
+							className={cn("size-4", agent.invert && "dark:invert")}
+							height={16}
+							src={`/ai/${agent.icon}.svg`}
+							width={16}
+						/>
+					)}
+					{agent.name}
+				</Button>
+			))}
+		</div>
+	);
+}
 
 export type TrackingCopyMethod = "ai" | "script" | "sdk";
 
@@ -129,30 +203,26 @@ export function ConnectApp({
 }: ConnectAppProps) {
 	const [copied, setCopied] = useState<string | null>(null);
 	const [scriptOpen, setScriptOpen] = useState(false);
-	const snippets = useMemo(
-		() =>
-			[
-				[
-					"script",
-					"Script tag",
-					"html",
-					generateScriptTag(websiteId, RECOMMENDED_DEFAULTS),
-				],
-				[
-					"react",
-					"React",
-					"tsx",
-					generateNpmCode(websiteId, RECOMMENDED_DEFAULTS),
-				],
-				["vue", "Vue", "vue", generateVueCode(websiteId, RECOMMENDED_DEFAULTS)],
-			].map(([id, label, lang, code]) => ({
-				id,
-				label,
-				code,
-				html: highlighter.codeToHtml(code, { lang, theme: "vesper" }),
-			})),
-		[websiteId]
-	);
+	const snippets = [
+		{
+			id: "script",
+			label: "Script tag",
+			lang: "html",
+			code: generateScriptTag(websiteId, RECOMMENDED_DEFAULTS),
+		},
+		{
+			id: "react",
+			label: "React",
+			lang: "tsx",
+			code: generateNpmCode(websiteId, RECOMMENDED_DEFAULTS),
+		},
+		{
+			id: "vue",
+			label: "Vue",
+			lang: "vue",
+			code: generateVueCode(websiteId, RECOMMENDED_DEFAULTS),
+		},
+	] as const;
 
 	const hint =
 		research.phase === "reading" || research.phase === "writing"
@@ -216,30 +286,10 @@ export function ConnectApp({
 				) : hint ? (
 					<p className="text-pretty text-muted-foreground text-xs">{hint}</p>
 				) : null}
-				<div className="flex flex-wrap gap-2">
-					{CODING_AGENTS.map((agent) => (
-						<Button
-							className="border border-border bg-background hover:bg-accent"
-							key={agent.id}
-							onClick={() => copy(agent.id, "ai")}
-							size="sm"
-							variant="ghost"
-						>
-							{copied === agent.id ? (
-								<CheckIcon className="size-4 text-success" />
-							) : (
-								<img
-									alt=""
-									className={cn("size-4", agent.invert && "dark:invert")}
-									height={16}
-									src={`/ai/${agent.icon}.svg`}
-									width={16}
-								/>
-							)}
-							{agent.name}
-						</Button>
-					))}
-				</div>
+				<CodingAgentButtons
+					copied={copied}
+					onCopy={(agentId) => copy(agentId, "ai")}
+				/>
 			</div>
 
 			{manualInstall ? (
@@ -260,7 +310,7 @@ export function ConnectApp({
 					</Button>
 					<div
 						className={cn(
-							"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+							"grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",
 							scriptOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
 						)}
 					>
@@ -279,29 +329,17 @@ export function ConnectApp({
 										key={snippet.id}
 										value={snippet.id}
 									>
-										<div className="group relative overflow-hidden rounded border border-border">
-											<div
-												className={cn(
-													"overflow-x-auto font-mono text-[13px] leading-relaxed",
-													"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-													"[&>pre>code]:block [&>pre>code]:w-full"
-												)}
-												dangerouslySetInnerHTML={{ __html: snippet.html }}
-											/>
-											<Button
-												className="absolute top-2 right-2"
-												onClick={() =>
-													copy(
-														snippet.id,
-														snippet.id === "script" ? "script" : "sdk"
-													)
-												}
-												size="sm"
-												variant="secondary"
-											>
-												{copied === snippet.id ? "Copied" : "Copy"}
-											</Button>
-										</div>
+										<SnippetBlock
+											code={snippet.code}
+											isCopied={copied === snippet.id}
+											lang={snippet.lang}
+											onCopy={() =>
+												copy(
+													snippet.id,
+													snippet.id === "script" ? "script" : "sdk"
+												)
+											}
+										/>
 									</Tabs.Panel>
 								))}
 							</Tabs>
