@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	canReadQueryTypesPublicly,
+	getQueryBuilder,
 	PUBLIC_QUERY_TYPES,
 	QueryBuilders,
 } from "./index";
@@ -26,14 +27,14 @@ const PUBLIC_OVERVIEW_QUERY_TYPES = [
 	"country",
 ] as const;
 
-const PUBLIC_AUDIENCE_QUERY_TYPES = [
+const PRIVATE_AUDIENCE_QUERY_TYPES = [
 	"timezone",
 	"language",
 	"browser_versions",
 	"screen_resolution",
 ] as const;
 
-const PUBLIC_EVENTS_QUERY_TYPES = [
+const PRIVATE_EVENTS_QUERY_TYPES = [
 	"custom_events",
 	"custom_events_summary",
 	"custom_events_trends",
@@ -44,7 +45,7 @@ const PUBLIC_EVENTS_QUERY_TYPES = [
 	"custom_events_recent",
 ] as const;
 
-const PUBLIC_ERROR_QUERY_TYPES = [
+const PRIVATE_ERROR_QUERY_TYPES = [
 	"recent_errors",
 	"error_types",
 	"errors_by_page",
@@ -52,7 +53,7 @@ const PUBLIC_ERROR_QUERY_TYPES = [
 	"error_chart_data",
 ] as const;
 
-const PUBLIC_VITALS_QUERY_TYPES = [
+const PRIVATE_VITALS_QUERY_TYPES = [
 	"vitals_overview",
 	"vitals_time_series",
 	"vitals_by_page",
@@ -65,21 +66,34 @@ const PUBLIC_VITALS_QUERY_TYPES = [
 describe("query builder publicAccess", () => {
 	it("keeps the public query registry in sync with real builders", () => {
 		for (const type of PUBLIC_QUERY_TYPES) {
-			expect(QueryBuilders[type], type).toBeDefined();
+			expect(getQueryBuilder(type), type).toBeDefined();
 		}
 	});
 
-	it("marks public dashboard query families as public-readable", () => {
-		const publicTypes = [
-			...PUBLIC_OVERVIEW_QUERY_TYPES,
-			...PUBLIC_AUDIENCE_QUERY_TYPES,
-			...PUBLIC_EVENTS_QUERY_TYPES,
-			...PUBLIC_ERROR_QUERY_TYPES,
-			...PUBLIC_VITALS_QUERY_TYPES,
+	it("marks the overview as public-readable", () => {
+		for (const type of PUBLIC_OVERVIEW_QUERY_TYPES) {
+			expect(getQueryBuilder(type)?.publicAccess, type).toBe(true);
+		}
+	});
+
+	it("requires website permission for non-overview sections", () => {
+		const privateTypes = [
+			...PRIVATE_AUDIENCE_QUERY_TYPES,
+			...PRIVATE_EVENTS_QUERY_TYPES,
+			...PRIVATE_ERROR_QUERY_TYPES,
+			...PRIVATE_VITALS_QUERY_TYPES,
 		];
 
-		for (const type of publicTypes) {
-			expect(QueryBuilders[type]?.publicAccess, type).toBe(true);
+		for (const type of privateTypes) {
+			expect(getQueryBuilder(type)?.publicAccess, type).toBe(false);
+		}
+	});
+
+	it("defaults every builder outside the overview registry to private", () => {
+		for (const [type, config] of Object.entries(QueryBuilders)) {
+			if (!PUBLIC_QUERY_TYPES.has(type)) {
+				expect(config.publicAccess, type).toBe(false);
+			}
 		}
 	});
 
@@ -90,20 +104,20 @@ describe("query builder publicAccess", () => {
 
 		expect(revenueTypes.length).toBeGreaterThan(0);
 		for (const type of revenueTypes) {
-			expect(QueryBuilders[type]?.publicAccess, type).not.toBe(true);
+			expect(getQueryBuilder(type)?.publicAccess, type).not.toBe(true);
 		}
 	});
 
 	it("allows public reads only when every requested builder opts in", () => {
+		expect(canReadQueryTypesPublicly(["summary_metrics", "top_pages"])).toBe(
+			true
+		);
+
+		expect(canReadQueryTypesPublicly(["custom_events_recent"])).toBe(false);
+		expect(canReadQueryTypesPublicly(["recent_errors"])).toBe(false);
 		expect(
-			canReadQueryTypesPublicly([
-				"summary_metrics",
-				"top_pages",
-				"custom_events_summary",
-				"recent_errors",
-				"vitals_overview",
-			])
-		).toBe(true);
+			canReadQueryTypesPublicly(["summary_metrics", "recent_errors"])
+		).toBe(false);
 
 		expect(canReadQueryTypesPublicly(["revenue_overview"])).toBe(false);
 		expect(
