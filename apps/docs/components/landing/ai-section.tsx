@@ -35,24 +35,24 @@ const TERMINAL_SCENARIOS: TerminalScenario[] = [
 				tool: "get_data",
 				args: 'websiteDomain: "databuddy.cc", preset: "last_7d", type: "summary_metrics"',
 				result:
-					'{"rows":[{"visitors":18240,"pageviews":52910,"bounce_rate":38.2,"visitors_change":64.1}]}',
+					'{"data":[{"pageviews":52910,"unique_visitors":18240,"sessions":24630,"bounce_rate":38.2}]}',
 				more: 24,
 			},
 			{
 				tool: "create_funnel",
-				args: 'name: "Pricing to purchase", steps: [{"type":"PAGE_VIEW","target":"/pricing"},…], confirmed: true',
+				args: 'name: "Pricing to purchase", steps: [{"type":"PAGE_VIEW","target":"/pricing","name":"Pricing"},…], confirmed: true',
 				result:
-					'{"success":true,"message":"Funnel \\"Pricing to purchase\\" created successfully."}',
+					'{"success":true,"message":"Funnel \\"Pricing to purchase\\" created successfully","funnel":{…}}',
 			},
 			{
 				tool: "create_goal",
 				args: 'name: "Plan upgraded", type: "EVENT", target: "plan_upgraded", confirmed: true',
 				result:
-					'{"success":true,"message":"Goal \\"Plan upgraded\\" created successfully."}',
+					'{"success":true,"message":"Goal \\"Plan upgraded\\" created successfully","goal":{…}}',
 			},
 		],
 		answer:
-			"Launch week traffic is up 64%. I created a pricing funnel and a plan_upgraded goal; both are live in your dashboard.",
+			"Launch week brought 18,240 visitors across 52,910 pageviews. I created a pricing funnel and a plan_upgraded goal, and both are live in your dashboard.",
 	},
 	{
 		question: "Anything I should know before we ship today?",
@@ -62,19 +62,19 @@ const TERMINAL_SCENARIOS: TerminalScenario[] = [
 				tool: "list_investigations",
 				args: 'websiteDomain: "databuddy.cc"',
 				result:
-					'{"investigations":[{"title":"Checkout conversion down 22% vs the prior 7 days","status":"verified"}]}',
+					'{"investigations":[{"id":"inv_7Qx2","title":"Checkout conversion down 22% vs the prior 7 days","status":"open"}],"hasMore":false}',
 			},
 			{
 				tool: "get_data",
 				args: 'websiteDomain: "databuddy.cc", preset: "last_7d", type: "error_segments"',
 				result:
-					'{"rows":[{"browser":"Safari","errors":412},{"browser":"Chrome","errors":96}]}',
+					'{"data":[{"dimension":"browser_name","value":"Safari","errors":412,"sessions":187},{"dimension":"browser_name","value":"Chrome","errors":96,"sessions":61}]}',
 				more: 18,
 			},
 			{
 				tool: "reply_to_investigation",
-				args: 'body: "Do the Safari checkout errors line up with the drop?"',
-				result: '{"success":true}',
+				args: 'investigationId: "inv_7Qx2", body: "Do the Safari checkout errors line up with the drop?", replyId: "safari-checkout-errors"',
+				result: '{"reply":{"id":"rep_3kTm","kind":"reply","status":"queued"}}',
 			},
 		],
 		answer:
