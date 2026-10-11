@@ -160,6 +160,15 @@ describe("validateRequest", () => {
 		expect(mockCheckAutumnUsage).toHaveBeenCalledOnce();
 	});
 
+	test("search engine renderers are not billed as events", async () => {
+		await validateRequest(
+			{},
+			{ client_id: "ws_1" },
+			makeReq(undefined, { "user-agent": GOOGLEBOT_RENDERER })
+		);
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+	});
+
 	test("client_id from query string wins", async () => {
 		const result = await validateRequest(
 			{},
@@ -337,6 +346,9 @@ describe("validateRequest", () => {
 	});
 });
 
+const GOOGLEBOT_RENDERER =
+	"Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.36 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
 describe("checkForBot", () => {
 	const GPTBOT =
 		"Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)";
@@ -348,21 +360,52 @@ describe("checkForBot", () => {
 		mockLoggerSet.mockReset();
 	});
 
-	test.each([
-		[
-			"people",
-			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-		],
-		[
-			"search engines",
-			"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-		],
-	])("lets %s through untouched", async (_label, userAgent) => {
+	test("lets people through untouched", async () => {
 		await expect(
-			checkForBot(makeReq(), {}, {}, "ws_1", userAgent)
+			checkForBot(
+				makeReq(),
+				{},
+				{},
+				"ws_1",
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+			)
 		).resolves.toBeUndefined();
 		expect(mockSend).not.toHaveBeenCalled();
 		expect(mockLogBlockedTraffic).not.toHaveBeenCalled();
+	});
+
+	test("search engine renderers record a search engine span at the server's time, not the page's frozen clock", async () => {
+		const midnight = Date.parse("2026-10-10T00:00:00.342Z");
+		const received = Date.parse("2026-10-10T19:49:42.000Z");
+		vi.useFakeTimers({ now: received });
+		const event = {
+			name: "screen_view",
+			path: "/pricing",
+			timestamp: midnight,
+		};
+		const result = await checkForBot(
+			makeReq(),
+			event,
+			{},
+			"ws_1",
+			GOOGLEBOT_RENDERER
+		);
+		recordAiPageView(event, "ws_1", GOOGLEBOT_RENDERER);
+		vi.useRealTimers();
+
+		expect(result?.isTrackOnly).toBe(true);
+		expect(mockLogBlockedTraffic).not.toHaveBeenCalled();
+		expect(mockSend).toHaveBeenCalledWith(
+			"analytics-ai-traffic-spans",
+			expect.objectContaining({
+				agent_id: "",
+				bot_name: "GoogleBot",
+				bot_type: "search_engine",
+				path: "/pricing",
+				source: "tracker",
+				timestamp: received,
+			})
+		);
 	});
 
 	test("AI crawlers short-circuit with 204 and their page views record an AI traffic span", async () => {
