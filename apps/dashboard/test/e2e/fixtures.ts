@@ -1,5 +1,6 @@
 import {
 	type APIRequestContext,
+	expect,
 	type Page,
 	type Route,
 	test as base,
@@ -27,6 +28,7 @@ type RpcReplyFn = (input: unknown) => unknown;
 
 interface E2EFixtures {
 	authenticatedPage: Page;
+	cspViolations: undefined;
 	e2eSession: E2ESession;
 	mockRpc: (procedure: string, reply: unknown) => Promise<void>;
 	seededAnalytics: AnalyticsSeed;
@@ -34,6 +36,25 @@ interface E2EFixtures {
 
 export const test = base.extend<E2EFixtures & { withWebsite: boolean }>({
 	withWebsite: [true, { option: true }],
+	cspViolations: [
+		async ({ page }, use) => {
+			const violations: string[] = [];
+			page.on("console", (message) => {
+				if (
+					message.type() === "error" &&
+					message.text().includes("Content Security Policy")
+				) {
+					violations.push(message.text());
+				}
+			});
+			await use(undefined);
+			expect(
+				violations,
+				"The dashboard blocked its own request with its Content Security Policy"
+			).toEqual([]);
+		},
+		{ auto: true },
+	],
 	e2eSession: async ({ page, withWebsite }, use, testInfo) => {
 		await use(
 			await bootstrapSession(page.context().request, {
