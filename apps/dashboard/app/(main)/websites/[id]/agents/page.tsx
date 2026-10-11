@@ -1452,7 +1452,7 @@ function SearchEnginesPanel({
 										`${formatNumber(row.pages)} pages read`,
 										row.server > 0
 											? `${formatNumber(row.server)} requests seen on your server`
-											: "Only rendered pages, which run your tracker. Add the server line to see every crawl.",
+											: "Pages it rendered, which ran your tracker",
 										`last request ${readTime(row.last_seen)}`,
 									]}
 									title={row.name}

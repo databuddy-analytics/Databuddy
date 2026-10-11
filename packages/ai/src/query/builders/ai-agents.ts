@@ -72,8 +72,7 @@ const AGENT_ROW = `client_id = {websiteId:String}
 
 const SEARCH_ENGINE_ROW = `client_id = {websiteId:String}
 	AND agent_id = ''
-	AND bot_type = 'search_engine'
-	AND ${SPAN_SOURCE}`;
+	AND bot_type = 'search_engine'`;
 
 const IN_RANGE = `timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
@@ -726,6 +725,14 @@ export const AiAgentsBuilders = {
 				WHERE ${SEARCH_ENGINE_ROW}
 					AND (status_code = 0 OR status_code BETWEEN 200 AND 299)
 					AND ${IN_RANGE}
+					AND (
+						source != 'tracker'
+						OR bot_name NOT IN (
+							SELECT bot_name
+							FROM ${Analytics.ai_traffic_spans}
+							WHERE ${SEARCH_ENGINE_ROW} AND source != 'tracker' AND ${IN_RANGE}
+						)
+					)
 				GROUP BY name
 				ORDER BY requests DESC
 				LIMIT {limit:UInt32}
