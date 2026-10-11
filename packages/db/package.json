@@ -27,7 +27,8 @@
     "db:studio": "drizzle-kit studio",
     "email:segments": "bun src/scripts/export-user-email-segments.ts",
     "clickhouse:init": "bun src/clickhouse/setup.ts",
-    "test": "bun test src",
+    "test": "bun test src --path-ignore-patterns='**/*.integration.test.ts'",
+    "test:integration": "CLICKHOUSE_INTEGRATION_TESTS=true bun test src/clickhouse/revenue.integration.test.ts src/clickhouse/purge.integration.test.ts",
     "e2e:db:create": "bun ./scripts/e2e-db-lifecycle.ts create",
     "e2e:db:drop": "bun ./scripts/e2e-db-lifecycle.ts drop"
   },
