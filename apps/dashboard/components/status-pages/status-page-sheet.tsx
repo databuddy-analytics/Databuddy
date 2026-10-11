@@ -3,7 +3,7 @@
 import { RESERVED_STATUS_PAGE_SLUGS } from "@databuddy/shared/uptime";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { showErrorToast } from "@/lib/user-facing-error";
@@ -23,7 +23,7 @@ import {
 	SegmentedControl,
 	Textarea,
 } from "@databuddy/ui";
-import { Sheet } from "@databuddy/ui/client";
+import { FileDrop, Sheet } from "@databuddy/ui/client";
 
 const HTTPS_URL_REGEX = /^https:\/\/.+/;
 
@@ -35,46 +35,6 @@ const ASSET_FIELDS = {
 } as const;
 
 type AssetKind = keyof typeof ASSET_FIELDS;
-
-function AssetUploadButton({
-	busy,
-	onPickAction,
-	uploading,
-}: {
-	busy: boolean;
-	onPickAction: (file: File) => void;
-	uploading: boolean;
-}) {
-	const inputRef = useRef<HTMLInputElement>(null);
-
-	return (
-		<>
-			{/* policy-ignore dashboard/no-raw-interactive-html: a hidden native file input is the only way to open the OS file picker; @databuddy/ui has no file input component */}
-			<input
-				accept={UPLOAD_ACCEPT}
-				className="hidden"
-				onChange={(event) => {
-					const file = event.target.files?.[0];
-					event.target.value = "";
-					if (file) {
-						onPickAction(file);
-					}
-				}}
-				ref={inputRef}
-				type="file"
-			/>
-			<Button
-				disabled={busy}
-				onClick={() => inputRef.current?.click()}
-				size="sm"
-				type="button"
-				variant="secondary"
-			>
-				{uploading ? "Uploading…" : "Upload"}
-			</Button>
-		</>
-	);
-}
 
 const optionalHttpsUrl = z
 	.string()
@@ -90,7 +50,7 @@ const URL_FIELDS = [
 		placeholder: "https://example.com/logo.svg",
 		asset: "logo",
 		description:
-			"Displayed in the navbar and page header. Upload a file or paste an https URL.",
+			"Displayed in the navbar and page header. Drop or upload a file, or paste an https URL.",
 	},
 	{
 		name: "faviconUrl",
@@ -386,14 +346,29 @@ export function StatusPageSheet({
 											<Field error={!!fieldState.error}>
 												<Field.Label>{label}</Field.Label>
 												{asset ? (
-													<div className="flex items-center gap-2">
-														<Input placeholder={placeholder} {...field} />
-														<AssetUploadButton
-															busy={uploading !== null}
-															onPickAction={(file) => uploadAsset(asset, file)}
-															uploading={uploading === asset}
-														/>
-													</div>
+													<FileDrop
+														accept={UPLOAD_ACCEPT}
+														disabled={uploading !== null}
+														label={`Upload ${label.toLowerCase()}`}
+														onFileAction={(file) => uploadAsset(asset, file)}
+													>
+														{({ open }) => (
+															<div className="flex items-center gap-2">
+																<Input placeholder={placeholder} {...field} />
+																<Button
+																	disabled={uploading !== null}
+																	onClick={open}
+																	size="sm"
+																	type="button"
+																	variant="secondary"
+																>
+																	{uploading === asset
+																		? "Uploading…"
+																		: "Upload"}
+																</Button>
+															</div>
+														)}
+													</FileDrop>
 												) : (
 													<Input placeholder={placeholder} {...field} />
 												)}

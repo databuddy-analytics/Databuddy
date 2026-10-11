@@ -9,6 +9,7 @@ export { Checkbox } from "./components/checkbox";
 export { DeleteDialog } from "./components/delete-dialog";
 export { Dialog } from "./components/dialog";
 export { DropdownMenu } from "./components/dropdown-menu";
+export { FileDrop } from "./components/file-drop";
 export { LineSlider } from "./components/line-slider";
 export { OtpInput } from "./components/otp-input";
 export {
