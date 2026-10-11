@@ -143,7 +143,6 @@ export default function ImportPage() {
 			file?.name,
 			file?.size,
 			file?.lastModified,
-			timezone,
 		],
 		enabled: Boolean(file && websiteData),
 		meta: { suppressGlobalErrorToast: true },
@@ -153,9 +152,10 @@ export default function ImportPage() {
 			if (!(file && websiteData)) {
 				return null;
 			}
+			const runId = crypto.randomUUID();
 			const contents = await readImportFile(file, {
 				domain: websiteData.domain,
-				runId: crypto.randomUUID(),
+				runId,
 				timezone,
 				websiteId,
 			});
@@ -165,7 +165,7 @@ export default function ImportPage() {
 					"This export has no pageviews in it. Check that it covers a period with traffic."
 				);
 			}
-			return { ...contents, summary };
+			return { ...contents, runId, summary };
 		},
 	});
 	const ready = preview.data ?? null;
@@ -176,7 +176,7 @@ export default function ImportPage() {
 			if (!ready) {
 				return;
 			}
-			const runId = crypto.randomUUID();
+			const { runId } = ready;
 			const batches = batchImportRecords(ready.records);
 
 			let rows = 0;
@@ -415,7 +415,7 @@ export default function ImportPage() {
 							</p>
 							<Button
 								aria-label="Start import"
-								disabled={!summary || runImport.isPending}
+								disabled={!summary || runImport.isPending || finished}
 								loading={runImport.isPending}
 								onClick={() => runImport.mutate()}
 							>

@@ -102,7 +102,7 @@ export async function readImportFile(
 ): Promise<ImportFileContents> {
 	if (file.size > MAX_IMPORT_FILE_BYTES) {
 		throw new ImportFileError(
-			`This file is larger than ${MAX_IMPORT_FILE_BYTES / 1024 / 1024} MB. Export a shorter date range and import each file separately.`
+			`This file is larger than ${MAX_IMPORT_FILE_BYTES / 1024 / 1024} MB. Export shorter date ranges and import each file with Replace previous import turned off.`
 		);
 	}
 	const bytes = new Uint8Array(await file.arrayBuffer());

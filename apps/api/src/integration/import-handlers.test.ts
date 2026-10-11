@@ -257,6 +257,49 @@ describe("imports.ingest", () => {
 		);
 	});
 
+	iit("writes only pages that belong to the website", async () => {
+		const client = await setup();
+
+		const result = await client.ingest({
+			websiteId: client.websiteId,
+			providerId: "plausible",
+			runId: crypto.randomUUID(),
+			timezone: "UTC",
+			records: [
+				{
+					grain: "rollup",
+					date: "2026-03-04",
+					dimension: null,
+					metrics: { visitors: 4, visits: 4, pageviews: 8 },
+				},
+				{
+					grain: "rollup",
+					date: "2026-03-04",
+					dimension: { kind: "page", value: "/", hostname: "example.com" },
+					metrics: { pageviews: 3 },
+				},
+				{
+					grain: "rollup",
+					date: "2026-03-04",
+					dimension: {
+						kind: "page",
+						value: "/admin",
+						hostname: "evil.example",
+					},
+					metrics: { pageviews: 5 },
+				},
+			],
+		});
+
+		const stored = await clickHouse.query({
+			query: `SELECT DISTINCT url FROM ${TABLE_NAMES.events} WHERE client_id = {websiteId:String} AND event_name = 'screen_view'`,
+			query_params: { websiteId: client.websiteId },
+			format: "JSONEachRow",
+		});
+		expect(result.rows).toBeGreaterThan(0);
+		expect(await stored.json()).toEqual([{ url: "https://example.com/" }]);
+	});
+
 	iit("refuses users outside the website's organization", async () => {
 		const client = await setup();
 		const outsider = await signUp();
