@@ -70,8 +70,7 @@ export const getErrorCategory = (errorMessage: string): ErrorCategory => {
 
 const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
 	high: "bg-destructive/10 text-destructive border-destructive/20",
-	medium:
-		"bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
+	medium: "bg-warning/10 text-warning border-warning/20",
 	low: "bg-muted text-muted-foreground border-border",
 };
 

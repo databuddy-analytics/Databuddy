@@ -176,20 +176,20 @@ function IncidentRow({
 	const isResolved = incident.status === "resolved";
 
 	const iconBg = isResolved
-		? "bg-emerald-500/10"
+		? "bg-success/10"
 		: incident.severity === "critical"
-			? "bg-red-500/10"
+			? "bg-destructive/10"
 			: incident.severity === "major"
-				? "bg-amber-500/10"
+				? "bg-warning/10"
 				: "bg-muted";
 
 	const StatusIcon = isResolved ? CheckCircleIcon : WarningCircleIcon;
 	const iconColor = isResolved
-		? "text-emerald-500"
+		? "text-success"
 		: incident.severity === "critical"
-			? "text-red-500"
+			? "text-destructive"
 			: incident.severity === "major"
-				? "text-amber-500"
+				? "text-warning"
 				: "text-muted-foreground";
 
 	const latestUpdate = incident.updates[0];
@@ -214,9 +214,9 @@ function IncidentRow({
 						className={cn(
 							"shrink-0 rounded px-1.5 py-0.5 font-semibold text-[10px]",
 							incident.severity === "critical"
-								? "bg-red-500/10 text-red-600 dark:text-red-400"
+								? "bg-destructive/10 text-destructive"
 								: incident.severity === "major"
-									? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+									? "bg-warning/10 text-warning"
 									: "bg-muted text-muted-foreground"
 						)}
 					>

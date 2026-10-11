@@ -363,7 +363,7 @@ export function WebsiteErrorState({
 							"flex size-12 items-center justify-center rounded-2xl",
 							type === "not_found" && "bg-accent",
 							(type === "unauthorized" || type === "forbidden") &&
-								"bg-orange-500/10",
+								"bg-warning/10",
 							type === "unknown" && "bg-destructive/10"
 						)}
 						role="img"
@@ -374,7 +374,7 @@ export function WebsiteErrorState({
 								"size-6",
 								type === "not_found" && "text-muted-foreground",
 								(type === "unauthorized" || type === "forbidden") &&
-									"text-orange-500 dark:text-orange-400",
+									"text-warning",
 								type === "unknown" && "text-destructive"
 							)}
 						/>
