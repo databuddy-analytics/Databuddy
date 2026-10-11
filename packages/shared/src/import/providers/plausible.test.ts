@@ -174,6 +174,55 @@ describe("plausible dashboard download", () => {
 		});
 	});
 
+	test("a multi-day download does not pile rounding onto the same breakdown values", async () => {
+		const days = Array.from(
+			{ length: 30 },
+			(_, index) =>
+				`2026-09-${String(index + 1).padStart(2, "0")},40,50,40,1.2,50,30`
+		);
+		const countries = [
+			"name,visitors",
+			"United States,1000",
+			...Array.from({ length: 100 }, (_, index) => `Country ${index},1`),
+		].join("\n");
+		const { records } = await readImportFile(
+			await zipFile({
+				"visitors.csv": [VISITORS_HEADER, ...days].join("\n"),
+				"pages.csv": SINGLE_DAY["pages.csv"],
+				"countries.csv": countries,
+			}),
+			context()
+		);
+
+		const byCountry = new Map<string, number>();
+		for (const { value, pageviews } of dimensions(records, "country")) {
+			byCountry.set(value, (byCountry.get(value) ?? 0) + (pageviews ?? 0));
+		}
+		expect(byCountry.get("United States")).toBe(1364);
+		expect(
+			Object.values(pageviewsByDay(records, "country")).every(
+				(pageviews) => pageviews === 50
+			)
+		).toBe(true);
+		for (let index = 0; index < 100; index += 1) {
+			expect(byCountry.get(`Country ${index}`)).toBeOneOf([1, 2]);
+		}
+	});
+
+	test("a single undated row is refused because it covers a week or month", async () => {
+		const read = readImportFile(
+			await zipFile({
+				"visitors.csv": [VISITORS_HEADER, "2026-09-28,30,40,30,1.3,50,10"].join(
+					"\n"
+				),
+				"pages.csv": SINGLE_DAY["pages.csv"],
+			}),
+			context()
+		);
+
+		await expect(read).rejects.toThrow("grouped by week or month");
+	});
+
 	test("a download grouped by month is refused with the export to use instead", async () => {
 		const read = readImportFile(
 			await zipFile({

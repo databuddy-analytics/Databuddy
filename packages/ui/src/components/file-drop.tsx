@@ -55,12 +55,12 @@ export function FileDrop({
 				}
 			}}
 			onDragOver={(event) => {
-				if (disabled || !hasFiles(event)) {
+				if (!hasFiles(event)) {
 					return;
 				}
 				event.preventDefault();
-				event.dataTransfer.dropEffect = "copy";
-				setDragging(true);
+				event.dataTransfer.dropEffect = disabled ? "none" : "copy";
+				setDragging(!disabled);
 			}}
 			onDrop={(event) => {
 				if (!hasFiles(event)) {

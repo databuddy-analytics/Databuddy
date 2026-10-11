@@ -221,6 +221,25 @@ export function isSameSite(
 	return host === site || host.endsWith(`.${site}`);
 }
 
+export function allocate(total: number, weights: number[]): number[] {
+	const sum = weights.reduce((acc, weight) => acc + weight, 0);
+	if (sum <= 0 || total <= 0) {
+		return weights.map(() => 0);
+	}
+	const exact = weights.map((weight) => (weight * total) / sum);
+	const floored = exact.reduce((acc, value) => acc + Math.floor(value), 0);
+	const roundedUp = new Set(
+		exact
+			.map((value, index) => ({ index, remainder: value - Math.floor(value) }))
+			.sort((a, b) => b.remainder - a.remainder)
+			.slice(0, total - floored)
+			.map(({ index }) => index)
+	);
+	return exact.map(
+		(value, index) => Math.floor(value) + (roundedUp.has(index) ? 1 : 0)
+	);
+}
+
 export class ImportFileError extends Error {}
 
 export class UnrecognizedImportFileError extends ImportFileError {}

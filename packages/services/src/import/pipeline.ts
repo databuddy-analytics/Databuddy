@@ -8,10 +8,12 @@ import {
 	TABLE_NAMES,
 } from "@databuddy/db/clickhouse";
 import {
+	allocate,
 	ImportFileError,
 	type ImportContext,
 	type ImportedEvent,
 	type ImportRecord,
+	isSameSite,
 	MAX_BATCH_PAGEVIEWS,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
@@ -173,21 +175,35 @@ interface PlannedSession {
 
 function assignDimension(
 	sessions: PlannedSession[],
-	totals: DimensionTotal[]
+	totals: DimensionTotal[],
+	pageviews: number
 ): Array<string | undefined> {
-	const assigned = Array.from<string | undefined>({
-		length: sessions.length,
-	});
-	let session = 0;
-	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
-		let budget = total.pageviews;
-		let planned = sessions[session];
-		while (budget > 0 && planned !== undefined) {
-			assigned[session] = total.value;
-			budget -= planned.pageviews;
-			session += 1;
-			planned = sessions[session];
+	const listed = totals.reduce((acc, total) => acc + total.pageviews, 0);
+	const budgets = [
+		...totals.map((total) => total.pageviews),
+		Math.max(0, pageviews - listed),
+	];
+	const assigned = Array.from<string | undefined>({ length: sessions.length });
+	let start = 0;
+	while (start < sessions.length) {
+		const size = sessions[start]?.pageviews ?? 0;
+		let end = start;
+		while (sessions[end]?.pageviews === size) {
+			end += 1;
 		}
+		const counts = allocate(
+			end - start,
+			budgets.map((budget) => Math.max(0, budget))
+		);
+		let session = start;
+		for (const [index, count] of counts.entries()) {
+			budgets[index] = (budgets[index] ?? 0) - count * size;
+			for (let n = 0; n < count; n += 1) {
+				assigned[session] = totals[index]?.value;
+				session += 1;
+			}
+		}
+		start = end;
 	}
 	return assigned;
 }
@@ -313,7 +329,7 @@ export function synthesizeDate(
 	const sessionDimensions = new Map(
 		[...bucket.dimensions].map(([kind, totals]) => [
 			kind,
-			assignDimension(sessions, totals),
+			assignDimension(sessions, totals, slots.length),
 		])
 	);
 	const dimensionsFor = (session: number): Partial<ImportedEvent> => {
@@ -585,8 +601,14 @@ export async function ingestImportBatch(
 		);
 	}
 
-	const buckets = bucketRollups(batch.records);
-	const events: ImportedEvent[] = batch.records.filter(
+	const records = batch.records.filter((record) =>
+		isSameSite(
+			record.grain === "event" ? record.hostname : record.dimension?.hostname,
+			batch.domain
+		)
+	);
+	const buckets = bucketRollups(records);
+	const events: ImportedEvent[] = records.filter(
 		(record): record is Extract<ImportRecord, { grain: "event" }> =>
 			record.grain === "event"
 	);

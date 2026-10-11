@@ -70,6 +70,10 @@ test("checks a picked export before importing, then imports a dropped Plausible 
 		"Pageviews9",
 	]);
 	await expect(startImport).toBeEnabled();
+	const timezone = page.getByRole("textbox", { name: "Timezone in Plausible" });
+	await timezone.fill("");
+	await timezone.pressSequentially("Europe/Berlin");
+	await expect(timezone).toHaveValue("Europe/Berlin");
 
 	await startImport.click();
 	await expect(page.getByText("Import complete")).toBeVisible({
@@ -78,4 +82,5 @@ test("checks a picked export before importing, then imports a dropped Plausible 
 	await expect(
 		page.getByRole("link", { name: "Open dashboard" })
 	).toBeVisible();
+	await expect(startImport).toBeDisabled();
 });

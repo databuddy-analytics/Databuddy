@@ -245,7 +245,11 @@ function trafficDays(days: DashboardDay[]): DashboardDay[] {
 	return days.filter((day) => day.pageviews > 0);
 }
 
-function hasDailyGaps(days: DashboardDay[]): boolean {
+function isGroupedByWeekOrMonth(days: DashboardDay[]): boolean {
+	const [onlyDay] = days;
+	if (days.length === 1 && onlyDay && !onlyDay.hourly) {
+		return true;
+	}
 	return days.some((day, index) => {
 		const previous = days[index - 1];
 		return (
@@ -256,23 +260,44 @@ function hasDailyGaps(days: DashboardDay[]): boolean {
 	});
 }
 
-function allocate(total: number, weights: number[]): number[] {
+function spreadOverDays(dayTotals: number[], weights: number[]): number[][] {
 	const sum = weights.reduce((acc, weight) => acc + weight, 0);
-	if (sum <= 0 || total <= 0) {
-		return weights.map(() => 0);
-	}
-	const exact = weights.map((weight) => (weight * total) / sum);
-	const floored = exact.reduce((acc, value) => acc + Math.floor(value), 0);
-	const roundedUp = new Set(
-		exact
-			.map((value, index) => ({ index, remainder: value - Math.floor(value) }))
-			.sort((a, b) => b.remainder - a.remainder)
-			.slice(0, total - floored)
-			.map(({ index }) => index)
-	);
-	return exact.map(
-		(value, index) => Math.floor(value) + (roundedUp.has(index) ? 1 : 0)
-	);
+	const given = weights.map(() => 0);
+	let cumulative = 0;
+	return dayTotals.map((total) => {
+		cumulative += total;
+		const owed = weights.map((weight, index) =>
+			sum > 0 ? (weight * cumulative) / sum - (given[index] ?? 0) : 0
+		);
+		const shares = owed.map((value) => Math.max(0, Math.round(value)));
+		let difference = total - shares.reduce((acc, share) => acc + share, 0);
+		const byShortfall = owed
+			.map((value, index) => ({ index, gap: value - (shares[index] ?? 0) }))
+			.sort((a, b) => b.gap - a.gap)
+			.map(({ index }) => index);
+		const order = difference > 0 ? byShortfall : byShortfall.reverse();
+		while (difference !== 0) {
+			const step = difference > 0 ? 1 : -1;
+			const before = difference;
+			for (const index of order) {
+				if (difference === 0) {
+					break;
+				}
+				if (step < 0 && (shares[index] ?? 0) === 0) {
+					continue;
+				}
+				shares[index] = (shares[index] ?? 0) + step;
+				difference -= step;
+			}
+			if (difference === before) {
+				break;
+			}
+		}
+		for (const [index, share] of shares.entries()) {
+			given[index] = (given[index] ?? 0) + share;
+		}
+		return shares;
+	});
 }
 
 async function* dashboardRecords(
@@ -305,7 +330,7 @@ async function* dashboardRecords(
 		}
 	}
 
-	if (hasDailyGaps(days)) {
+	if (isGroupedByWeekOrMonth(days)) {
 		throw new ImportFileError(GROUPED_INTERVAL);
 	}
 	days = trafficDays(days);
@@ -320,7 +345,16 @@ async function* dashboardRecords(
 	}
 	const periodVisitors =
 		deviceVisitors || days.reduce((acc, day) => acc + day.visitors, 0);
-	for (const day of days) {
+	const spreads = breakdowns.map(({ partial, rows }) => {
+		const weights = rows.map((row) => row.weight);
+		const listed = weights.reduce((acc, weight) => acc + weight, 0);
+		const unlisted = partial ? Math.max(0, periodVisitors - listed) : 0;
+		return spreadOverDays(
+			days.map((day) => day.pageviews),
+			[...weights, unlisted]
+		);
+	});
+	for (const [dayIndex, day] of days.entries()) {
 		yield {
 			grain: "rollup",
 			date: day.date,
@@ -333,11 +367,8 @@ async function* dashboardRecords(
 				durationSeconds: day.durationSeconds,
 			},
 		};
-		for (const { kind, partial, rows } of breakdowns) {
-			const weights = rows.map((row) => row.weight);
-			const listed = weights.reduce((acc, weight) => acc + weight, 0);
-			const unlisted = partial ? Math.max(0, periodVisitors - listed) : 0;
-			const shares = allocate(day.pageviews, [...weights, unlisted]);
+		for (const [breakdownIndex, { kind, rows }] of breakdowns.entries()) {
+			const shares = spreads[breakdownIndex]?.[dayIndex] ?? [];
 			for (const [index, row] of rows.entries()) {
 				const pageviews = shares[index] ?? 0;
 				if (pageviews > 0) {
