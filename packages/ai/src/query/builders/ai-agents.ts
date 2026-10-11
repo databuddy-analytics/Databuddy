@@ -60,13 +60,20 @@ const MIDDLEWARE_START = firstRequestFrom("middleware");
 const SERVER_SIDE_START = `least(${VERCEL_START}, ${MIDDLEWARE_START})`;
 const SERVER_TRACKING_SINCE = `nullIf(${SERVER_SIDE_START}, toDateTime64('2100-01-01', 3))`;
 
-const AGENT_ROW = `client_id = {websiteId:String}
-	AND agent_id != ''
-	AND multiIf(
+const SPAN_SOURCE = `multiIf(
 		source = 'vercel', ${MIDDLEWARE_START} <= ${VERCEL_START} OR timestamp < ${MIDDLEWARE_START},
 		source = 'middleware', ${VERCEL_START} <= ${MIDDLEWARE_START} OR timestamp < ${VERCEL_START},
 		timestamp < ${SERVER_SIDE_START}
 	)`;
+
+const AGENT_ROW = `client_id = {websiteId:String}
+	AND agent_id != ''
+	AND ${SPAN_SOURCE}`;
+
+const SEARCH_ENGINE_ROW = `client_id = {websiteId:String}
+	AND agent_id = ''
+	AND bot_type = 'search_engine'
+	AND ${SPAN_SOURCE}`;
 
 const IN_RANGE = `timestamp >= toDateTime({startDate:String})
 	AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))`;
@@ -664,6 +671,62 @@ export const AiAgentsBuilders = {
 				FROM ${Analytics.ai_traffic_spans}
 				WHERE ${AGENT_REQUEST_IN_RANGE}
 				GROUP BY agent_id
+				ORDER BY requests DESC
+				LIMIT {limit:UInt32}
+			`,
+			params: { ...queryParams(ctx), limit: ctx.limit ?? 50 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	search_engine_crawlers: {
+		meta: {
+			title: "Search Engine Crawlers",
+			description:
+				"Each search engine crawler (Googlebot, Bingbot and others) that read your pages, with request count, distinct pages read, last request, and how many were rendered pages that ran your tracker versus requests seen on the server. Use it to compare search crawling with AI crawling; these requests are never counted as visitors.",
+			category: "AI Agents",
+			tags: [
+				"search engines",
+				"googlebot",
+				"bingbot",
+				"crawlers",
+				"bots",
+				"seo",
+			],
+			output_fields: [
+				{ name: "name", type: "string", label: "Crawler" },
+				{ name: "requests", type: "number", label: "Requests" },
+				{ name: "pages", type: "number", label: "Pages read" },
+				{ name: "last_seen", type: "datetime", label: "Last request" },
+				{
+					name: "rendered",
+					type: "number",
+					label: "Rendered pages seen by the tracker",
+				},
+				{
+					name: "server",
+					type: "number",
+					label: "Requests seen on the server",
+				},
+			],
+			default_visualization: "table",
+		},
+		commonFilters: false,
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					bot_name AS name,
+					count() AS requests,
+					uniqIf(${PAGE}, ${IS_PAGE}) AS pages,
+					max(timestamp) AS last_seen,
+					countIf(source = 'tracker') AS rendered,
+					countIf(source != 'tracker') AS server
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${SEARCH_ENGINE_ROW}
+					AND (status_code = 0 OR status_code BETWEEN 200 AND 299)
+					AND ${IN_RANGE}
+				GROUP BY name
 				ORDER BY requests DESC
 				LIMIT {limit:UInt32}
 			`,
