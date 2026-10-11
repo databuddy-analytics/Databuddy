@@ -11,7 +11,6 @@ on:
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
-      - "apps/insights/**"
       - "apps/links/**"
       - "infra/ingest/**"
       - "packages/**"
@@ -30,7 +29,6 @@ on:
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
-      - "apps/insights/**"
       - "apps/links/**"
       - "infra/ingest/**"
       - "packages/**"
@@ -55,7 +53,6 @@ jobs:
     outputs:
       api: ${{ steps.detect.outputs.api }}
       basket: ${{ steps.detect.outputs.basket }}
-      insights: ${{ steps.detect.outputs.insights }}
       links: ${{ steps.detect.outputs.links }}
       selfhost: ${{ steps.detect.outputs.selfhost }}
       vector: ${{ steps.detect.outputs.vector }}
@@ -72,7 +69,7 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          checks=(api basket insights links selfhost vector)
+          checks=(api basket links selfhost vector)
           run_all() {
             for check in "${checks[@]}"; do
               echo "$check=true" >> "$GITHUB_OUTPUT"
@@ -92,7 +89,7 @@ jobs:
             run_all
           fi
           affected=$(TURBO_SCM_BASE="$base" TURBO_SCM_HEAD=HEAD bunx turbo@2.11.1 ls --affected --output=json | jq -r '.packages.items[].name')
-          for svc in api basket insights links; do
+          for svc in api basket links; do
             if grep -qx "@databuddy/$svc" <<< "$affected" || grep -qx "$svc\.Dockerfile" <<< "$changed"; then
               echo "$svc=true" >> "$GITHUB_OUTPUT"
             else
@@ -589,131 +586,6 @@ jobs:
           fi
 
           echo "Basket health check passed!"
-
-  insights-health-check:
-    name: Insights Health Check
-    needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.insights == 'true') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 20
-
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: databuddy_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d databuddy_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:25.5.1-alpine
-        env:
-          CLICKHOUSE_DB: databuddy_analytics
-          CLICKHOUSE_USER: default
-          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-        ports:
-          - 8123:8123
-        options: >-
-          --ulimit nofile=262144:262144
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-start-period 30s
-          --health-retries 12
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Mount Docker build cache
-        uses: useblacksmith/stickydisk@94697d49e77d0dd78b77deb85ad3de63a28b4b8a # v1.7.1
-        with:
-          key: ${{ github.repository }}-docker-build-cache
-          path: /tmp/docker-build-cache
-
-      - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@e4c1c000c95f9cc255f72940e9c56bcbd1239436 # v1.13.0
-
-      - name: Build Insights Docker image
-        uses: useblacksmith/build-push-action@9b0579bbec7a6cad2f171596c57e7ac1e7658850 # v2.3.0
-        with:
-          context: .
-          file: ./insights.Dockerfile
-          push: false
-          load: true
-          tags: insights:test
-
-      - name: Run Insights health check
-        run: |
-          set -euo pipefail
-          trap 'docker rm -f insights-health-check >/dev/null 2>&1 || true' EXIT
-
-          docker run -d \
-            --name insights-health-check \
-            --network host \
-            -e NODE_ENV=production \
-            -e PORT=4002 \
-            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
-            -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
-            -e REDIS_URL=redis://localhost:6379 \
-            -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
-            -e INSIGHTS_WORKER_CONCURRENCY=1 \
-            -e INSIGHTS_WORKER_ENABLED=true \
-            -e BETTER_AUTH_SECRET=test-better-auth-secret-for-health-checks \
-            -e AI_GATEWAY_API_KEY=test-ai-gateway-key \
-            insights:test
-
-          echo "Waiting for Insights to start..."
-          for i in {1..30}; do
-            if curl -sf http://localhost:4002/health > /dev/null 2>&1; then
-              echo "Insights is responding!"
-              break
-            fi
-            if [ $i -eq 30 ]; then
-              echo "Insights failed to start within 30 seconds"
-              docker logs insights-health-check
-              exit 1
-            fi
-            sleep 1
-          done
-
-          STATUS_BODY=$(curl -sS http://localhost:4002/health/status)
-          echo "Insights /health/status: $STATUS_BODY"
-          if echo "$STATUS_BODY" | jq -e '.status == "ok" or .status == "degraded"' > /dev/null; then
-            echo "Insights dependency health is valid"
-          else
-            echo "Insights dependency health is not ok"
-            docker logs insights-health-check
-            exit 1
-          fi
-
-          RESPONSE=$(curl -sf http://localhost:4002/health || echo '{}')
-          echo "Insights /health: $RESPONSE"
-
-          if echo "$RESPONSE" | jq -e '.workerEnabled == true' > /dev/null; then
-            echo "Insights health endpoint structure is valid"
-          else
-            echo "Insights health endpoint response missing expected workerEnabled=true"
-            docker logs insights-health-check
-            exit 1
-          fi
-
-          echo "Insights health check passed!"
 
   links-health-check:
     name: Links Health Check

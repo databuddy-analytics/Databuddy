@@ -11,7 +11,6 @@ Keep it boring: fewer services, readable names, shared variables, and no custom 
 | `Status` | GitHub repo | Yes, port `3002` | Public status pages |
 | `API` | `ghcr.io/databuddy-analytics/databuddy-api:latest` after CI publish, or repo + `api.Dockerfile` for seed testing | Yes, port `3001` | RPC/API, auth callbacks, AI, admin APIs |
 | `Events` | `ghcr.io/databuddy-analytics/databuddy-basket:latest` | Yes, port `4000` | Analytics event ingestion/webhooks |
-| `Insights` | `ghcr.io/databuddy-analytics/databuddy-insights:latest` | No, port `4002` | Investigation scheduler and worker |
 | `Init` | GitHub repo + `init.Dockerfile` | No | One-shot Postgres/ClickHouse schema setup |
 | `Postgres` | Railway Postgres | No | Relational app data |
 | `Redis` | Railway Redis | No | Cache, sessions, queues |
@@ -28,7 +27,6 @@ Keep `Links` optional unless the template supports Databuddy Links out of the bo
 - `Status`: pulse/status icon.
 - `API`: server/API icon.
 - `Events`: lightning/activity icon.
-- `Insights`: spark/search icon.
 - `Postgres`, `Redis`, `ClickHouse`: official database icons.
 - `Links`: link icon.
 
@@ -38,8 +36,7 @@ Place services left-to-right by user mental model:
 Dashboard → API → Postgres
 Status → API
           ↘ Events → ClickHouse
-          ↘ Insights → ClickHouse
-             Redis shared by API/Events/Insights/Links
+             Redis shared by API/Events/Links
 Links optional, below API
 ```
 
@@ -130,25 +127,6 @@ DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
 SELFHOST=${{shared.SELFHOST}}
 ```
 
-### Insights
-
-```txt
-PORT=4002
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-REDIS_URL=${{Redis.REDIS_URL}}
-BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
-CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
-DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
-BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
-DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
-AI_GATEWAY_API_KEY=${{shared.AI_GATEWAY_API_KEY}}
-RESEND_API_KEY=${{API.RESEND_API_KEY}}
-EMAIL_FROM=${{API.EMAIL_FROM}}
-API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
-INSIGHTS_WORKER_ENABLED=true
-SELFHOST=${{shared.SELFHOST}}
-```
-
 ### Init
 
 Run once after Postgres and ClickHouse are available. It is safe to re-run after schema changes.
@@ -185,7 +163,6 @@ no-eviction policy; connectivity alone cannot prove those server-side settings.
 - `Status`: `/health`
 - `API`: `/health`
 - `Events`: `/health`
-- `Insights`: `/health/status`
 - `Links`: `/health/status`
 - `ClickHouse`: `/ping`
 

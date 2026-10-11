@@ -198,27 +198,6 @@ services:
       timeout: 10s
       test: [ "CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
 
-  insights:
-    <<: *backend
-    image: ghcr.io/databuddy-analytics/databuddy-insights:${IMAGE_TAG:?Set IMAGE_TAG to a release tag}
-    ports:
-      - "${INSIGHTS_PORT:-4002}:4002"
-    environment:
-      <<: *environment
-      PORT: "4002"
-      SERVICE_NAME: databuddy-insights
-      INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-2}
-      INSIGHTS_WORKER_ENABLED: "${AI_GATEWAY_API_KEY:+true}"
-      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
-      CONTEXT_DEV_API_KEY: ${CONTEXT_DEV_API_KEY:-}
-      SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
-      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
-      DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY}
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
-    healthcheck:
-      <<: *http-healthcheck
-      test: [ "CMD", "bun", "-e", "fetch('http://127.0.0.1:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
-
   links:
     <<: *backend
     stop_grace_period: 35s
