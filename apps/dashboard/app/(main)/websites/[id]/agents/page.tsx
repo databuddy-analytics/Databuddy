@@ -1561,14 +1561,34 @@ function SearchEngineCard({
 	);
 }
 
+function SearchEngineCardSkeleton() {
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				<Skeleton className="size-7 rounded" />
+				<Skeleton className="h-4 w-24" />
+			</div>
+			<div>
+				<Skeleton className="h-7 w-20" />
+				<div className="my-1.5">
+					<Skeleton className="h-9 w-full" />
+				</div>
+				<Skeleton className="h-4 w-40" />
+			</div>
+		</div>
+	);
+}
+
 function SearchEnginesSection({
 	aiReads,
 	isHourly,
+	isLoading,
 	rows,
 	trend,
 }: {
 	aiReads: number;
 	isHourly: boolean;
+	isLoading: boolean;
 	rows: SearchEngineRow[];
 	trend: (name: string) => TrendPoint[];
 }) {
@@ -1583,17 +1603,25 @@ function SearchEnginesSection({
 						counted as visitors.
 					</p>
 				</div>
-				<ReadShare ai={aiReads} search={searchReads} />
+				{isLoading ? (
+					<Skeleton className="h-8 w-full max-w-64" />
+				) : (
+					<ReadShare ai={aiReads} search={searchReads} />
+				)}
 			</div>
 			<div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-				{rows.map((row) => (
-					<SearchEngineCard
-						isHourly={isHourly}
-						key={row.name}
-						row={row}
-						trend={trend(row.name)}
-					/>
-				))}
+				{isLoading
+					? ["first", "second", "third"].map((slot) => (
+							<SearchEngineCardSkeleton key={slot} />
+						))
+					: rows.map((row) => (
+							<SearchEngineCard
+								isHourly={isHourly}
+								key={row.name}
+								row={row}
+								trend={trend(row.name)}
+							/>
+						))}
 			</div>
 		</div>
 	);
@@ -2816,10 +2844,11 @@ export default function AgentsPage() {
 						/>
 					) : null}
 
-					{searchEngines.length > 0 ? (
+					{isPending || searchEngines.length > 0 ? (
 						<SearchEnginesSection
 							aiReads={totalOf(products, "requests")}
 							isHourly={isHourly}
+							isLoading={isPending}
 							rows={searchEngines}
 							trend={searchEngineTrend}
 						/>
