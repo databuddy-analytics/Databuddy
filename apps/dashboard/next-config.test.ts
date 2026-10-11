@@ -110,6 +110,7 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 				SELFHOST: selfhost,
 				NEXT_PUBLIC_API_URL: "https://api.example.com/prefix",
 				NEXT_PUBLIC_BASKET_URL: "https://events.example.com:8443",
+				STORAGE_ENDPOINT: "https://storage.example.com/bucket",
 			},
 			async () => {
 				for (const source of [
@@ -133,6 +134,7 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 						}
 					}
 					expect(connect).toContain("https://*.databuddy.cc");
+					expect(connectSources).toContain("https://storage.example.com");
 					expect(connect).not.toContain("/prefix");
 					expect(csp).not.toContain("'unsafe-eval'");
 				}
