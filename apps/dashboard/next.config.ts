@@ -139,6 +139,10 @@ const nextConfig: NextConfig = {
 							"http://localhost:4000",
 					].map((url) => new URL(url).origin)
 				: []),
+			new URL(
+				process.env.STORAGE_ENDPOINT?.trim() ||
+					"https://databuddy-static.t3.storage.dev"
+			).origin,
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",
 			"https://api.openai.com",
