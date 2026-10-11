@@ -1,7 +1,9 @@
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { safeFetch, SsrfError } from "@databuddy/shared/ssrf-guard";
 import { getClientIp } from "@databuddy/shared/utils/client-ip";
+import { useLogger } from "evlog/next";
 import { type NextRequest, NextResponse } from "next/server";
+import { withEvlog } from "@/lib/evlog";
 
 const ALLOWED_CONTENT_TYPES = [
 	"image/jpeg",
@@ -14,7 +16,8 @@ const ALLOWED_CONTENT_TYPES = [
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const TIMEOUT_MESSAGE_PATTERN = /timed out/;
 
-export async function GET(request: NextRequest) {
+export const GET = withEvlog(async (request: NextRequest) => {
+	const log = useLogger();
 	// Without a configured trusted proxy, unverified traffic shares one bucket
 	// instead of letting client-controlled forwarding headers bypass the limit.
 	const clientIp = getClientIp(request.headers) ?? "unverified";
@@ -34,6 +37,8 @@ export async function GET(request: NextRequest) {
 			{ status: 400 }
 		);
 	}
+
+	log.set({ image: { host: URL.parse(url)?.host } });
 
 	try {
 		const response = await safeFetch(url, {
@@ -88,9 +93,10 @@ export async function GET(request: NextRequest) {
 		if (error instanceof Error && TIMEOUT_MESSAGE_PATTERN.test(error.message)) {
 			return NextResponse.json({ error: "Request timeout" }, { status: 504 });
 		}
+		log.error(error instanceof Error ? error : String(error));
 		return NextResponse.json(
 			{ error: "Failed to fetch image" },
 			{ status: 500 }
 		);
 	}
-}
+});

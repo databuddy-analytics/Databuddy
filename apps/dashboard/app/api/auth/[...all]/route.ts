@@ -5,6 +5,7 @@ import {
 } from "@databuddy/auth";
 import { oauthAuth } from "@databuddy/auth/oauth";
 import { toNextJsHandler } from "better-auth/next-js";
+import { withEvlog } from "@/lib/evlog";
 
 const handlers = toNextJsHandler(oauthAuth.handler);
 
@@ -57,10 +58,12 @@ async function withAuditContext<T>(
 	);
 }
 
-export function GET(request: Parameters<typeof handlers.GET>[0]) {
-	return withAuditContext(request, () => handlers.GET(request));
-}
+// evlog-map-disable-next-line audit -- the auth-audit plugin in @databuddy/auth audits every auth request
+export const GET = withEvlog((request: Parameters<typeof handlers.GET>[0]) =>
+	withAuditContext(request, () => handlers.GET(request))
+);
 
-export function POST(request: Parameters<typeof handlers.POST>[0]) {
-	return withAuditContext(request, () => handlers.POST(request));
-}
+// evlog-map-disable-next-line audit -- the auth-audit plugin in @databuddy/auth audits every auth request
+export const POST = withEvlog((request: Parameters<typeof handlers.POST>[0]) =>
+	withAuditContext(request, () => handlers.POST(request))
+);

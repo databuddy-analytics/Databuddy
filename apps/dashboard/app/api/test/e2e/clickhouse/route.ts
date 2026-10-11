@@ -1,3 +1,4 @@
+// evlog-map-disable -- test-only route; returns 404 unless DATABUDDY_E2E_MODE is set
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { generateAnalytics, seedAnalytics } from "@databuddy/db/seed";
 import { readBooleanEnv } from "@databuddy/env/app";
