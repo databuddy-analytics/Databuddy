@@ -544,10 +544,7 @@ function FirstReview({
 			: null;
 
 	return (
-		<Card
-			aria-label="First review"
-			className={FIRST_REVIEW_CARD_CLASSES[status.badgeVariant]}
-		>
+		<Card aria-label="First review">
 			<Card.Content className="flex flex-wrap items-start gap-3 py-5 sm:flex-nowrap">
 				<span className="flex size-10 shrink-0 items-center justify-center rounded bg-card/70 ring-1 ring-border/50 ring-inset">
 					{status.icon}
@@ -584,14 +581,6 @@ function FirstReview({
 		</Card>
 	);
 }
-
-const FIRST_REVIEW_CARD_CLASSES = {
-	destructive: "border-destructive/30 bg-destructive/5",
-	muted: "border-border/70 bg-muted/20",
-	primary: "border-primary/20 bg-primary/[0.025]",
-	success: "border-success/30 bg-success/5",
-	warning: "border-warning/30 bg-warning/5",
-} as const;
 
 const FIRST_REVIEW_STATUSES = {
 	needs_tracking: {
@@ -685,7 +674,7 @@ const FIRST_REVIEW_STATUSES = {
 	{
 		action: "review" | "tracking" | null;
 		badgeLabel: string;
-		badgeVariant: keyof typeof FIRST_REVIEW_CARD_CLASSES;
+		badgeVariant: "destructive" | "muted" | "primary" | "success" | "warning";
 		description: string;
 		icon: ReactNode;
 		title: string;
