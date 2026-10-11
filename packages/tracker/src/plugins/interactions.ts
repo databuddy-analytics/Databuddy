@@ -41,7 +41,7 @@ const FOLLOWABLE_LINK_SELECTOR = 'a[href]:not([href^="javascript:"])';
 const FORM_FIELD_SELECTOR = "input,select,textarea";
 
 const GENERATED_TOKEN =
-	/^[:_-]|\d{3,}|[0-9a-f]{8,}|:r[0-9a-z]+:|«r[0-9a-z]+»|_r_[0-9a-z]+_/i;
+	/^[:_-]|\d{3,}|[0-9a-f]{8,}|:r[0-9a-z]+:|«r[0-9a-z]+»|_r_[0-9a-z]+_|(?:^|-)v-\d+(?:-\d+)*$/i;
 const COUNTRY_SUFFIX =
 	/^(?:ac|co|com|edu|go|gob|gov|ltd|ne|net|nic|or|org|plc)\.(?!(?:ai|fm|gg|io|me|sh|so|to|tv)$)[a-z]{2}$/;
 const TARGET_MAX_LENGTH = 32;
