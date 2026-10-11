@@ -2,12 +2,15 @@ import { Analytics } from "../../types/tables";
 import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
+const isOldTrackerFormField = (column: string) =>
+	`(match(${column}, '^(select|textarea|label):') OR (startsWith(${column}, 'input:') AND NOT match(${column}, '^input:(button|submit|reset|image):')))`;
+
 export const EngagementBuilders = {
 	frustration_by_page: {
 		meta: {
 			title: "Frustration by Page",
 			description:
-				"Rage clicks, dead clicks, and errors per page view, with the control most often involved.",
+				"Rage clicks, dead clicks, and errors per page view, with the control most often involved. Form-field clicks reported by trackers older than October 2026 are left out.",
 			category: "Engagement",
 			tags: ["frustration", "rage clicks", "dead clicks", "engagement"],
 			output_fields: [
@@ -57,11 +60,11 @@ export const EngagementBuilders = {
 						decodeURLComponent(${Expressions.path.normalized}) as name,
 						COUNT(*) as page_views,
 						uniq(anonymous_id) as visitors,
-						ROUND(100 * countIf(rage_click_count > 0) / COUNT(*), 1) as rage_click_rate,
-						ROUND(100 * countIf(dead_click_count > 0) / COUNT(*), 1) as dead_click_rate,
+						ROUND(100 * countIf(rage_click_count > 0 AND NOT ${isOldTrackerFormField("rage_click_target")}) / COUNT(*), 1) as rage_click_rate,
+						ROUND(100 * countIf(dead_click_count > 0 AND NOT ${isOldTrackerFormField("dead_click_target")}) / COUNT(*), 1) as dead_click_rate,
 						ROUND(100 * countIf(error_count > 0) / COUNT(*), 1) as error_rate,
-						topKIf(1)(dead_click_target, dead_click_target != '')[1] as top_dead_click_target,
-						topKIf(1)(rage_click_target, rage_click_target != '')[1] as top_rage_click_target
+						topKIf(1)(dead_click_target, dead_click_target != '' AND NOT ${isOldTrackerFormField("dead_click_target")})[1] as top_dead_click_target,
+						topKIf(1)(rage_click_target, rage_click_target != '' AND NOT ${isOldTrackerFormField("rage_click_target")})[1] as top_rage_click_target
 					FROM ${Analytics.engagement_spans}
 					WHERE
 						client_id = {websiteId:String}
