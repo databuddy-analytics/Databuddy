@@ -45,6 +45,7 @@ import {
 import {
 	hasInvestigationAllowance,
 	INVESTIGATION_USAGE,
+	SELF_HOSTED_INVESTIGATIONS_MESSAGE,
 } from "@databuddy/shared/billing";
 import { auditedProcedure, type Context, protectedProcedure } from "../orpc";
 import { hasAccess, withWorkspace } from "../procedures/with-workspace";
@@ -976,6 +977,9 @@ async function insertInsightRunOrFindActive(
 async function requireInvestigationsAccess(
 	organizationId: string
 ): Promise<void> {
+	if (billingMode() === "selfhost") {
+		throw rpcError.badRequest(SELF_HOSTED_INVESTIGATIONS_MESSAGE);
+	}
 	if (billingMode() !== "live") {
 		if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
 			throw rpcError.badRequest(

@@ -28,6 +28,9 @@ export const INVESTIGATION_USAGE = {
 		"Business and Scale include monthly investigations. Extras cost $1 per completed investigation.",
 } as const;
 
+export const SELF_HOSTED_INVESTIGATIONS_MESSAGE =
+	"Investigations run on Databuddy Cloud and are not available on self-hosted instances.";
+
 export function hasInvestigationAllowance(
 	balance:
 		| { granted: number; unlimited: boolean; overageAllowed: boolean }

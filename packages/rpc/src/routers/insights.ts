@@ -5,6 +5,7 @@ import { getClientIp } from "@databuddy/shared/utils/client-ip";
 import {
 	hasInvestigationAllowance,
 	INVESTIGATION_USAGE,
+	SELF_HOSTED_INVESTIGATIONS_MESSAGE,
 } from "@databuddy/shared/billing";
 import { appliedInsightActionReply } from "@databuddy/shared/insights";
 import {
@@ -111,14 +112,11 @@ const appendInvestigationReplyInputSchema = z
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
-const investigationAIMissing = () =>
-	readBooleanEnv("SELFHOST") && !process.env.AI_GATEWAY_API_KEY?.trim();
+const isSelfHosted = () => readBooleanEnv("SELFHOST");
 
-function requireInvestigationAI() {
-	if (investigationAIMissing()) {
-		throw rpcError.badRequest(
-			"AI is not set up on this Databuddy instance. Ask your administrator to configure it before continuing an investigation."
-		);
+function requireHostedInvestigations() {
+	if (isSelfHosted()) {
+		throw rpcError.badRequest(SELF_HOSTED_INVESTIGATIONS_MESSAGE);
 	}
 }
 
@@ -176,7 +174,7 @@ export async function queueDefinitionChangeRechecks(input: {
 	type: RecheckableDefinitionType;
 	websiteId: string;
 }): Promise<void> {
-	if (investigationAIMissing()) {
+	if (isSelfHosted()) {
 		return;
 	}
 	const subjectPrefix = `${input.type}:${input.definitionId}`;
@@ -596,7 +594,7 @@ export async function appendInvestigationReply(
 		? `${insight.organizationId}_${parsed.replyId}`
 		: randomUUIDv7();
 
-	requireInvestigationAI();
+	requireHostedInvestigations();
 	const author = replyAuthor(context, authorName);
 	if (parsed.intent === "analysis" && !author.authorId) {
 		throw rpcError.badRequest(
@@ -920,7 +918,7 @@ async function applyInsightAction(input: {
 	});
 	setAuditOrganization(context, target.organizationId);
 
-	requireInvestigationAI();
+	requireHostedInvestigations();
 	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
@@ -1629,7 +1627,7 @@ export const insightsRouter = {
 				websiteId: reply.websiteId,
 			});
 			setAuditOrganization(context, reply.organizationId);
-			requireInvestigationAI();
+			requireHostedInvestigations();
 			const pendingStatus = await db.transaction(async (tx) => {
 				const insightCase = and(
 					eq(analyticsInsights.organizationId, reply.organizationId),

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, mock, test } from "bun:test";
+import { SELF_HOSTED_INVESTIGATIONS_MESSAGE } from "@databuddy/shared/billing";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -164,8 +165,8 @@ for (const [name, reply] of [
 	test.each([
 		undefined,
 		"",
-		"  ",
-	])(`${name} rejects AI credentials %p before writes and queues`, async (key) => {
+		"synthetic-key",
+	])(`${name} is unavailable when self-hosted with AI key %p`, async (key) => {
 		if (key === undefined) {
 			Reflect.deleteProperty(process.env, "AI_GATEWAY_API_KEY");
 		} else {
@@ -173,8 +174,7 @@ for (const [name, reply] of [
 		}
 		await expect(reply()).rejects.toMatchObject({
 			code: "BAD_REQUEST",
-			message:
-				"AI is not set up on this Databuddy instance. Ask your administrator to configure it before continuing an investigation.",
+			message: SELF_HOSTED_INVESTIGATIONS_MESSAGE,
 		});
 		expect(authorize).toHaveBeenCalledWith(context, {
 			allowCrossOrg: true,
@@ -186,24 +186,22 @@ for (const [name, reply] of [
 		expect(enqueue).not.toHaveBeenCalled();
 	});
 
-	test(`${name} checks permissions before AI configuration`, async () => {
+	test(`${name} checks permissions before self-host availability`, async () => {
 		authorize.mockRejectedValueOnce(rpcError.forbidden());
 		await expect(reply()).rejects.toMatchObject({ code: "FORBIDDEN" });
 		expect(transaction).not.toHaveBeenCalled();
 		expect(enqueue).not.toHaveBeenCalled();
 	});
 
-	test(`${name} keeps hosted behavior and configured self-hosted access`, async () => {
+	test(`${name} keeps hosted behavior`, async () => {
 		process.env.SELFHOST = "false";
 		await expect(reply()).rejects.toThrow("Reached transaction");
-		process.env.SELFHOST = "true";
-		process.env.AI_GATEWAY_API_KEY = "synthetic-key";
-		await expect(reply()).rejects.toThrow("Reached transaction");
-		expect(transaction).toHaveBeenCalledTimes(2);
+		expect(transaction).toHaveBeenCalledTimes(1);
 	});
 }
 
-test("ordinary definition edits skip AI rechecks when self-hosted AI is unconfigured", async () => {
+test("definition edits skip investigation rechecks when self-hosted", async () => {
+	process.env.AI_GATEWAY_API_KEY = "synthetic-key";
 	await queueDefinitionChangeRechecks({
 		definitionId: "synthetic-goal",
 		type: "goal",

@@ -1,6 +1,7 @@
 "use client";
 
 import { isSelfHosted } from "@databuddy/env/public";
+import { SELF_HOSTED_INVESTIGATIONS_MESSAGE } from "@databuddy/shared/billing";
 
 import {
 	useInfiniteQuery,
@@ -502,7 +503,7 @@ function FirstReview({
 		if (billingLoading) {
 			action = (
 				<Button disabled loading size="sm">
-					{isSelfHosted ? "Checking AI setup" : "Checking balance"}
+					Checking balance
 				</Button>
 			);
 		} else if (canUseCredits) {
@@ -515,7 +516,7 @@ function FirstReview({
 		} else if (isSelfHosted) {
 			action = (
 				<p className="text-pretty text-muted-foreground text-sm">
-					Ask your administrator to configure AI before running a review.
+					{SELF_HOSTED_INVESTIGATIONS_MESSAGE}
 				</p>
 			);
 		} else if (fixedPrice) {
