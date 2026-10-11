@@ -171,6 +171,13 @@ function readServices(env: Env) {
 	};
 }
 
+export function storageEndpoint(env: Env = process.env): string {
+	const bucket = readOptional(env, "STORAGE_BUCKET") ?? "databuddy-static";
+	return normalizeUrl(
+		readOptional(env, "STORAGE_ENDPOINT") ?? `https://${bucket}.t3.storage.dev`
+	);
+}
+
 function readStorage(env: Env): StorageConfig | undefined {
 	const accessKeyId = readOptional(env, "AWS_ACCESS_KEY_ID");
 	const secretAccessKey = readOptional(env, "AWS_SECRET_ACCESS_KEY");
@@ -179,10 +186,7 @@ function readStorage(env: Env): StorageConfig | undefined {
 		return;
 	}
 
-	const bucket = readOptional(env, "STORAGE_BUCKET") ?? "databuddy-static";
-	const endpoint = normalizeUrl(
-		readOptional(env, "STORAGE_ENDPOINT") ?? `https://${bucket}.t3.storage.dev`
-	);
+	const endpoint = storageEndpoint(env);
 
 	return {
 		accessKeyId,

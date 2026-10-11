@@ -1,4 +1,5 @@
 import path from "node:path";
+import { storageEndpoint } from "@databuddy/env/app";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { NextConfig } from "next";
 
@@ -139,16 +140,14 @@ const nextConfig: NextConfig = {
 							"http://localhost:4000",
 					].map((url) => new URL(url).origin)
 				: []),
-			new URL(
-				process.env.STORAGE_ENDPOINT?.trim() ||
-					"https://databuddy-static.t3.storage.dev"
-			).origin,
+			new URL(storageEndpoint()).origin,
 			"https://*.databuddy.cc",
 			"https://*.useautumn.com",
 			"https://api.openai.com",
 			"https://bzr.openai.com",
 			"https://hooks.slack.com",
 			"https://api.dub.co",
+			"https://api.microlink.io",
 			"wss://*.databuddy.cc"
 		);
 		const scriptSources = joinCspSources(
