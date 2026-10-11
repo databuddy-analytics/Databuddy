@@ -92,7 +92,7 @@ export interface Config {
 const REQUIRED_IN_PRODUCTION = ["BETTER_AUTH_SECRET"] as const;
 const REQUIRED_IN_HOSTED_CLOUD = ["AUTUMN_SECRET_KEY"] as const;
 
-export function isHostedCloud(env: Env = process.env): boolean {
+function isHostedCloud(env: Env): boolean {
 	return env.NODE_ENV === "production" && !readBooleanEnv("SELFHOST", env);
 }
 
@@ -171,6 +171,13 @@ function readServices(env: Env) {
 	};
 }
 
+export function storageEndpoint(env: Env = process.env): string {
+	const bucket = readOptional(env, "STORAGE_BUCKET") ?? "databuddy-static";
+	return normalizeUrl(
+		readOptional(env, "STORAGE_ENDPOINT") ?? `https://${bucket}.t3.storage.dev`
+	);
+}
+
 function readStorage(env: Env): StorageConfig | undefined {
 	const accessKeyId = readOptional(env, "AWS_ACCESS_KEY_ID");
 	const secretAccessKey = readOptional(env, "AWS_SECRET_ACCESS_KEY");
@@ -179,10 +186,7 @@ function readStorage(env: Env): StorageConfig | undefined {
 		return;
 	}
 
-	const bucket = readOptional(env, "STORAGE_BUCKET") ?? "databuddy-static";
-	const endpoint = normalizeUrl(
-		readOptional(env, "STORAGE_ENDPOINT") ?? `https://${bucket}.t3.storage.dev`
-	);
+	const endpoint = storageEndpoint(env);
 
 	return {
 		accessKeyId,

@@ -1,205 +1,309 @@
 "use client";
 
-import { ArrowRightIcon, CheckIcon, PlugIcon } from "@databuddy/ui/icons";
-import { SiClaude, SiCursor } from "@icons-pack/react-simple-icons";
-import { useInView, useReducedMotion } from "motion/react";
+import { ArrowRightIcon } from "@databuddy/ui/icons";
+import { SiClaude } from "@icons-pack/react-simple-icons";
+import { useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
 import { InvestigationStage } from "./databunny-demo-visuals";
-import { FRAME } from "./demo-primitives";
+import { useTimeline } from "./demo-primitives";
 import { SciFiButton } from "./scifi-btn";
 import { cn } from "@/lib/utils";
 
-function revealStyle(visible: boolean, delayMs: number) {
-	return {
-		transitionDelay: visible ? `${delayMs}ms` : "0ms",
-		transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
-	};
+interface TerminalCall {
+	args: string;
+	more?: number;
+	result: string;
+	tool: string;
 }
 
-const TERMINAL_SCENARIOS = [
+interface TerminalScenario {
+	answer: string;
+	calls: TerminalCall[];
+	question: string;
+	verb: string;
+}
+
+const TERMINAL_SCENARIOS: TerminalScenario[] = [
 	{
-		client: "Claude Code",
-		Logo: SiClaude,
 		question:
 			"How did the launch land? Set up tracking for the new pricing page.",
+		verb: "Clauding",
 		calls: [
-			{ tool: "get_data", detail: "traffic and conversions, launch week" },
+			{
+				tool: "get_data",
+				args: 'websiteDomain: "databuddy.cc", preset: "last_7d", type: "summary_metrics"',
+				result:
+					'{"data":[{"pageviews":52910,"unique_visitors":18240,"sessions":24630,"bounce_rate":38.2}]}',
+				more: 24,
+			},
 			{
 				tool: "create_funnel",
-				detail: "/pricing → /checkout/payment → purchase",
+				args: 'name: "Pricing to purchase", steps: [{"type":"PAGE_VIEW","target":"/pricing","name":"Pricing"},…], confirmed: true',
+				result:
+					'{"success":true,"message":"Funnel \\"Pricing to purchase\\" created successfully","funnel":{…}}',
 			},
-			{ tool: "create_goal", detail: "plan_upgraded" },
+			{
+				tool: "create_goal",
+				args: 'name: "Plan upgraded", type: "EVENT", target: "plan_upgraded", confirmed: true',
+				result:
+					'{"success":true,"message":"Goal \\"Plan upgraded\\" created successfully","goal":{…}}',
+			},
 		],
 		answer:
-			"Launch week traffic is up 64%. I created a pricing funnel and a plan_upgraded goal; both are live in your dashboard.",
+			"Launch week brought 18,240 visitors across 52,910 pageviews. I created a pricing funnel and a plan_upgraded goal, and both are live in your dashboard.",
 	},
 	{
-		client: "Cursor",
-		Logo: SiCursor,
 		question: "Anything I should know before we ship today?",
+		verb: "Pondering",
 		calls: [
 			{
-				tool: "get_investigation",
-				detail: "checkout conversion -22%, last 7 days vs prior 7",
+				tool: "list_investigations",
+				args: 'websiteDomain: "databuddy.cc"',
+				result:
+					'{"investigations":[{"id":"inv_7Qx2","title":"Checkout conversion down 22% vs the prior 7 days","status":"open"}],"hasMore":false}',
 			},
-			{ tool: "get_data", detail: "checkout errors by browser, last 7 days" },
+			{
+				tool: "get_data",
+				args: 'websiteDomain: "databuddy.cc", preset: "last_7d", type: "error_segments"',
+				result:
+					'{"data":[{"dimension":"browser","value":"Safari","errors":412,"sessions":187},{"dimension":"browser","value":"Chrome","errors":96,"sessions":61}]}',
+				more: 18,
+			},
 			{
 				tool: "reply_to_investigation",
-				detail: "asked if the Safari errors match the drop",
+				args: 'investigationId: "inv_7Qx2", body: "Do the Safari checkout errors line up with the drop?", replyId: "safari-checkout-errors"',
+				result: '{"reply":{"id":"rep_3kTm","kind":"reply","status":"queued"}}',
 			},
 		],
 		answer:
 			"Yes. This week's investigation found checkout conversion down 22% from the prior 7 days. Most checkout errors in that window come from Safari, so test checkout there before you ship. I asked Databunny whether the two line up.",
 	},
-] as const;
+];
 
-const TYPE_CHARS_PER_TICK = 2;
-const TYPE_TICK_MS = 24;
-const HOLD_MS = 5200;
-const FADE_MS = 350;
+const SPINNER_FRAMES = [
+	"·",
+	"✢",
+	"✳",
+	"✶",
+	"✻",
+	"✽",
+	"✽",
+	"✻",
+	"✶",
+	"✳",
+	"✢",
+	"·",
+];
+const SPINNER_TICK_MS = 120;
+const TYPE_MS_PER_CHAR = 14;
 
-function useTypewriter(text: string, active: boolean) {
-	const [typed, setTyped] = useState(0);
-	const reduce = useReducedMotion();
+const CC = {
+	claude: "text-[#D77757]",
+	dim: "text-[#999999]",
+	success: "text-[#4EBA65]",
+	userBg: "bg-[#373737]",
+	rule: "border-[#888888]/60",
+};
 
+function scenarioTimeline(scenario: TerminalScenario) {
+	const submit = (scenario.question.length * TYPE_MS_PER_CHAR) / 1000 + 0.6;
+	const events = [submit];
+	for (const [index] of scenario.calls.entries()) {
+		const pending = submit + 0.9 + index * 1.3;
+		events.push(pending, pending + 0.7);
+	}
+	const answer = (events.at(-1) ?? submit) + 0.5;
+	events.push(answer, answer + 5.5);
+	return { events, seconds: answer + 5.9 };
+}
+
+function useTyped(text: string, running: boolean) {
+	const [count, setCount] = useState(0);
 	useEffect(() => {
-		setTyped(0);
-	}, [text]);
-
-	useEffect(() => {
-		if (!active) {
-			return;
-		}
-		if (reduce) {
-			setTyped(text.length);
+		setCount(0);
+		if (!running) {
 			return;
 		}
 		const id = window.setInterval(() => {
-			setTyped((count) => {
-				if (count >= text.length) {
-					window.clearInterval(id);
-					return count;
-				}
-				return count + TYPE_CHARS_PER_TICK;
-			});
-		}, TYPE_TICK_MS);
+			setCount((current) => Math.min(current + 1, text.length));
+		}, TYPE_MS_PER_CHAR);
 		return () => window.clearInterval(id);
-	}, [active, reduce, text.length]);
+	}, [running, text]);
+	return text.slice(0, count);
+}
 
-	return { text: text.slice(0, typed), done: typed >= text.length };
+function useSpinnerFrame(running: boolean) {
+	const [frame, setFrame] = useState(0);
+	useEffect(() => {
+		if (!running) {
+			return;
+		}
+		const id = window.setInterval(() => {
+			setFrame((current) => (current + 1) % SPINNER_FRAMES.length);
+		}, SPINNER_TICK_MS);
+		return () => window.clearInterval(id);
+	}, [running]);
+	return SPINNER_FRAMES[frame];
+}
+
+function Session({
+	scenario,
+	step,
+	typed,
+	spinner,
+	ghost = false,
+}: {
+	scenario: TerminalScenario;
+	step: number;
+	typed: string;
+	spinner: string;
+	ghost?: boolean;
+}) {
+	const answerStep = 2 + scenario.calls.length * 2;
+	const reached = (target: number) => ghost || step >= target;
+	const working = ghost || (step >= 1 && step < answerStep);
+
+	return (
+		<div className={ghost ? "invisible" : undefined}>
+			{reached(1) ? (
+				<p className={cn("-mx-1 px-1 text-white", CC.userBg)}>
+					<span className={CC.dim}>❯ </span>
+					{scenario.question}
+				</p>
+			) : null}
+			{scenario.calls.map((call, index) => {
+				if (!reached(2 + index * 2)) {
+					return null;
+				}
+				const done = reached(3 + index * 2);
+				return (
+					<div className="mt-3" key={call.tool}>
+						<p className="flex gap-2">
+							<span
+								className={cn(
+									"shrink-0",
+									done ? CC.success : cn(CC.dim, "animate-pulse")
+								)}
+							>
+								⏺
+							</span>
+							<span className="min-w-0 break-words text-white">
+								<span className="font-bold">databuddy - {call.tool} (MCP)</span>
+								({call.args})
+							</span>
+						</p>
+						{done ? (
+							<>
+								<p className={cn("flex gap-2 pl-1", CC.dim)}>
+									<span className="shrink-0">⎿</span>
+									<span className="min-w-0 truncate">{call.result}</span>
+								</p>
+								{call.more ? (
+									<p className={cn("pl-6", CC.dim)}>
+										… +{call.more} lines (ctrl+o to expand)
+									</p>
+								) : null}
+							</>
+						) : null}
+					</div>
+				);
+			})}
+			{reached(answerStep) ? (
+				<p className="mt-3 flex gap-2 text-white">
+					<span className="shrink-0">⏺</span>
+					<span className="min-w-0">{scenario.answer}</span>
+				</p>
+			) : null}
+			{working ? (
+				<p className="mt-3">
+					<span className={CC.claude}>
+						{spinner} {scenario.verb}…{" "}
+					</span>
+					<span className={CC.dim}>(esc to interrupt)</span>
+				</p>
+			) : null}
+			<div className={cn("mt-3 border-y py-1 text-white", CC.rule)}>
+				<p>
+					<span className={CC.dim}>❯ </span>
+					{ghost ? scenario.question : typed}
+					<span className="ml-px inline-block h-[1.1em] w-[0.6em] translate-y-[0.2em] bg-white/80" />
+				</p>
+			</div>
+			<p className={cn("mt-1 px-2", CC.dim)}>? for shortcuts</p>
+		</div>
+	);
 }
 
 export function McpTerminalDemo() {
-	const ref = useRef<HTMLDivElement>(null);
-	const visible = useInView(ref, {
-		once: true,
-		amount: 0.2,
-		margin: "0px 0px -60px 0px",
-	});
-	const onScreen = useInView(ref, { amount: 0.2 });
 	const reduce = useReducedMotion();
 	const [scenarioIndex, setScenarioIndex] = useState(0);
-	const [fading, setFading] = useState(false);
 	const scenario = TERMINAL_SCENARIOS[scenarioIndex];
-	const question = useTypewriter(scenario.question, visible && onScreen);
-	const showing = visible && question.done && !fading;
-
-	useEffect(() => {
-		if (!(question.done && onScreen) || fading || reduce) {
-			return;
-		}
-		const id = window.setTimeout(() => setFading(true), HOLD_MS);
-		return () => window.clearTimeout(id);
-	}, [question.done, onScreen, fading, reduce]);
-
-	useEffect(() => {
-		if (!fading) {
-			return;
-		}
-		const id = window.setTimeout(() => {
-			setScenarioIndex((index) => (index + 1) % TERMINAL_SCENARIOS.length);
-			setFading(false);
-		}, FADE_MS);
-		return () => window.clearTimeout(id);
-	}, [fading]);
+	const { events, seconds } = useMemo(
+		() => scenarioTimeline(scenario),
+		[scenario]
+	);
+	const { ref, step, cycle, visible } = useTimeline(events, seconds);
+	const nextScenarioIndex = cycle % TERMINAL_SCENARIOS.length;
+	if (nextScenarioIndex !== scenarioIndex) {
+		setScenarioIndex(nextScenarioIndex);
+	}
+	const typing = visible && step === 0 && !reduce;
+	const typed = useTyped(scenario.question, typing);
+	const answerStep = 2 + scenario.calls.length * 2;
+	const spinner = useSpinnerFrame(step >= 1 && step < answerStep);
+	const fading = !reduce && step > answerStep;
 
 	return (
-		<div aria-hidden className="relative mt-3 w-full" ref={ref}>
-			<div className={cn(FRAME, "overflow-hidden rounded")}>
-				<div
-					className={cn(
-						"flex items-center gap-2 border-white/[0.06] border-b px-3 py-2 transition-opacity duration-300",
-						fading ? "opacity-0" : "opacity-100"
-					)}
-				>
-					<scenario.Logo className="size-3 text-muted-foreground" />
-					<span className="font-mono text-[10px] text-muted-foreground">
-						{scenario.client}
+		<div aria-hidden className="relative w-full min-w-0" ref={ref}>
+			<div className="overflow-hidden rounded-lg border border-white/10 bg-[#0f0f11] font-terminal text-[11px] leading-[1.6] shadow-[0_24px_64px_-24px_rgba(0,0,0,0.6)] sm:text-[12.5px]">
+				<div className="relative flex h-8 items-center border-white/[0.06] border-b px-3">
+					<div className="flex gap-1.5">
+						<span className="size-2.5 rounded-full bg-[#ff5f57]" />
+						<span className="size-2.5 rounded-full bg-[#febc2e]" />
+						<span className="size-2.5 rounded-full bg-[#28c840]" />
+					</div>
+					<span className="absolute inset-x-0 text-center text-[11px] text-white/40">
+						~/databuddy — claude
 					</span>
 				</div>
-				<div
-					className={cn(
-						"min-h-[190px] space-y-2.5 px-3 py-3 transition-opacity duration-300 sm:px-4",
-						fading ? "opacity-0" : "opacity-100"
-					)}
-				>
-					<p
-						className={cn(
-							"font-medium font-mono text-foreground text-xs transition-opacity duration-300 sm:text-sm",
-							visible ? "opacity-100" : "opacity-0"
-						)}
-					>
-						<span className="mr-1.5 text-muted-foreground">›</span>
-						{question.text}
-						<span
-							className={cn(
-								"ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 bg-muted-foreground/70",
-								question.done
-									? "opacity-0"
-									: "animate-pulse motion-reduce:animate-none"
-							)}
-						/>
-					</p>
-					{scenario.calls.map((call, i) => (
+
+				<div className="px-3 pt-3 pb-2 sm:px-4 sm:pt-4">
+					<div className="flex items-center gap-3">
+						<SiClaude className={cn("size-8 shrink-0", CC.claude)} />
+						<div>
+							<p className="font-bold text-white">Claude Code v2.1.280</p>
+							<p className={CC.dim}>Opus 5.5 · Claude Max</p>
+							<p className={CC.dim}>~/databuddy</p>
+						</div>
+					</div>
+
+					<div className="mt-4 grid grid-cols-[minmax(0,1fr)] [&>*]:col-start-1 [&>*]:row-start-1">
+						{TERMINAL_SCENARIOS.map((entry) => (
+							<Session
+								ghost
+								key={entry.question}
+								scenario={entry}
+								spinner=""
+								step={0}
+								typed=""
+							/>
+						))}
 						<div
 							className={cn(
-								"flex flex-wrap items-center gap-x-2 gap-y-0.5 transition-all duration-500",
-								showing
-									? "translate-y-0 opacity-100"
-									: "translate-y-3 opacity-0"
+								"transition-opacity duration-300 ease-in-out",
+								fading ? "opacity-0" : "opacity-100"
 							)}
-							key={call.tool}
-							style={revealStyle(showing, 150 + i * 180)}
 						>
-							<span className="inline-flex items-center gap-1.5 rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-[11px] text-violet-400">
-								<PlugIcon className="size-3" />
-								{call.tool}
-							</span>
-							<span className="font-mono text-[11px] text-muted-foreground">
-								{call.detail}
-							</span>
-							<CheckIcon
-								className={cn(
-									"size-3 text-emerald-400 transition-all duration-200 ease-out",
-									showing ? "scale-100 opacity-100" : "scale-50 opacity-0"
-								)}
-								style={{
-									transitionDelay: showing ? `${450 + i * 180}ms` : "0ms",
-								}}
+							<Session
+								scenario={scenario}
+								spinner={spinner}
+								step={step}
+								typed={typing ? typed : ""}
 							/>
 						</div>
-					))}
-					<p
-						className={cn(
-							"font-mono text-[11px] text-muted-foreground leading-relaxed transition-all duration-500 sm:text-xs",
-							showing ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
-						)}
-						style={revealStyle(showing, 850)}
-					>
-						{scenario.answer}
-					</p>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -236,17 +340,18 @@ export function AiSection() {
 				</Link>
 			</div>
 
-			<div className="mt-16 grid grid-cols-1 items-center gap-8 lg:mt-24 lg:grid-cols-[2fr_3fr] lg:gap-12">
-				<div className="flex flex-col">
-					<h3 className="font-semibold text-foreground text-lg sm:text-xl">
+			<div className="mt-16 grid grid-cols-[minmax(0,1fr)] gap-10 border-border border-t pt-16 lg:mt-24 lg:grid-cols-12 lg:items-center lg:gap-12 lg:pt-24">
+				<div className="min-w-0 lg:col-span-5">
+					<h3 className="text-balance font-semibold text-2xl text-foreground tracking-tight sm:text-3xl">
 						Check your numbers without leaving your editor
 					</h3>
-					<p className="mt-1.5 max-w-xl text-muted-foreground text-sm">
+					<p className="mt-3 max-w-md text-pretty text-muted-foreground text-sm sm:text-base">
 						Sign in from Claude or Claude Code, or connect Cursor and any other
 						MCP client with a scoped key, and your agent can pull traffic, read
 						investigations, and set up funnels, goals, and flags for you.
 					</p>
-					<div className="mt-5 flex flex-wrap items-center gap-4">
+
+					<div className="mt-6 flex flex-wrap items-center gap-4">
 						<SciFiButton asChild>
 							<Link href="/docs/api/mcp">Set up MCP</Link>
 						</SciFiButton>
@@ -259,7 +364,9 @@ export function AiSection() {
 						</Link>
 					</div>
 				</div>
-				<McpTerminalDemo />
+				<div className="min-w-0 lg:col-span-7">
+					<McpTerminalDemo />
+				</div>
 			</div>
 		</div>
 	);

@@ -61,7 +61,7 @@ jobs:
             echo 'services=["init"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          ALL='["api","basket","insights","links","uptime"]'
+          ALL='["api","basket","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
@@ -78,7 +78,7 @@ jobs:
           export TURBO_SCM_BASE="$BEFORE_SHA"
           export TURBO_SCM_HEAD="HEAD"
           affected=()
-          for svc in api basket insights links uptime; do
+          for svc in api basket links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
             if [[ "$count" != "0" ]] || grep -qxF "$svc.Dockerfile" <<< "$changed"; then
               affected+=("\"$svc\"")
@@ -153,7 +153,6 @@ jobs:
             api) text="Databuddy API service - analytics backend" ;;
             basket) text="Databuddy Basket service - event ingestion" ;;
             init) text="Databuddy database initialization and schema tools" ;;
-            insights) text="Databuddy Insights service - queued insight generation" ;;
             links) text="Databuddy Links service - URL shortening and tracking" ;;
             uptime) text="Databuddy Uptime service - availability monitoring" ;;
             *) echo "Unknown service $SERVICE" >&2; exit 1 ;;

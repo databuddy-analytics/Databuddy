@@ -168,7 +168,7 @@ export const useTimeline = (events: readonly number[], seconds: number) => {
 			}
 		};
 	}, [events, seconds, visible, reduce, cycle]);
-	return { ref, step, cycle };
+	return { ref, step, cycle, visible };
 };
 
 export function SlackLogo({ className }: { className?: string }) {

@@ -3,8 +3,8 @@ import {
 	type ImportedEvent,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
-	synthesizeDate,
-} from "./pipeline";
+} from "@databuddy/shared/import/records";
+import { countryName, liveOverlapFilter, synthesizeDate } from "./pipeline";
 
 const DATE = "2026-03-04";
 
@@ -217,5 +217,47 @@ describe("rollup synthesis edge cases", () => {
 		expect(byCountry.get("DE")).toBeCloseTo(240, -1);
 		expect(byCountry.get("US")).toBeCloseTo(120, -1);
 		expect(byCountry.get("FR")).toBeCloseTo(40, -1);
+	});
+});
+
+describe("imports never overlap live tracking", () => {
+	const firstLive = Date.parse("2026-09-26T23:09:39.558Z");
+	const overlapsLive = liveOverlapFilter(
+		new Map([["2026-09-26", firstLive]]),
+		"UTC"
+	);
+
+	test("keeps the install day up to the first tracked event", () => {
+		expect(overlapsLive(new Date("2026-09-26T12:00:00Z"))).toBe(false);
+		expect(overlapsLive(new Date(firstLive))).toBe(true);
+		expect(overlapsLive(new Date("2026-09-26T23:30:00Z"))).toBe(true);
+	});
+
+	test("leaves days without tracked data alone", () => {
+		expect(overlapsLive(new Date("2026-09-25T23:30:00Z"))).toBe(false);
+	});
+
+	test("matches days in the import timezone", () => {
+		const newYork = liveOverlapFilter(
+			new Map([["2026-09-26", Date.parse("2026-09-26T04:00:00Z")]]),
+			"America/New_York"
+		);
+		expect(newYork(new Date("2026-09-27T02:00:00Z"))).toBe(true);
+		expect(newYork(new Date("2026-09-26T02:00:00Z"))).toBe(false);
+	});
+});
+
+describe("imported countries use the names live tracking stores", () => {
+	test("expands codes to MaxMind names", () => {
+		expect(countryName("US")).toBe("United States");
+		expect(countryName("in")).toBe("India");
+		expect(countryName("NL")).toBe("The Netherlands");
+		expect(countryName("CI")).toBe("Ivory Coast");
+	});
+
+	test("keeps names and empty values as they are", () => {
+		expect(countryName("Germany")).toBe("Germany");
+		expect(countryName("")).toBeNull();
+		expect(countryName(null)).toBeNull();
 	});
 });

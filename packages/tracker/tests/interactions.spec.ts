@@ -439,6 +439,24 @@ const DESCRIBED_TARGETS: {
 		expected: "button:unnamed",
 	},
 	{
+		name: "a trigger whose id Vue or Reka generated as unnamed",
+		markup: `<nav><button id="reka-dropdown-menu-trigger-v-0-1">Account</button></nav>`,
+		selector: "button",
+		expected: "button:unnamed in nav",
+	},
+	{
+		name: "a bare Vue useId value as unnamed",
+		markup: `<button id="v-12">Open</button>`,
+		selector: "button",
+		expected: "button:unnamed",
+	},
+	{
+		name: "an id that only mentions a version as named",
+		markup: `<button id="pricing-v2-toggle">Plans</button>`,
+		selector: "button",
+		expected: "button:pricing-v#-toggle",
+	},
+	{
 		name: "a snake_case test id that merely contains an r word",
 		markup: `<button data-testid="checkout_review_button">Review</button>`,
 		selector: "button",

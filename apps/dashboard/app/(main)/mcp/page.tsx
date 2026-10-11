@@ -16,24 +16,19 @@ import {
 	CaretRightIcon,
 	CaretUpDownIcon,
 	ChartBarIcon,
-	CheckIcon,
 	OpenExternalIcon,
 	PlugIcon,
 	XMarkIcon,
 } from "@databuddy/ui/icons";
+import { isSelfHosted, publicConfig } from "@databuddy/env/public";
 import {
 	keepPreviousData,
 	useMutation,
+	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import { parseAsString, useQueryStates } from "nuqs";
-import { Suspense, useMemo, useState } from "react";
-import { createHighlighterCoreSync } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import bash from "shiki/langs/bash.mjs";
-import json from "shiki/langs/json.mjs";
-import tsx from "shiki/langs/tsx.mjs";
-import vesper from "shiki/themes/vesper.mjs";
+import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import {
 	CODING_AGENTS,
@@ -47,6 +42,10 @@ import { AiProductIcon } from "@/components/icon";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { List } from "@/components/ui/composables/list";
+import {
+	CodingAgentButtons,
+	SnippetBlock,
+} from "@/components/websites/connect-app";
 import { SetupRow, type SetupRowStatus } from "@/components/websites/setup-row";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -121,14 +120,10 @@ const FILTERS = {
 	website_id: parseAsString,
 };
 
-const highlighter = createHighlighterCoreSync({
-	themes: [vesper],
-	langs: [bash, json, tsx],
-	engine: createJavaScriptRegexEngine(),
-});
-
 const INSTALL_COMMAND = "bun add @databuddy/sdk@latest";
 const KEY_PLACEHOLDER = "dbdy_your_key";
+const API_URL = JSON.stringify(publicConfig.urls.basket);
+const API_URL_OPTION = isSelfHosted ? `\n    apiUrl: ${API_URL},` : "";
 
 const SETUP_SNIPPETS = [
 	{
@@ -140,7 +135,7 @@ const SETUP_SNIPPETS = [
 import { trackMcp } from "@databuddy/sdk/mcp";
 
 const server = trackMcp(
-  new McpServer({ name: "my-server", version: "1.0.0" })
+  new McpServer({ name: "my-server", version: "1.0.0" })${isSelfHosted ? `,\n  { apiUrl: ${API_URL} }` : ""}
 );`,
 	},
 	{
@@ -153,7 +148,7 @@ import { waitUntil } from "@vercel/functions";
 import { trackMcp } from "@databuddy/sdk/mcp";
 
 const handler = createMcpHandler(() =>
-  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
+  trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {${API_URL_OPTION}
     waitUntil,
   })
 );
@@ -171,7 +166,7 @@ import { trackMcp } from "@databuddy/sdk/mcp";
 
 const handler = createMcpHandler(() =>
   trackMcp(new McpServer({ name: "my-server", version: "1.0.0" }), {
-    apiKey: env.DATABUDDY_API_KEY,
+    apiKey: env.DATABUDDY_API_KEY,${API_URL_OPTION}
     waitUntil,
   })
 );
@@ -199,43 +194,6 @@ export default {
 }`,
 	},
 ] as const;
-
-function SnippetBlock({
-	code,
-	isCopied,
-	lang,
-	onCopy,
-}: {
-	code: string;
-	isCopied: boolean;
-	lang: "bash" | "json" | "tsx";
-	onCopy: () => void;
-}) {
-	const html = useMemo(
-		() => highlighter.codeToHtml(code, { lang, theme: "vesper" }),
-		[code, lang]
-	);
-	return (
-		<div className="group relative overflow-hidden rounded border border-border">
-			<div
-				className={cn(
-					"overflow-x-auto font-mono text-[13px] leading-relaxed",
-					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-					"[&>pre>code]:block [&>pre>code]:w-full"
-				)}
-				dangerouslySetInnerHTML={{ __html: html }}
-			/>
-			<Button
-				className="absolute top-2 right-2"
-				onClick={onCopy}
-				size="sm"
-				variant="secondary"
-			>
-				{isCopied ? "Copied" : "Copy"}
-			</Button>
-		</div>
-	);
-}
 
 function formatMs(ms: number | null) {
 	if (ms === null) {
@@ -451,10 +409,17 @@ function Setup({ organizationId }: { organizationId?: string }) {
 			});
 		},
 	});
+	const role = useQuery({
+		...orpc.apikeys.getMyRole.queryOptions({
+			input: { organizationId: organizationId ?? "" },
+		}),
+		enabled: Boolean(organizationId),
+	});
 	const secret = createKey.data?.secret;
 	const envLine = `DATABUDDY_API_KEY=${secret ?? KEY_PLACEHOLDER}`;
 	const [hasOwnKey, setHasOwnKey] = useState(false);
 	const [copied, setCopied] = useState<string | null>(null);
+	const [hasCopied, setHasCopied] = useState(false);
 	const [promptAgent, setPromptAgent] = useState<string | null>(null);
 	const [isManualOpen, setIsManualOpen] = useState(false);
 
@@ -468,6 +433,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 			return;
 		}
 		setCopied(id);
+		setHasCopied(true);
 		setTimeout(() => setCopied(null), COPY_SUCCESS_TIMEOUT);
 		trackAppEvent(APP_EVENTS.mcpSetupCopied, { block: id, method });
 		if (method === "ai") {
@@ -482,7 +448,8 @@ function Setup({ organizationId }: { organizationId?: string }) {
 		: hasOwnKey
 			? "skipped"
 			: "active";
-	const wrapStatus: SetupRowStatus = promptAgent ? "waiting" : "active";
+	const wrapStatus: SetupRowStatus = hasCopied ? "waiting" : "active";
+	const doneSteps = [keyStatus !== "active", hasCopied].filter(Boolean).length;
 	const toggle = (id: SetupRowId) => () =>
 		setOpen((current) => (current === id ? null : id));
 	const agentName = CODING_AGENTS.find(
@@ -492,7 +459,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 	return (
 		<div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:py-10">
 			<div className="mb-4 flex items-center justify-between gap-3">
-				<h1 className="font-semibold text-xl">Set up MCP Analytics</h1>
+				<h2 className="font-semibold text-xl">Set up MCP Analytics</h2>
 				<Button asChild size="sm" variant="ghost">
 					<a
 						href="https://www.databuddy.cc/docs/sdk/mcp"
@@ -507,7 +474,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 			<Card className="gap-0 py-0">
 				<Card.Header className="gap-3 border-border border-b bg-card px-5 py-4">
 					<Card.Title>Your first tool call, in three steps</Card.Title>
-					<Progress size="sm" value={keyStatus === "active" ? 0 : 100 / 3} />
+					<Progress size="sm" value={(doneSteps / 3) * 100} />
 				</Card.Header>
 
 				<SetupRow
@@ -535,23 +502,29 @@ function Setup({ organizationId }: { organizationId?: string }) {
 								A key with the Event Tracking scope, read from DATABUDDY_API_KEY
 								in your server's environment.
 							</p>
+							{role.data && !role.data.canEditScopes ? (
+								<p className="text-pretty text-muted-foreground text-sm">
+									Only organization owners and admins can create API keys. Ask
+									one of them for a key with the Event Tracking scope.
+								</p>
+							) : null}
 							<div className="flex flex-wrap items-center gap-2">
-								<Button
-									disabled={!organizationId}
-									loading={createKey.isPending}
-									onClick={() =>
-										organizationId &&
-										createKey.mutate({
-											name: "MCP analytics",
-											organizationId,
-											type: "automation",
-											resources: { global: ["track:events"] },
-										})
-									}
-									size="sm"
-								>
-									Create a key
-								</Button>
+								{role.data?.canEditScopes && organizationId ? (
+									<Button
+										loading={createKey.isPending}
+										onClick={() =>
+											createKey.mutate({
+												name: `MCP analytics ${new Date().toISOString().slice(0, 10)}`,
+												organizationId,
+												type: "automation",
+												resources: { global: ["track:events"] },
+											})
+										}
+										size="sm"
+									>
+										Create a key
+									</Button>
+								) : null}
 								<Button
 									onClick={() => {
 										setHasOwnKey(true);
@@ -568,9 +541,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 									{getUserFacingErrorMessage(
 										createKey.error,
 										"Couldn't create an API key."
-									)}{" "}
-									Ask an organization admin for a key with the Event Tracking
-									scope.
+									)}
 								</p>
 							) : null}
 						</div>
@@ -591,34 +562,15 @@ function Setup({ organizationId }: { organizationId?: string }) {
 							</p>
 							<p className="text-pretty text-muted-foreground text-xs">
 								Your agent wraps your MCP server and makes a test call. Tool
-								arguments and results never leave your server.
+								arguments and successful results never leave your server; failed
+								calls send their error message.
 							</p>
-							<div className="flex flex-wrap gap-2">
-								{CODING_AGENTS.map((agent) => (
-									<Button
-										className="border border-border bg-background hover:bg-accent"
-										key={agent.id}
-										onClick={() =>
-											copy(agent.id, generateMcpAgentPrompt(secret), "ai")
-										}
-										size="sm"
-										variant="ghost"
-									>
-										{copied === agent.id ? (
-											<CheckIcon className="size-4 text-success" />
-										) : (
-											<img
-												alt=""
-												className={cn("size-4", agent.invert && "dark:invert")}
-												height={16}
-												src={`/ai/${agent.icon}.svg`}
-												width={16}
-											/>
-										)}
-										{agent.name}
-									</Button>
-								))}
-							</div>
+							<CodingAgentButtons
+								copied={copied}
+								onCopy={(agentId) =>
+									copy(agentId, generateMcpAgentPrompt(secret), "ai")
+								}
+							/>
 						</div>
 
 						<div>
@@ -639,7 +591,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 							</Button>
 							<div
 								className={cn(
-									"grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none",
+									"grid transition-[grid-template-rows] duration-200 ease-in-out motion-reduce:transition-none",
 									isManualOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
 								)}
 								inert={!isManualOpen}
@@ -696,7 +648,7 @@ function Setup({ organizationId }: { organizationId?: string }) {
 				<SetupRow
 					detail="This page switches to your analytics when it arrives"
 					expanded={false}
-					status="waiting"
+					status={hasCopied ? "waiting" : "pending"}
 					title="Waiting for the first tool call"
 				/>
 			</Card>

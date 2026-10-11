@@ -7,7 +7,6 @@ import {
 import { randomUUIDv7 } from "bun";
 
 const UPLOAD_URL_TTL_SECONDS = 300;
-const DOWNLOAD_URL_TTL_SECONDS = 900;
 const ENCODE_EXTRA = /[!'()*]/g;
 const AMZ_DATE_NOISE = /[-:]|\.\d{3}/g;
 
@@ -42,7 +41,7 @@ function presign(
 		headers,
 		expiresIn,
 	}: {
-		method: "GET" | "PUT";
+		method: "PUT";
 		key: string;
 		headers: Record<string, string>;
 		expiresIn: number;
@@ -122,54 +121,4 @@ export function createAssetUpload({
 			},
 		}),
 	};
-}
-
-export function createImportUpload({
-	contentLength,
-	contentType,
-	organizationId,
-}: {
-	contentLength: number;
-	contentType: string;
-	organizationId: string;
-}): { key: string; uploadUrl: string } {
-	const storage = config.storage;
-
-	if (!storage) {
-		throw new Error(
-			"Object storage is not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to enable analytics imports."
-		);
-	}
-
-	const key = `imports/${organizationId}/${randomUUIDv7()}`;
-
-	return {
-		key,
-		uploadUrl: presign(storage, {
-			method: "PUT",
-			key,
-			expiresIn: UPLOAD_URL_TTL_SECONDS,
-			headers: {
-				"content-length": String(contentLength),
-				"content-type": contentType,
-			},
-		}),
-	};
-}
-
-export function createImportDownloadUrl(key: string): string {
-	const storage = config.storage;
-
-	if (!storage) {
-		throw new Error(
-			"Object storage is not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to enable analytics imports."
-		);
-	}
-
-	return presign(storage, {
-		method: "GET",
-		key,
-		expiresIn: DOWNLOAD_URL_TTL_SECONDS,
-		headers: {},
-	});
 }

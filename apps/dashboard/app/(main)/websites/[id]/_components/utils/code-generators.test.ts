@@ -3,6 +3,7 @@ import {
 	generateAgentPrompt,
 	generateNpmCode,
 	generateScriptTag,
+	generateVueCode,
 } from "./code-generators";
 import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
 
@@ -69,7 +70,7 @@ assert.ok(prompt.includes("## Common issues"));
 		expect(npm).not.toContain("trackSessions");
 	});
 
-	it("leaves interaction tracking to the default and writes it out only when turned off", () => {
+	it("leaves current-runtime interactions to the default and writes an explicit opt-out", () => {
 		const off = { ...RECOMMENDED_DEFAULTS, trackInteractions: false };
 
 		expect(
@@ -81,6 +82,39 @@ assert.ok(prompt.includes("## Common issues"));
 		expect(generateNpmCode("example-client-id", off)).toContain(
 			"trackInteractions={false}"
 		);
+		expect(
+			generateNpmCode("example-client-id", RECOMMENDED_DEFAULTS)
+		).not.toContain("trackInteractions");
+		expect(
+			generateVueCode("example-client-id", RECOMMENDED_DEFAULTS)
+		).not.toContain("track-interactions");
+		expect(generateVueCode("example-client-id", off)).toContain(
+			':track-interactions="false"'
+		);
+	});
+
+	it.each([
+		true,
+		false,
+	])("keeps explicit interactions=%s for immutable pinned bundles", (trackInteractions) => {
+		const versionedScript = {
+			filename: "databuddy.v1.js",
+			sriHash: "sha384-example",
+			version: 1,
+		};
+		const script = generateScriptTag(
+			"example-client-id",
+			{ ...RECOMMENDED_DEFAULTS, trackInteractions, samplingRate: 0.5 },
+			versionedScript
+		);
+
+		expect(script).toContain(`/${versionedScript.filename}"`);
+		expect(script).toContain(`integrity="${versionedScript.sriHash}"`);
+		expect(script).toContain(`data-track-interactions="${trackInteractions}"`);
+		expect(script).toContain('data-track-web-vitals="true"');
+		expect(script).toContain('data-sampling-rate="0.5"');
+		expect(script).not.toContain("data-enable-batching");
+		expect(script).not.toContain("data-track-attributes");
 	});
 
 	it("asks for optional install feedback without code or secrets, and only names real options", () => {

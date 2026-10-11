@@ -49,14 +49,6 @@ const SEGMENT_COLORS: Record<UptimeSeverity, string> = {
 	major: "var(--uptime-major, #ff2b3c)",
 };
 
-const SEGMENT_HEIGHTS: Record<UptimeSeverity, string> = {
-	empty: "h-1.5",
-	operational: "h-1.5",
-	degraded: "h-2",
-	partial: "h-2.5",
-	major: "h-3",
-};
-
 function tintStatusColor(color: string, amount: number) {
 	return `color-mix(in oklab, var(--popover) ${100 - amount}%, ${color} ${amount}%)`;
 }
@@ -430,10 +422,7 @@ export function UptimeHeatmapStrip({
 		return (
 			<div
 				aria-hidden
-				className={cn(
-					"relative overflow-hidden rounded-full",
-					SEGMENT_HEIGHTS[segment.severity]
-				)}
+				className="relative h-1.5 overflow-hidden rounded-full"
 				key={`${segment.start}-${segment.length}-${segment.severity}`}
 				style={{
 					background: SEGMENT_COLORS[segment.severity],
