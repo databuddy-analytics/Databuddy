@@ -100,6 +100,15 @@ interface PageReadRow {
 	requests: number;
 }
 
+interface SearchEngineRow {
+	last_seen: string;
+	name: string;
+	pages: number;
+	rendered: number;
+	requests: number;
+	server: number;
+}
+
 interface FailedRequestRow {
 	agents: PageReadRow["agents"];
 	last_seen: string;
@@ -1412,6 +1421,65 @@ function RecentRequestsPanel({ rows }: { rows: RecentRequestRow[] }) {
 	);
 }
 
+function SearchEnginesPanel({
+	aiReads,
+	rows,
+}: {
+	aiReads: number;
+	rows: SearchEngineRow[];
+}) {
+	const list = useShowAll(rows);
+	const total = rows.reduce((sum, row) => sum + row.requests, 0);
+	const maxRequests = Math.max(...rows.map((row) => row.requests), 1);
+	return (
+		<div className="rounded-xl bg-secondary p-1.5">
+			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
+				<Headline
+					detail={`Google and other search engines reading your pages, next to ${formatNumber(aiReads)} AI reads in the same period. They are never counted as visitors.`}
+					title="Search engines"
+					unit="reads"
+					value={formatNumber(total)}
+				/>
+				<div className="flex flex-col gap-1">
+					{list.visible.map((row, index) => (
+						<BarRow
+							fraction={row.requests / maxRequests}
+							key={row.name}
+							rank={index + 1}
+							tooltip={
+								<Tip
+									lines={[
+										`${formatNumber(row.pages)} pages read`,
+										row.server > 0
+											? `${formatNumber(row.server)} requests seen on your server`
+											: "Only rendered pages, which run your tracker. Add the server line to see every crawl.",
+										`last request ${readTime(row.last_seen)}`,
+									]}
+									title={row.name}
+								/>
+							}
+							value={row.requests}
+						>
+							<span className="relative min-w-0 flex-1 truncate text-sm">
+								{row.name}
+							</span>
+							{row.server === 0 ? (
+								<span className="relative shrink-0 text-muted-foreground text-xs">
+									rendered
+								</span>
+							) : null}
+						</BarRow>
+					))}
+				</div>
+				<ShowAllButton
+					label={`Show all ${formatNumber(rows.length)} search engines`}
+					list={list}
+				/>
+			</div>
+		</div>
+	);
+}
+
 function FailedRequestsPanel({ rows }: { rows: FailedRequestRow[] }) {
 	const list = useShowAll(rows);
 	const total = rows.reduce((sum, row) => sum + row.requests, 0);
@@ -2320,6 +2388,7 @@ export default function AgentsPage() {
 			limit: 1000,
 		},
 		{ id: "activity", parameters: ["ai_crawler_activity"] },
+		{ id: "search", parameters: ["search_engine_crawlers"] },
 		{ id: "failed", parameters: ["ai_failed_requests"], limit: 100 },
 		{ id: "recent", parameters: ["ai_recent_requests"], limit: 50 },
 	]);
@@ -2354,6 +2423,10 @@ export default function AgentsPage() {
 	const previousCrawlers: CrawlerRow[] = getDataForQuery(
 		"crawlers",
 		"previous_ai_crawlers"
+	);
+	const searchEngines: SearchEngineRow[] = getDataForQuery(
+		"search",
+		"search_engine_crawlers"
 	);
 	const failedRequests: FailedRequestRow[] = getDataForQuery(
 		"failed",
@@ -2598,6 +2671,13 @@ export default function AgentsPage() {
 							}}
 							timeline={{ bucketFormat, buckets, isHourly }}
 							websiteId={websiteId}
+						/>
+					) : null}
+
+					{searchEngines.length > 0 ? (
+						<SearchEnginesPanel
+							aiReads={totalOf(products, "requests")}
+							rows={searchEngines}
 						/>
 					) : null}
 
