@@ -26,6 +26,8 @@
     "./evlog-superlog": "./src/evlog-superlog.ts",
     "./flags": "./src/flags/index.ts",
     "./http-error-response": "./src/http-error-response.ts",
+    "./import": "./src/import/index.ts",
+    "./import/records": "./src/import/records.ts",
     "./insights": "./src/insights.ts",
     "./json-ld": "./src/json-ld.ts",
     "./ssrf-guard": "./src/ssrf-guard.ts",
@@ -48,6 +50,7 @@
   "dependencies": {
     "@databuddy/env": "workspace:*",
     "evlog": "catalog:",
+    "jszip": "^3.10.2",
     "ua-parser-js": "catalog:",
     "undici": "^8.2.0",
     "zod": "catalog:"

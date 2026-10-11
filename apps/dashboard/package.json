@@ -91,6 +91,7 @@
     "@types/react-dom": "catalog:",
     "atmn": "^1.1.8",
     "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
+    "jszip": "^3.10.2",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "ultracite": "catalog:"
