@@ -24,7 +24,7 @@ This page documents all configuration options across the Databuddy SDK platforms
   trackWebVitals={true}   // opt in; default: false
   trackErrors             // default: false
   trackOutgoingLinks      // default: false
-  trackInteractions       // default: false
+  trackInteractions       // default: true
   trackAttributes         // default: false
   trackHashChanges        // default: false
   
@@ -68,7 +68,7 @@ This page documents all configuration options across the Databuddy SDK platforms
 | `trackWebVitals` | `boolean` | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `trackErrors` | `boolean` | `false` | JavaScript errors |
 | `trackOutgoingLinks` | `boolean` | `false` | External link clicks |
-| `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
+| `trackInteractions` | `boolean` | `true` | Rage clicks, dead clicks, and abandoned forms |
 | `trackAttributes` | `boolean` | `false` | Elements with `data-track` attributes |
 | `trackHashChanges` | `boolean` | `false` | URL hash changes |
 
@@ -146,7 +146,7 @@ Vue uses the same props as React but with kebab-case naming:
 | `data-track-web-vitals` | flag | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `data-track-errors` | flag | `false` | Track JavaScript errors |
 | `data-track-outgoing-links` | flag | `false` | Track external links |
-| `data-track-interactions` | flag | `false` | Track interactions |
+| `data-track-interactions` | flag | `true` | Rage clicks, dead clicks, and abandoned forms; set `"false"` to turn off |
 | `data-track-attributes` | flag | `false` | Track data-track elements |
 | `data-track-hash-changes` | flag | `false` | Track hash changes |
 | `data-enable-batching` | flag | `true` | Enable event batching |

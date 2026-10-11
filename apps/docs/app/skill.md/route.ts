@@ -148,7 +148,7 @@ Requires \`trackAttributes: true\`:
 | \`scriptUrl\` | \`string\` | \`https://cdn.databuddy.cc/databuddy.js\` | Custom browser bundle URL |
 | \`trackWebVitals\` | \`boolean\` | \`false\` | Core Web Vitals (FCP, LCP, INP, CLS, TTFB) plus FPS |
 | \`trackErrors\` | \`boolean\` | \`false\` | JavaScript error tracking |
-| \`trackInteractions\` | \`boolean\` | \`false\` | User interactions |
+| \`trackInteractions\` | \`boolean\` | \`true\` | Rage clicks, dead clicks, and abandoned forms |
 | \`trackOutgoingLinks\` | \`boolean\` | \`false\` | External link clicks |
 | \`trackHashChanges\` | \`boolean\` | \`false\` | URL hash changes |
 | \`trackAttributes\` | \`boolean\` | \`false\` | \`data-*\` attributes |
