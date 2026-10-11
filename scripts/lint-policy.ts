@@ -798,6 +798,7 @@ function getRolloutDiff() {
 		"diff",
 		"--unified=0",
 		"--no-ext-diff",
+		"--ignore-submodules",
 		POLICY_ROLLOUT_BASE,
 	];
 	const diff = tryRunGit(diffArgs);
@@ -815,7 +816,12 @@ function getRolloutDiff() {
 		);
 	}
 
-	const workingTreeDiff = tryRunGit(["diff", "--unified=0", "--no-ext-diff"]);
+	const workingTreeDiff = tryRunGit([
+		"diff",
+		"--unified=0",
+		"--no-ext-diff",
+		"--ignore-submodules",
+	]);
 	if (workingTreeDiff !== null) {
 		console.warn(
 			`Policy lint could not diff against rollout commit ${POLICY_ROLLOUT_BASE}; checking current working-tree changes only.`
@@ -830,7 +836,13 @@ function getRolloutDiff() {
 }
 
 function getStagedChangedLines() {
-	const diff = runGit(["diff", "--cached", "--unified=0", "--no-ext-diff"]);
+	const diff = runGit([
+		"diff",
+		"--cached",
+		"--unified=0",
+		"--no-ext-diff",
+		"--ignore-submodules",
+	]);
 	return parseChangedLines(diff);
 }
 
