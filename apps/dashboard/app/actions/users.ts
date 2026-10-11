@@ -42,6 +42,7 @@ export const setPasswordForOAuthUser = withEvlog(
 			return { error: passwordResult.error.message };
 		}
 
+		let passwordSaved = false;
 		try {
 			const existingCredentialAccount = await db
 				.select({ id: account.id })
@@ -65,23 +66,26 @@ export const setPasswordForOAuthUser = withEvlog(
 				body: { newPassword },
 				headers: requestHeaders,
 			});
-			await auth.api.revokeOtherSessions({ headers: requestHeaders });
+			passwordSaved = true;
 			log.audit?.({ action: "auth.set_password", actor, outcome: "success" });
+			await auth.api.revokeOtherSessions({ headers: requestHeaders });
 
 			revalidatePath("/settings");
 			return { success: true };
 		} catch (error) {
 			log.error(error instanceof Error ? error : String(error));
-			log.audit?.({
-				action: "auth.set_password",
-				actor,
-				outcome: "failure",
-				reason:
-					error instanceof APIError
-						? ((error.body as { code?: string } | undefined)?.code ??
-							String(error.status))
-						: "unexpected",
-			});
+			if (!passwordSaved) {
+				log.audit?.({
+					action: "auth.set_password",
+					actor,
+					outcome: "failure",
+					reason:
+						error instanceof APIError
+							? ((error.body as { code?: string } | undefined)?.code ??
+								String(error.status))
+							: "unexpected",
+				});
+			}
 			if (error instanceof APIError) {
 				return { error: error.message };
 			}
