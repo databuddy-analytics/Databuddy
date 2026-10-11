@@ -342,8 +342,9 @@ export function generateScriptTag(
 
 	const dataAttrs = Object.entries(trackingOptions)
 		.filter(([key, value]) => {
-			// Pinned bundles can predate the default-on behavior.
-			if (versionedScript && key === "trackInteractions" && value === true) {
+			const pinnedBundleNeedsInteractionsOn =
+				versionedScript && key === "trackInteractions" && value === true;
+			if (pinnedBundleNeedsInteractionsOn) {
 				return true;
 			}
 			const actualDefault =
