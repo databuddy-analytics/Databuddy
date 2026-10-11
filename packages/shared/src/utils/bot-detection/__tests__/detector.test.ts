@@ -103,7 +103,7 @@ describe("detectBot", () => {
 			["DuckDuckBot", "DuckDuckBot/1.0"],
 			["Baiduspider", "Mozilla/5.0 (compatible; Baiduspider/2.0)"],
 		])("allows %s", (_label, ua) => {
-			expectBot(ua, BotCategory.SEARCH_ENGINE, BotAction.ALLOW);
+			expectBot(ua, BotCategory.SEARCH_ENGINE, BotAction.TRACK_ONLY);
 		});
 	});
 
@@ -117,7 +117,7 @@ describe("detectBot", () => {
 			["WhatsApp", "WhatsApp/2.23"],
 			["Telegrambot", "TelegramBot (like TwitterBot)"],
 		])("allows %s", (_label, ua) => {
-			expectBot(ua, BotCategory.SOCIAL_MEDIA, BotAction.ALLOW);
+			expectBot(ua, BotCategory.SOCIAL_MEDIA, BotAction.TRACK_ONLY);
 		});
 	});
 
@@ -148,7 +148,7 @@ describe("detectBot", () => {
 			["Datadog", "Datadog/Synthetics"],
 			["Site24x7", "Site24x7"],
 		])("allows %s", (_label, ua) => {
-			expectBot(ua, BotCategory.MONITORING, BotAction.ALLOW);
+			expectBot(ua, BotCategory.MONITORING, BotAction.TRACK_ONLY);
 		});
 	});
 
