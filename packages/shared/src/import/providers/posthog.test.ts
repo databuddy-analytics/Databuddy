@@ -5,7 +5,7 @@ import {
 	type ImportSource,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
-} from "../pipeline";
+} from "../records";
 import { posthogProvider } from "./posthog";
 
 type EventRecord = Extract<ImportRecord, { grain: "event" }>;
@@ -58,10 +58,10 @@ describe("posthog provider", () => {
 			posthogProvider.detect(
 				source([pageview("2026-03-04T10:00:00Z", "https://example.com/a")])
 			)
-		).resolves.toBe(true);
+		).resolves.toEqual({ label: "PostHog events" });
 		await expect(
 			posthogProvider.detect(source([{ hello: "world" }]))
-		).resolves.toBe(false);
+		).resolves.toBeNull();
 	});
 
 	test("keeps importing when a row carries null properties", async () => {

@@ -6,7 +6,7 @@ import {
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
 	parseCsv,
-} from "../pipeline";
+} from "../records";
 
 const SESSION_WINDOW_MS = 30 * 60 * 1000;
 const MIN_EXIT_SECONDS = 1;
@@ -58,10 +58,14 @@ export const simpleAnalyticsProvider: ImportProvider = {
 	id: "simple-analytics",
 	label: "Simple Analytics",
 	grain: "event",
+	exportHelp:
+		"A CSV export of your Simple Analytics data points, which includes the added_iso column.",
 
 	async detect(source) {
 		const texts = await sourceText(source);
-		return texts.some(hasSimpleAnalyticsHeader);
+		return texts.some(hasSimpleAnalyticsHeader)
+			? { label: "Simple Analytics data points" }
+			: null;
 	},
 
 	async *parse(source, context) {

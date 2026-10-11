@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	countryName,
 	type ImportedEvent,
-	liveOverlapFilter,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
-	synthesizeDate,
-} from "./pipeline";
+} from "@databuddy/shared/import/records";
+import { countryName, liveOverlapFilter, synthesizeDate } from "./pipeline";
 
 const DATE = "2026-03-04";
 

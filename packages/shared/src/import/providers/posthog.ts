@@ -7,7 +7,7 @@ import {
 	isSameSite,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
-} from "../pipeline";
+} from "../records";
 
 const PAGEVIEW_EVENT = "$pageview";
 const MIN_EXIT_SECONDS = 1;
@@ -191,19 +191,21 @@ export const posthogProvider: ImportProvider = {
 	id: "posthog",
 	label: "PostHog",
 	grain: "event",
+	exportHelp:
+		"A PostHog batch export of your events as JSON lines, including the $pageview events.",
 
 	async detect(source) {
 		let checked = 0;
 		for await (const event of jsonObjects(source)) {
 			if (isPosthogEvent(event)) {
-				return true;
+				return { label: "PostHog events" };
 			}
 			checked += 1;
 			if (checked >= DETECT_SAMPLE_EVENTS) {
 				break;
 			}
 		}
-		return false;
+		return null;
 	},
 
 	async *parse(source, context) {
