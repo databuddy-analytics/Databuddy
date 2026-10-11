@@ -82,6 +82,18 @@ const AGENT_REQUEST = `${AGENT_ROW}
 
 const AGENT_REQUEST_IN_RANGE = `${AGENT_REQUEST} AND ${IN_RANGE}`;
 
+const SEARCH_ENGINE_REQUEST_IN_RANGE = `${SEARCH_ENGINE_ROW}
+	AND (status_code = 0 OR status_code BETWEEN 200 AND 299)
+	AND ${IN_RANGE}
+	AND (
+		source != 'tracker'
+		OR bot_name NOT IN (
+			SELECT bot_name
+			FROM ${Analytics.ai_traffic_spans}
+			WHERE ${SEARCH_ENGINE_ROW} AND source != 'tracker' AND ${IN_RANGE}
+		)
+	)`;
+
 const AGENT_PURPOSE = `if(startsWith(agent_id, '${UNIDENTIFIED_AGENT_PREFIX}'), agent_purpose, transform(agent_id, {agentIds:Array(String)}, {agentPurposes:Array(String)}, agent_purpose))`;
 
 const EVENT_IN_RANGE = `client_id = {websiteId:String}
@@ -722,22 +734,45 @@ export const AiAgentsBuilders = {
 					countIf(source = 'tracker') AS rendered,
 					countIf(source != 'tracker') AS server
 				FROM ${Analytics.ai_traffic_spans}
-				WHERE ${SEARCH_ENGINE_ROW}
-					AND (status_code = 0 OR status_code BETWEEN 200 AND 299)
-					AND ${IN_RANGE}
-					AND (
-						source != 'tracker'
-						OR bot_name NOT IN (
-							SELECT bot_name
-							FROM ${Analytics.ai_traffic_spans}
-							WHERE ${SEARCH_ENGINE_ROW} AND source != 'tracker' AND ${IN_RANGE}
-						)
-					)
+				WHERE ${SEARCH_ENGINE_REQUEST_IN_RANGE}
 				GROUP BY name
 				ORDER BY requests DESC
 				LIMIT {limit:UInt32}
 			`,
 			params: { ...queryParams(ctx), limit: ctx.limit ?? 50 },
+		}),
+		timeField: "timestamp",
+		customizable: false,
+	},
+
+	search_engine_activity: {
+		meta: {
+			title: "Search Engine Requests Over Time",
+			description:
+				"Requests from each search engine crawler per day (or hour), counted the same way as search_engine_crawlers.",
+			category: "AI Agents",
+			tags: ["search engines", "googlebot", "crawlers", "time-series", "trend"],
+			output_fields: [
+				{ name: "date", type: "string", label: "Date" },
+				{ name: "name", type: "string", label: "Crawler" },
+				{ name: "requests", type: "number", label: "Requests" },
+			],
+			default_visualization: "timeseries",
+			supports_granularity: ["hour", "day"],
+		},
+		commonFilters: false,
+		customSql: (ctx) => ({
+			sql: `
+				SELECT
+					${timeBucket(ctx, "timestamp")} AS date,
+					bot_name AS name,
+					count() AS requests
+				FROM ${Analytics.ai_traffic_spans}
+				WHERE ${SEARCH_ENGINE_REQUEST_IN_RANGE}
+				GROUP BY date, name
+				ORDER BY date ASC
+			`,
+			params: queryParams(ctx),
 		}),
 		timeField: "timestamp",
 		customizable: false,

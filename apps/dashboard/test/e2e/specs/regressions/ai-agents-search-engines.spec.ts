@@ -71,7 +71,8 @@ test("shows search engines next to AI crawlers without counting them as AI", {
 	await page.goto(`/websites/${websiteId}/agents`);
 
 	await expect(page.getByText("Search engines", { exact: true })).toBeVisible();
-	await expect(page.getByText("GoogleBot", { exact: true })).toHaveCount(1);
-	await expect(page.getByText("rendered", { exact: true })).toBeVisible();
+	await expect(page.getByText("Google", { exact: true })).toBeVisible();
+	await expect(page.getByText("Rendered", { exact: true })).toBeVisible();
+	await expect(page.getByText("2 pages read", { exact: false })).toBeVisible();
 	await expect(page.getByText("Who reads your content")).toBeVisible();
 });

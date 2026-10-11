@@ -17,6 +17,7 @@ import {
 import { Sheet } from "@databuddy/ui/client";
 import {
 	BrainIcon,
+	MagnifyingGlassIcon,
 	MinusIcon,
 	OpenExternalIcon,
 	TrendDownIcon,
@@ -37,6 +38,7 @@ import { parseAsBoolean, useQueryState } from "nuqs";
 import { useMemo, useRef, useState } from "react";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { AskAgentButton } from "@/components/agent/new-chat-button";
+import { FaviconImage } from "@/components/analytics/favicon-image";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import {
 	Chart,
@@ -107,6 +109,12 @@ interface SearchEngineRow {
 	rendered: number;
 	requests: number;
 	server: number;
+}
+
+interface SearchActivityRow {
+	date: string;
+	name: string;
+	requests: number;
 }
 
 interface FailedRequestRow {
@@ -1421,60 +1429,171 @@ function RecentRequestsPanel({ rows }: { rows: RecentRequestRow[] }) {
 	);
 }
 
-function SearchEnginesPanel({
+const SEARCH_ENGINE_BRANDS: Array<{
+	domain: string;
+	label: string;
+	match: string;
+}> = [
+	{ match: "google", label: "Google", domain: "google.com" },
+	{ match: "bing", label: "Bing", domain: "bing.com" },
+	{ match: "msnbot", label: "Bing", domain: "bing.com" },
+	{ match: "duckduck", label: "DuckDuckGo", domain: "duckduckgo.com" },
+	{ match: "yandex", label: "Yandex", domain: "yandex.com" },
+	{ match: "baidu", label: "Baidu", domain: "baidu.com" },
+	{ match: "ibou", label: "Ibou", domain: "ibou.io" },
+	{ match: "qwant", label: "Qwant", domain: "qwant.com" },
+	{ match: "seznam", label: "Seznam", domain: "seznam.cz" },
+	{ match: "mojeek", label: "Mojeek", domain: "mojeek.com" },
+	{ match: "kagi", label: "Kagi", domain: "kagi.com" },
+	{ match: "slurp", label: "Yahoo", domain: "yahoo.com" },
+];
+
+function searchEngineBrand(name: string): { domain?: string; label: string } {
+	const lower = name.toLowerCase();
+	return (
+		SEARCH_ENGINE_BRANDS.find((brand) => lower.includes(brand.match)) ?? {
+			label: name,
+		}
+	);
+}
+
+function ReadShare({ ai, search }: { ai: number; search: number }) {
+	const total = ai + search;
+	if (total === 0) {
+		return null;
+	}
+	const searchPercent = Math.round((search / total) * 100);
+	return (
+		<Tooltip
+			content={
+				<Tip
+					lines={[
+						`${formatCount(search, "search engine read")}`,
+						`${formatCount(ai, "AI read")}`,
+					]}
+					title="Crawler reads in this period"
+				/>
+			}
+			delay={TIP_DELAY_MS}
+		>
+			<div className="w-full max-w-64 cursor-default space-y-1.5">
+				<div className="flex justify-between text-muted-foreground text-xs tabular-nums">
+					<span>Search {searchPercent}%</span>
+					<span>AI {100 - searchPercent}%</span>
+				</div>
+				<div className="flex h-1.5 overflow-hidden rounded-full bg-background">
+					<div
+						className="h-full bg-foreground"
+						style={{ width: `${searchPercent}%` }}
+					/>
+				</div>
+			</div>
+		</Tooltip>
+	);
+}
+
+function SearchEngineCard({
+	isHourly,
+	row,
+	trend,
+}: {
+	isHourly: boolean;
+	row: SearchEngineRow;
+	trend: TrendPoint[];
+}) {
+	const brand = searchEngineBrand(row.name);
+	const seenOnServer = row.server > 0;
+	return (
+		<div className="flex flex-col gap-3 rounded-lg bg-background p-3">
+			<div className="flex items-center gap-2.5">
+				{brand.domain ? (
+					<FaviconImage
+						altText=""
+						className="size-7 rounded"
+						domain={brand.domain}
+						size={28}
+					/>
+				) : (
+					<span className="flex size-7 shrink-0 items-center justify-center rounded bg-secondary">
+						<MagnifyingGlassIcon className="size-4 text-muted-foreground" />
+					</span>
+				)}
+				<p className="truncate font-semibold text-sm">{brand.label}</p>
+				<Tooltip
+					content={
+						<Tip
+							lines={[
+								seenOnServer
+									? "Requests your server recorded"
+									: "Pages it rendered, which ran your tracker",
+								row.name,
+							]}
+							title={seenOnServer ? "Seen on your server" : "Rendered pages"}
+						/>
+					}
+					delay={TIP_DELAY_MS}
+				>
+					<span className="ml-auto shrink-0 cursor-default text-muted-foreground text-xs">
+						{seenOnServer ? "Server" : "Rendered"}
+					</span>
+				</Tooltip>
+			</div>
+			<div>
+				<p className="font-semibold text-xl tabular-nums">
+					{formatNumber(row.requests)}
+					<span className="ml-1.5 font-normal text-muted-foreground text-xs">
+						reads
+					</span>
+				</p>
+				<div className="my-1.5">
+					<Sparkline
+						id={`search-engine-${row.name}`}
+						isHourly={isHourly}
+						trend={trend}
+						unit="reads"
+					/>
+				</div>
+				<p className="truncate text-muted-foreground text-xs">
+					{formatCount(row.pages, "page")} read, last {fromNow(row.last_seen)}
+				</p>
+			</div>
+		</div>
+	);
+}
+
+function SearchEnginesSection({
 	aiReads,
+	isHourly,
 	rows,
+	trend,
 }: {
 	aiReads: number;
+	isHourly: boolean;
 	rows: SearchEngineRow[];
+	trend: (name: string) => TrendPoint[];
 }) {
-	const list = useShowAll(rows);
-	const total = rows.reduce((sum, row) => sum + row.requests, 0);
-	const maxRequests = Math.max(...rows.map((row) => row.requests), 1);
+	const searchReads = rows.reduce((sum, row) => sum + row.requests, 0);
 	return (
 		<div className="rounded-xl bg-secondary p-1.5">
-			<div className="flex flex-col gap-4 rounded-lg bg-background p-4">
-				<Headline
-					detail={`Google and other search engines reading your pages, next to ${formatNumber(aiReads)} AI reads in the same period. They are never counted as visitors.`}
-					title="Search engines"
-					unit="reads"
-					value={formatNumber(total)}
-				/>
-				<div className="flex flex-col gap-1">
-					{list.visible.map((row, index) => (
-						<BarRow
-							fraction={row.requests / maxRequests}
-							key={row.name}
-							rank={index + 1}
-							tooltip={
-								<Tip
-									lines={[
-										`${formatNumber(row.pages)} pages read`,
-										row.server > 0
-											? `${formatNumber(row.server)} requests seen on your server`
-											: "Pages it rendered, which ran your tracker",
-										`last request ${readTime(row.last_seen)}`,
-									]}
-									title={row.name}
-								/>
-							}
-							value={row.requests}
-						>
-							<span className="relative min-w-0 flex-1 truncate text-sm">
-								{row.name}
-							</span>
-							{row.server === 0 ? (
-								<span className="relative shrink-0 text-muted-foreground text-xs">
-									rendered
-								</span>
-							) : null}
-						</BarRow>
-					))}
+			<div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-3 pt-2 pb-3">
+				<div className="min-w-0">
+					<p className="font-semibold text-sm">Search engines</p>
+					<p className="text-pretty text-muted-foreground text-xs">
+						Google and other search engines reading your pages. They are never
+						counted as visitors.
+					</p>
 				</div>
-				<ShowAllButton
-					label={`Show all ${formatNumber(rows.length)} search engines`}
-					list={list}
-				/>
+				<ReadShare ai={aiReads} search={searchReads} />
+			</div>
+			<div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+				{rows.map((row) => (
+					<SearchEngineCard
+						isHourly={isHourly}
+						key={row.name}
+						row={row}
+						trend={trend(row.name)}
+					/>
+				))}
 			</div>
 		</div>
 	);
@@ -2388,7 +2507,10 @@ export default function AgentsPage() {
 			limit: 1000,
 		},
 		{ id: "activity", parameters: ["ai_crawler_activity"] },
-		{ id: "search", parameters: ["search_engine_crawlers"] },
+		{
+			id: "search",
+			parameters: ["search_engine_crawlers", "search_engine_activity"],
+		},
 		{ id: "failed", parameters: ["ai_failed_requests"], limit: 100 },
 		{ id: "recent", parameters: ["ai_recent_requests"], limit: 50 },
 	]);
@@ -2427,6 +2549,10 @@ export default function AgentsPage() {
 	const searchEngines: SearchEngineRow[] = getDataForQuery(
 		"search",
 		"search_engine_crawlers"
+	);
+	const searchActivity: SearchActivityRow[] = getDataForQuery(
+		"search",
+		"search_engine_activity"
 	);
 	const failedRequests: FailedRequestRow[] = getDataForQuery(
 		"failed",
@@ -2485,6 +2611,22 @@ export default function AgentsPage() {
 		}
 		return counts;
 	}, [visitorSeries, bucketFormat]);
+
+	const readsBySearchEngine = useMemo(() => {
+		const counts = new Map<string, Map<string, number>>();
+		for (const row of searchActivity) {
+			const byBucket = counts.get(row.name) ?? new Map<string, number>();
+			byBucket.set(dayjs(row.date).format(bucketFormat), row.requests);
+			counts.set(row.name, byBucket);
+		}
+		return counts;
+	}, [searchActivity, bucketFormat]);
+
+	const searchEngineTrend = (name: string): TrendPoint[] =>
+		buckets.map((date) => ({
+			date,
+			value: readsBySearchEngine.get(name)?.get(date) ?? 0,
+		}));
 
 	const visitorTrend = (product: string): TrendPoint[] =>
 		buckets.map((date) => ({
@@ -2675,9 +2817,11 @@ export default function AgentsPage() {
 					) : null}
 
 					{searchEngines.length > 0 ? (
-						<SearchEnginesPanel
+						<SearchEnginesSection
 							aiReads={totalOf(products, "requests")}
+							isHourly={isHourly}
 							rows={searchEngines}
+							trend={searchEngineTrend}
 						/>
 					) : null}
 
