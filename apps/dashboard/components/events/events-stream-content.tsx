@@ -629,7 +629,7 @@ export function EventsStreamContent({
 				</div>
 				<div className="flex-1 overflow-auto">
 					<Table>
-						<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+						<TableHeader className="sticky top-0 z-10 bg-accent">
 							<TableRow className="border-b bg-accent">
 								{columns.map((column) => (
 									<TableHead
@@ -880,7 +880,7 @@ export function EventsStreamContent({
 
 			<div className="min-h-0 flex-1 overflow-auto" ref={setScrollContainerRef}>
 				<Table>
-					<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+					<TableHeader className="sticky top-0 z-10 bg-accent">
 						{table.getHeaderGroups().map((headerGroup) => (
 							<TableRow className="border-b bg-accent" key={headerGroup.id}>
 								{headerGroup.headers.map((header) => (

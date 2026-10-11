@@ -24,7 +24,7 @@ export const NoticeBanner = ({
 			"flex flex-1 items-center gap-2 rounded border px-3 py-2 font-medium text-sm",
 			tone === "default"
 				? "notice-banner-angled-rectangle-gradient border-border bg-accent text-accent-foreground"
-				: "border-border border-l-2 border-l-amber-500/70 bg-card text-foreground shadow-xs",
+				: "border-border bg-card text-foreground shadow-xs",
 			className
 		)}
 	>
@@ -38,7 +38,7 @@ export const NoticeBanner = ({
 									"shrink-0",
 									tone === "default"
 										? "text-accent-foreground"
-										: "text-amber-500",
+										: "text-warning",
 									icon.props.className
 								),
 								"aria-hidden": true,

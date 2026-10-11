@@ -121,7 +121,7 @@ function TagList({
 }) {
 	if (values.length === 0) {
 		return (
-			<div className="rounded border border-dashed p-4 text-center">
+			<div className="rounded border p-4 text-center">
 				<p className="text-muted-foreground text-sm">
 					No {label.toLowerCase()} configured
 				</p>

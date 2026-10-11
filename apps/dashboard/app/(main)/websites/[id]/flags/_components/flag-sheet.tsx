@@ -134,18 +134,18 @@ function OptionCard({
 	selected: boolean;
 }) {
 	return (
-		<button
+		<Button
 			className={cn(
-				"flex-1 cursor-pointer rounded-md border py-2 text-center transition-all",
+				"h-auto flex-1 flex-col gap-0 whitespace-normal border p-2 text-center font-normal active:scale-100",
 				selected
-					? "border-primary/40 bg-primary/5 text-foreground ring-1 ring-primary/20"
-					: "border-border/60 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
-				disabled && "cursor-not-allowed opacity-40",
+					? "border-primary bg-card text-foreground hover:bg-card"
+					: "border-border/60 text-muted-foreground hover:bg-secondary/80 hover:text-foreground",
 				className
 			)}
 			disabled={disabled}
 			onClick={onClick}
 			type="button"
+			variant="secondary"
 		>
 			<span className="block font-medium text-xs capitalize">{label}</span>
 			{description && (
@@ -158,7 +158,7 @@ function OptionCard({
 					{description}
 				</span>
 			)}
-		</button>
+		</Button>
 	);
 }
 
@@ -582,16 +582,17 @@ export function FlagSheet({
 																rolloutByValue === option.value;
 															const Icon = option.icon;
 															return (
-																<button
+																<Button
 																	className={cn(
-																		"flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 py-2 transition-all",
+																		"h-auto flex-1 gap-1.5 border p-2 font-normal active:scale-100",
 																		isSelected
-																			? "border-primary/40 bg-primary/5 text-foreground ring-1 ring-primary/20"
-																			: "border-border/60 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
+																			? "border-primary bg-card text-foreground hover:bg-card"
+																			: "border-border/60 text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
 																	)}
 																	key={option.value}
 																	onClick={() => field.onChange(option.value)}
 																	type="button"
+																	variant="secondary"
 																>
 																	<Icon
 																		className={cn(
@@ -604,7 +605,7 @@ export function FlagSheet({
 																	<span className="font-medium text-xs">
 																		{option.label}
 																	</span>
-																</button>
+																</Button>
 															);
 														})}
 													</div>
@@ -708,10 +709,10 @@ export function FlagSheet({
 													const isSelected = field.value === status;
 													const colorClass = isSelected
 														? status === "active"
-															? "border-success/40 bg-success/5 text-success ring-1 ring-success/20"
+															? "border-success bg-card text-success"
 															: status === "inactive"
-																? "border-destructive/40 bg-destructive/5 text-destructive ring-1 ring-destructive/20"
-																: "border-warning/40 bg-warning/5 text-warning ring-1 ring-warning/20"
+																? "border-destructive bg-card text-destructive"
+																: "border-warning bg-card text-warning"
 														: "border-border/60 bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground";
 
 													return (
