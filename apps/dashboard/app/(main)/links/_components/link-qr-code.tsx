@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
 import { getPublicLinkUrl } from "@/lib/links-url";
@@ -12,6 +12,7 @@ import {
 	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
+import { FileDrop } from "@databuddy/ui/client";
 
 const QR_SIZES = [
 	{ value: 128, label: "Small", description: "128px" },
@@ -46,7 +47,6 @@ export function LinkQrCode({
 }: LinkQrCodeProps) {
 	const qrRef = useRef<QRCode>(null);
 	const qrContainerRef = useRef<HTMLDivElement>(null);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 	const shortUrl = getPublicLinkUrl(slug);
 
 	const [qr, setQr] = useState({
@@ -92,12 +92,7 @@ export function LinkQrCode({
 		}, "image/png");
 	};
 
-	const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
-		const file = event.target.files?.[0];
-		if (!file) {
-			return;
-		}
-
+	const handleLogoUpload = (file: File) => {
 		if (!file.type.startsWith("image/")) {
 			toast.error("Choose an image file, such as PNG or JPEG.");
 			return;
@@ -114,9 +109,6 @@ export function LinkQrCode({
 
 	const removeLogo = () => {
 		updateQr({ logo: "" });
-		if (fileInputRef.current) {
-			fileInputRef.current.value = "";
-		}
 	};
 
 	return (
@@ -292,24 +284,14 @@ export function LinkQrCode({
 								</Button>
 							</div>
 						) : (
-							<button
-								aria-describedby="logo-label"
-								className="flex w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed bg-secondary/50 px-4 py-6 text-muted-foreground transition-colors hover:border-border hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-								onClick={() => fileInputRef.current?.click()}
-								type="button"
-							>
-								<ImageIcon aria-hidden="true" size={20} />
-								<span className="text-sm">Upload logo</span>
-							</button>
+							<FileDrop
+								accept="image/*"
+								icon={<ImageIcon aria-hidden="true" size={20} />}
+								label="Upload logo image"
+								onFileAction={handleLogoUpload}
+								title="Drop a logo here, or click to upload it"
+							/>
 						)}
-						<input
-							accept="image/*"
-							aria-label="Upload logo image"
-							className="hidden"
-							onChange={handleLogoUpload}
-							ref={fileInputRef}
-							type="file"
-						/>
 						<p className="text-muted-foreground text-xs">
 							PNG or SVG recommended. Logo appears in the center.
 						</p>
