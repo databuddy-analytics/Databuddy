@@ -1,8 +1,9 @@
 import { ImageResponse } from "next/og";
+import { withEvlog } from "@/lib/evlog";
 import { LINKS_BASE_URL } from "@/lib/links-url";
 import { loadOgFonts, OG_COLORS, OgLogo } from "./brand";
 
-export async function GET(request: Request) {
+export const GET = withEvlog(async (request: Request) => {
 	const { searchParams } = new URL(request.url);
 	const title = searchParams.get("title") || "Shared via Databuddy";
 	const description = searchParams.get("description");
@@ -145,4 +146,4 @@ export async function GET(request: Request) {
 			fonts: await loadOgFonts(),
 		}
 	);
-}
+});

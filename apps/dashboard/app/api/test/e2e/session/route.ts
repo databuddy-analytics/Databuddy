@@ -1,3 +1,4 @@
+// evlog-map-disable -- test-only route; returns 404 unless DATABUDDY_E2E_MODE is set
 import { randomUUID } from "node:crypto";
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
