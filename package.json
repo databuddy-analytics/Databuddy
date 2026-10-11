@@ -30,7 +30,7 @@
   "packageManager": "bun@1.4.1",
   "private": true,
   "scripts": {
-    "prepare": "lefthook install",
+    "prepare": "lefthook install && git config submodule.recurse true && git config push.recurseSubmodules check",
     "setup": "bun run setup.ts",
     "build": "NODE_ENV=production dotenv -- turbo run build",
     "dev": "dotenv -- turbo run dev --env-mode=loose",
