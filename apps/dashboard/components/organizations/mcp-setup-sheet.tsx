@@ -84,7 +84,7 @@ const CLAUDE_CODE_COMMAND = `claude mcp add --transport http databuddy ${MCP_SER
 
 function ClaudeSignIn() {
 	return (
-		<div className="space-y-3 rounded border border-success/30 bg-success/5 p-3">
+		<div className="space-y-3 rounded border bg-card p-3">
 			<div className="flex items-start gap-2">
 				<ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
 				<div className="min-w-0">
@@ -490,7 +490,7 @@ function McpSetupForm({
 										connection.
 									</Text>
 									{needsOrganizationWideLinkAcknowledgment ? (
-										<div className="rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
+										<div className="rounded border bg-card px-3 py-2.5">
 											<Checkbox
 												checked={allowOrganizationWideLinks}
 												description="Short links belong to the organization, so this connection can manage every short link here, not only links associated with the selected websites."
@@ -502,7 +502,7 @@ function McpSetupForm({
 										</div>
 									) : null}
 									{websitesQuery.isLoading ? (
-										<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
+										<div className="flex items-center gap-2 rounded border border-border/60 px-3 py-3">
 											<ClockIcon className="size-4 animate-pulse text-muted-foreground" />
 											<Text tone="muted" variant="caption">
 												Loading websites…
@@ -522,7 +522,7 @@ function McpSetupForm({
 											))}
 										</div>
 									) : (
-										<div className="flex items-center gap-2 rounded border border-border/60 border-dashed px-3 py-3">
+										<div className="flex items-center gap-2 rounded border border-border/60 px-3 py-3">
 											<LockSimpleIcon className="size-4 text-muted-foreground" />
 											<Text tone="muted" variant="caption">
 												No websites in this organization yet.
@@ -550,7 +550,7 @@ function McpSetupForm({
 							</Text>
 						</div>
 
-						<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-2.5">
+						<div className="flex items-start gap-2 rounded border bg-card px-3 py-2.5">
 							<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 							<Text tone="muted" variant="caption">
 								The generated key authenticates an external AI client. Keep it
@@ -604,13 +604,11 @@ function ConnectionCreated({
 
 	return (
 		<div className="space-y-5">
-			<div className="rounded border border-success/30 bg-success/5 p-3">
+			<div className="rounded border bg-card p-3">
 				<div className="flex items-start gap-2">
 					<CheckCircleIcon className="mt-0.5 size-4 shrink-0 text-success" />
 					<div className="min-w-0">
-						<Text className="text-success" variant="label">
-							Connection created
-						</Text>
+						<Text variant="label">Connection created</Text>
 						<Text className="mt-0.5" tone="muted" variant="caption">
 							{CLIENTS[client].keyHint ?? CLIENTS[client].description}
 						</Text>
@@ -628,7 +626,7 @@ function ConnectionCreated({
 					</div>
 					<CopyButton label="Copy key" value={secret} variant="secondary" />
 				</div>
-				<div className="flex items-start gap-2 rounded border border-warning/30 bg-warning/5 p-3">
+				<div className="flex items-start gap-2 rounded border bg-card p-3">
 					<KeyIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 					<code className="min-w-0 flex-1 break-all font-mono text-[11px] text-foreground leading-relaxed">
 						{secret}

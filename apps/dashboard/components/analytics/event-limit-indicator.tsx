@@ -61,14 +61,7 @@ export function EventLimitIndicator() {
 	const isDestructive = isOverage || percentage >= 95;
 
 	return (
-		<div
-			className={cn(
-				"flex items-center justify-between rounded-md border px-3 py-2",
-				isDestructive
-					? "border-destructive/30 bg-destructive/5"
-					: "border-warning/30 bg-warning/5"
-			)}
-		>
+		<div className="flex items-center justify-between rounded-md border bg-card px-3 py-2">
 			<div className="flex items-center gap-2">
 				<WarningIcon
 					className={cn(
@@ -77,18 +70,13 @@ export function EventLimitIndicator() {
 					)}
 				/>
 				{isOverage ? (
-					<p className="font-medium text-destructive text-xs">
+					<p className="font-medium text-xs">
 						{formatLocaleNumber(overage)} events over limit
 					</p>
 				) : (
 					<p className="text-muted-foreground text-xs">
 						{formatLocaleNumber(remaining)} events remaining
-						<span
-							className={cn(
-								"ml-1.5 font-medium",
-								isDestructive ? "text-destructive" : "text-warning"
-							)}
-						>
+						<span className="ml-1.5 font-medium text-foreground">
 							({percentage.toFixed(0)}% used)
 						</span>
 					</p>

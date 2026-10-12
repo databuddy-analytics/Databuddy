@@ -257,9 +257,9 @@ export function CancelSubscriptionDialog({
 							</Button>
 
 							{selected === "immediate" && (
-								<div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+								<div className="flex items-start gap-2 rounded-md border bg-card p-3">
 									<WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-									<span className="text-destructive text-xs">
+									<span className="text-muted-foreground text-xs">
 										This action cannot be undone. You will lose access to all{" "}
 										{planName} features immediately.
 									</span>

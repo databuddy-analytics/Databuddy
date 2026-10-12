@@ -211,7 +211,7 @@ function TransferPageContent() {
 					</Card>
 
 					{selectedOrgId && (
-						<Alert className="border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
+						<Alert className="[&>svg]:text-warning">
 							<WarningIcon className="size-4" />
 							<AlertDescription className="text-xs">
 								<div>
@@ -300,8 +300,8 @@ function TransferPageContent() {
 								<ArrowRightIcon className="size-4 rotate-90 text-muted-foreground" />
 							</div>
 
-							<div className="flex items-center gap-2.5 rounded border border-primary/30 bg-primary/5 p-2.5">
-								<div className="flex size-8 shrink-0 items-center justify-center rounded border border-primary/30 bg-background">
+							<div className="flex items-center gap-2.5 rounded border bg-card p-2.5">
+								<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
 									{selectedOrg?.logo ? (
 										<img
 											alt={selectedOrg.name}
@@ -311,12 +311,12 @@ function TransferPageContent() {
 											width={32}
 										/>
 									) : (
-										<BuildingsIcon className="size-4 text-primary" />
+										<BuildingsIcon className="size-4 text-muted-foreground" />
 									)}
 								</div>
 								<div className="min-w-0 flex-1">
 									<p className="text-muted-foreground text-xs">To</p>
-									<p className="truncate font-medium text-primary text-sm">
+									<p className="truncate font-medium text-sm">
 										{selectedOrg?.name}
 									</p>
 								</div>

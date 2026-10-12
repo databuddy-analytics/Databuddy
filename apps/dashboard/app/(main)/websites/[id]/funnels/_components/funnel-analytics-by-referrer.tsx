@@ -257,9 +257,11 @@ export function FunnelAnalyticsByReferrer({
 
 	if (error) {
 		return (
-			<div className="flex items-center gap-2 rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+			<div className="flex items-center gap-2 rounded border bg-card px-3 py-2 text-sm">
 				<WarningCircleIcon className="size-4 text-destructive" />
-				<span className="text-destructive">Failed to load traffic sources</span>
+				<span className="text-muted-foreground">
+					Failed to load traffic sources
+				</span>
 			</div>
 		);
 	}
