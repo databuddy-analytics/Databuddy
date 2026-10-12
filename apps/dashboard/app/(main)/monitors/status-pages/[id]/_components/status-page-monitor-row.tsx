@@ -136,7 +136,7 @@ export function StatusPageMonitorRow({
 					"flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60",
 					isPaused
 						? "bg-muted text-muted-foreground"
-						: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+						: "bg-success/10 text-success"
 				)}
 			>
 				<HeartbeatIcon className="size-4" />

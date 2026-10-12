@@ -74,11 +74,11 @@ function InsightRow({ insight }: { insight: BriefInsight }) {
 				? TrendDownIcon
 				: LightbulbIcon;
 	const tone = critical
-		? "bg-red-500/10 text-red-600"
+		? "bg-destructive/10 text-destructive"
 		: positive
-			? "bg-emerald-500/10 text-emerald-600"
+			? "bg-success/10 text-success"
 			: negative
-				? "bg-amber-500/10 text-amber-600"
+				? "bg-warning/10 text-warning"
 				: "bg-primary/10 text-primary";
 
 	return (

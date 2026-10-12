@@ -116,7 +116,7 @@ export function AgentCreditBalance({
 						isEmpty &&
 							"border-destructive/40 bg-destructive/5 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive",
 						isLow &&
-							"border-amber-500/40 bg-amber-500/5 text-amber-600 hover:border-amber-500/60 hover:bg-amber-500/10 dark:text-amber-400",
+							"border-warning/40 bg-warning/5 text-warning hover:border-warning/60 hover:bg-warning/10",
 						!(isEmpty || isLow) &&
 							"border-border/60 bg-card text-muted-foreground hover:border-border hover:bg-card hover:text-foreground"
 					)}

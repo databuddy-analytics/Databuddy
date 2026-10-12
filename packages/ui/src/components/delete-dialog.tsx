@@ -71,7 +71,7 @@ export function DeleteDialog({
 						{children ? (
 							<div className="flex flex-col gap-4">
 								{children}
-								<div className="flex items-center gap-3 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+								<div className="flex items-center gap-3 rounded-md border bg-card p-3">
 									<div className="flex size-8 shrink-0 items-center justify-center">
 										<TrashIcon className="size-4 text-destructive" />
 									</div>

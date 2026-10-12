@@ -339,7 +339,7 @@ function DeleteAccountDialog({
 					</Dialog.Description>
 				</Dialog.Header>
 				<Dialog.Body className="space-y-4">
-					<div className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+					<div className="flex items-start gap-3 rounded-lg border bg-card p-3">
 						<WarningCircleIcon className="mt-0.5 size-5 shrink-0 text-destructive" />
 						<Text tone="muted" variant="caption">
 							Organizations where you are the only member are deleted with their

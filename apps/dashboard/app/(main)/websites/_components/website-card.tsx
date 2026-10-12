@@ -97,7 +97,7 @@ function ChartEmptyState({
 	return (
 		<div className="flex h-28 flex-col items-center justify-center gap-2 px-4 text-center">
 			<div
-				className={`flex size-8 items-center justify-center rounded ${hasHistoricalData ? "bg-muted" : "bg-amber-500/10"}`}
+				className={`flex size-8 items-center justify-center rounded ${hasHistoricalData ? "bg-muted" : "bg-warning/10"}`}
 			>
 				{icon}
 			</div>

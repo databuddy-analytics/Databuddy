@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { orpc } from "@/lib/orpc";
 import { showErrorToast } from "@/lib/user-facing-error";
-import { cn } from "@/lib/utils";
 import {
 	GROUP_COLORS,
 	type GroupSheetProps,
@@ -233,30 +232,28 @@ export function GroupSheet({
 										</Field.Label>
 										<div className="flex flex-wrap gap-2">
 											{GROUP_COLORS.map((color) => (
-												<button
-													className={cn(
-														"relative flex size-9 items-center justify-center rounded shadow-sm transition-all hover:scale-110 hover:shadow-md",
-														field.value === color.value &&
-															"ring-2 ring-offset-2 ring-offset-background"
-													)}
+												<Button
+													className="size-9 rounded p-0 active:scale-100"
 													key={color.value}
 													onClick={() => {
 														field.onChange(color.value);
 														setSelectedColor(color.value);
 													}}
 													style={{
-														background: `linear-gradient(135deg, ${color.value} 0%, ${color.value}cc 100%)`,
+														backgroundColor: color.value,
 														...(field.value === color.value && {
-															ringColor: color.value,
+															outline: `2px solid ${color.value}`,
+															outlineOffset: 2,
 														}),
 													}}
 													title={color.label}
 													type="button"
+													variant="ghost"
 												>
 													{field.value === color.value && (
 														<CheckIcon className="size-3.5 text-white drop-shadow-sm" />
 													)}
-												</button>
+												</Button>
 											))}
 										</div>
 									</Field>

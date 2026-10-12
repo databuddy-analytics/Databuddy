@@ -104,8 +104,7 @@ const CustomTooltip = ({
 
 	return (
 		<div className="min-w-[200px] rounded border bg-popover p-3 shadow-lg">
-			<div className="mb-2 flex items-center gap-2 border-b pb-2">
-				<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-chart-1" />
+			<div className="mb-2 border-b pb-2">
 				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
 			<div className="space-y-1.5">
@@ -806,7 +805,7 @@ export function TrafficTrendsChart({
 								{granularity === "hourly" ? "Hourly" : "Daily"} traffic data
 							</p>
 							{dateRange.granularity === "hourly" && dateDiff > 7 ? (
-								<div className="mt-1 flex items-start gap-1 text-amber-600 text-xs">
+								<div className="mt-1 flex items-start gap-1 text-warning text-xs">
 									<WarningIcon className="mt-0.5 shrink-0" size={14} />
 									<span className="leading-relaxed">
 										Large date ranges may affect performance

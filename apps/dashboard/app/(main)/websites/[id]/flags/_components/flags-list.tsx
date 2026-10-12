@@ -216,7 +216,7 @@ function DependencyBadges({
 											<span
 												className={cn(
 													"size-1.5 rounded-full",
-													isActive ? "bg-green-500" : "bg-amber-500"
+													isActive ? "bg-success" : "bg-warning"
 												)}
 											/>
 											<span className="font-mono text-xs">{depKey}</span>
@@ -247,7 +247,7 @@ function DependencyBadges({
 											<span
 												className={cn(
 													"size-1.5 rounded-full",
-													isActive ? "bg-green-500" : "bg-amber-500"
+													isActive ? "bg-success" : "bg-warning"
 												)}
 											/>
 											<span className="font-mono text-xs">{dep.key}</span>

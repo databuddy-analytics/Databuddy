@@ -104,7 +104,7 @@ export function SaveFilterDialog({
 				<Dialog.Body>
 					<fieldset className="space-y-4" disabled={isLoading}>
 						{filters.length === 0 ? (
-							<div className="rounded border border-amber-200/50 bg-amber-50/50 px-3 py-2 text-amber-900 text-xs dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+							<div className="rounded border bg-card px-3 py-2 text-muted-foreground text-xs">
 								No filters applied
 							</div>
 						) : (

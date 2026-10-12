@@ -17,10 +17,7 @@ const VARIANT_STYLES: Record<
 > = {
 	default: { iconBg: "bg-accent", iconColor: "text-muted-foreground" },
 	destructive: { iconBg: "bg-destructive/10", iconColor: "text-destructive" },
-	warning: {
-		iconBg: "bg-amber-500/10",
-		iconColor: "text-amber-600 dark:text-amber-400",
-	},
+	warning: { iconBg: "bg-warning/10", iconColor: "text-warning" },
 };
 
 function ErrorStatCard({
