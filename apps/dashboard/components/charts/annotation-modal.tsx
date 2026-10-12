@@ -288,11 +288,11 @@ export function AnnotationModal(props: AnnotationModalProps) {
 						<span className="font-medium text-foreground text-xs">Color</span>
 						<div className="flex gap-1.5">
 							{ANNOTATION_COLORS.map((color) => (
-								<button
+								<Button
 									className={cn(
-										"size-6 cursor-pointer rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50",
+										"size-6 rounded-full border-2 p-0 active:scale-100",
 										selectedColor === color.value
-											? "scale-110 border-foreground"
+											? "border-foreground"
 											: "border-transparent"
 									)}
 									disabled={loading}
@@ -301,6 +301,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 									style={{ backgroundColor: color.value }}
 									title={color.label}
 									type="button"
+									variant="ghost"
 								/>
 							))}
 						</div>

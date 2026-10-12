@@ -45,21 +45,18 @@ const STATUS_CONFIG = {
 		description: "Your site passes Core Web Vitals",
 		colorClass: "text-success",
 		bgClass: "bg-success/10",
-		borderClass: "border-l-success",
 	},
 	"needs-improvement": {
 		label: "Needs work",
 		description: "Some metrics need improvement",
 		colorClass: "text-warning",
 		bgClass: "bg-warning/10",
-		borderClass: "border-l-warning",
 	},
 	poor: {
 		label: "Poor",
 		description: "Critical performance issues detected",
 		colorClass: "text-destructive",
 		bgClass: "bg-destructive/10",
-		borderClass: "border-l-destructive",
 	},
 } as const;
 
@@ -131,7 +128,7 @@ function MetricBreakdownItem({ data }: { data: MetricScoreData }) {
 
 function RESGaugeCardSkeleton({ className }: { className?: string }) {
 	return (
-		<Card className={cn("gap-0 border-l-4 py-0", className)}>
+		<Card className={cn("gap-0 py-0", className)}>
 			<Card.Content className="flex items-center gap-4 p-4">
 				<Skeleton className="size-24 shrink-0 rounded-full" />
 				<div className="flex-1 space-y-2">
@@ -183,13 +180,7 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 	const isRegression = hasTrend && (trend?.change ?? 0) < 0;
 
 	return (
-		<Card
-			className={cn(
-				"gap-0 border-l-4 py-0",
-				statusConfig?.borderClass,
-				className
-			)}
-		>
+		<Card className={cn("gap-0 py-0", className)}>
 			<Card.Content className="flex items-stretch gap-4 p-4">
 				<div className="flex shrink-0 flex-col items-center justify-center">
 					<GaugeChart

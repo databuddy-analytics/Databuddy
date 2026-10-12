@@ -510,7 +510,7 @@ export default function UsersPage() {
 							side="top"
 						>
 							<span className="flex items-center gap-1 font-medium tabular-nums">
-								<LightningIcon className="size-3 text-amber-500" />
+								<LightningIcon className="size-3 text-muted-foreground" />
 								{count}
 							</span>
 						</Tooltip>
@@ -810,7 +810,7 @@ export default function UsersPage() {
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="overflow-auto">
 						<Table>
-							<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+							<TableHeader className="sticky top-0 z-10 bg-accent">
 								<TableRow className="bg-accent shadow-[0_0_0_0.5px_var(--border)]">
 									{columns.map((column) => (
 										<TableHead
@@ -889,7 +889,7 @@ export default function UsersPage() {
 					ref={setScrollContainerRef}
 				>
 					<Table>
-						<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+						<TableHeader className="sticky top-0 z-10 bg-accent">
 							{table.getHeaderGroups().map((headerGroup) => (
 								<TableRow
 									className="bg-accent shadow-[0_0_0_0.5px_var(--border)]"

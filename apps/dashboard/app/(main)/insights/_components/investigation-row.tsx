@@ -259,9 +259,7 @@ export function CaseState({
 			aria-label="Current state"
 		>
 			<div className="flex items-center justify-between gap-3">
-				<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-					{label}
-				</p>
+				<p className="font-medium text-muted-foreground text-xs">{label}</p>
 				<StatusDot
 					color={
 						verifying
@@ -318,7 +316,7 @@ export function InvestigationActivity({
 
 			<dl className="grid gap-3 sm:grid-cols-2">
 				<div className="sm:col-span-2">
-					<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+					<dt className="font-medium text-muted-foreground text-xs">
 						What happened
 					</dt>
 					<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
@@ -327,7 +325,7 @@ export function InvestigationActivity({
 				</div>
 				{outcome.impact && (
 					<div>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						<dt className="font-medium text-muted-foreground text-xs">
 							Why it matters
 						</dt>
 						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
@@ -337,7 +335,7 @@ export function InvestigationActivity({
 				)}
 				{outcome.rootCause && (
 					<div>
-						<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						<dt className="font-medium text-muted-foreground text-xs">
 							Why it happened
 						</dt>
 						<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
@@ -471,9 +469,7 @@ function NextStep({
 	const copy = nextCopy(next, { executable: hideAction });
 	return (
 		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
-			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-				{copy.label}
-			</p>
+			<p className="font-medium text-muted-foreground text-xs">{copy.label}</p>
 			{!hideAction || next.type !== "act" ? (
 				<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
 					{copy.body}
