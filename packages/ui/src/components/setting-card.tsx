@@ -110,8 +110,8 @@ const ZONE_STYLES: Record<
 		button: { tone: "destructive" },
 	},
 	warning: {
-		border: "border-amber-500/30 divide-amber-500/30",
-		heading: "text-amber-600 dark:text-amber-500",
+		border: "border-warning/30 divide-warning/30",
+		heading: "text-warning",
 		button: { tone: "destructive", variant: "secondary" },
 	},
 };

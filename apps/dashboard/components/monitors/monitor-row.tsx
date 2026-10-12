@@ -316,10 +316,10 @@ function MiniHeatmap({
 					uptimePercent === null
 						? "text-muted-foreground"
 						: uptimePercent >= 99.9
-							? "text-emerald-600 dark:text-emerald-400"
+							? "text-success"
 							: uptimePercent >= 95
-								? "text-amber-600 dark:text-amber-400"
-								: "text-red-600 dark:text-red-400"
+								? "text-warning"
+								: "text-destructive"
 				)}
 			>
 				{uptimePercent === null ? "—" : `${uptimePercent.toFixed(1)}%`}
@@ -360,7 +360,7 @@ export function MonitorRow({ schedule, onEditAction }: MonitorRowProps) {
 						className={cn(
 							"flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60",
 							isActive
-								? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+								? "bg-success/10 text-success"
 								: "bg-secondary text-muted-foreground"
 						)}
 					>

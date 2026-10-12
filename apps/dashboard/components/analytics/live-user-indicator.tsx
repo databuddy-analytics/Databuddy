@@ -41,14 +41,14 @@ export function LiveUserIndicator({ websiteId }: LiveUserIndicatorProps) {
 	return (
 		<div className="flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-sidebar-accent/55 px-2.5 text-[12px]">
 			<span className="relative flex size-1.5">
-				<span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500/60" />
-				<span className="relative inline-flex size-1.5 rounded-full bg-green-500" />
+				<span className="absolute inline-flex size-full animate-ping rounded-full bg-success/60" />
+				<span className="relative inline-flex size-1.5 rounded-full bg-success" />
 			</span>
 			<span
 				className={cn(
 					"font-medium tabular-nums",
-					change === "up" && "text-green-600 dark:text-green-400",
-					change === "down" && "text-red-600 dark:text-red-400",
+					change === "up" && "text-success",
+					change === "down" && "text-destructive",
 					!change && "text-foreground"
 				)}
 			>

@@ -210,10 +210,8 @@ export function StatusPageRow({
 			<div className="flex flex-1 items-center gap-4 px-5 py-3">
 				<div
 					className={cn(
-						"flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60",
-						hasMonitors
-							? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-							: "bg-secondary text-muted-foreground"
+						"flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary",
+						hasMonitors ? "text-foreground" : "text-muted-foreground"
 					)}
 				>
 					<BrowserIcon className="size-5" />
