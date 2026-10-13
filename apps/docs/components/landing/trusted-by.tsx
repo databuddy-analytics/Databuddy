@@ -49,6 +49,13 @@ const companies = [
 		invert: true,
 	},
 	{
+		name: "Tilion",
+		ycBatch: "F26",
+		url: "https://tilion.com",
+		logo: "/social/tilion.svg",
+		markOnly: true,
+	},
+	{
 		name: "Coinstash",
 		url: "https://coinstash.com.au",
 		logo: "/social/coinstash.svg",
