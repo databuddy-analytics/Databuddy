@@ -480,7 +480,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 
 					<div className="space-y-4">
 						<div>
-							<p className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							<p className="mb-2 font-medium text-muted-foreground text-xs">
 								Core
 							</p>
 							<div className="grid gap-2 sm:grid-cols-2">
@@ -496,7 +496,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						</div>
 
 						<div>
-							<p className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							<p className="mb-2 font-medium text-muted-foreground text-xs">
 								Advanced
 							</p>
 							<div className="grid gap-2 sm:grid-cols-2">

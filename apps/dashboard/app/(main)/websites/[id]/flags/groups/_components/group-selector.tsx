@@ -54,22 +54,15 @@ function GroupOption({
 	onToggle: () => void;
 }) {
 	return (
-		<button
+		<Button
 			className={cn(
-				"relative flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-md p-2.5 text-left transition-all",
-				isSelected
-					? "bg-primary/10 hover:bg-primary/15"
-					: "hover:bg-interactive-hover"
+				"h-auto w-full justify-start gap-3 p-2.5 text-left font-normal active:scale-100",
+				isSelected && "bg-primary/10 hover:bg-primary/15"
 			)}
 			onClick={onToggle}
 			type="button"
+			variant="ghost"
 		>
-			{isSelected && (
-				<div
-					className="absolute inset-y-0 left-0 w-0.5"
-					style={{ backgroundColor: group.color }}
-				/>
-			)}
 			<div
 				className="flex size-7 shrink-0 items-center justify-center rounded"
 				style={{
@@ -97,7 +90,7 @@ function GroupOption({
 			>
 				{isSelected && <CheckIcon className="text-white" size={10} />}
 			</div>
-		</button>
+		</Button>
 	);
 }
 
@@ -126,7 +119,7 @@ export function GroupSelector({
 
 	if (availableGroups.length === 0) {
 		return (
-			<div className="rounded-lg border border-dashed bg-accent/50 p-4 text-center">
+			<div className="rounded-lg border bg-accent/50 p-4 text-center">
 				<UsersThreeIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
 				<p className="text-balance text-muted-foreground text-xs">
 					No groups yet. Create one to reuse user targeting across flags.

@@ -17,10 +17,10 @@ const CATEGORY_BY_PATTERN_GROUP: Record<string, BotCategory> = {
 const ACTION_BY_CATEGORY: Record<BotCategory, BotAction> = {
 	[BotCategory.AI_CRAWLER]: BotAction.TRACK_ONLY,
 	[BotCategory.AI_ASSISTANT]: BotAction.TRACK_ONLY,
-	[BotCategory.SEARCH_ENGINE]: BotAction.ALLOW,
-	[BotCategory.SOCIAL_MEDIA]: BotAction.ALLOW,
+	[BotCategory.SEARCH_ENGINE]: BotAction.TRACK_ONLY,
+	[BotCategory.SOCIAL_MEDIA]: BotAction.TRACK_ONLY,
 	[BotCategory.SEO_TOOL]: BotAction.BLOCK,
-	[BotCategory.MONITORING]: BotAction.ALLOW,
+	[BotCategory.MONITORING]: BotAction.TRACK_ONLY,
 	[BotCategory.SCRAPER]: BotAction.BLOCK,
 	[BotCategory.UNKNOWN_BOT]: BotAction.BLOCK,
 };

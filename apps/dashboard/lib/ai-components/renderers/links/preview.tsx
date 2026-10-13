@@ -56,7 +56,7 @@ const MODE_CONFIG: Record<string, ModeConfig> = {
 		title: "Update link",
 		confirmLabel: "Update",
 		confirmMessage: "Yes, update it",
-		accent: "border-amber-500/30",
+		accent: "border-warning/30",
 		ButtonIcon: CheckIcon,
 	},
 	delete: {

@@ -4,6 +4,11 @@ import { chCommand, chQuery } from "./client";
 // owner scan uses to skip owners that are still receiving data. blocked_traffic
 // is not scanned: basket keeps logging hits for deleted websites there, and its
 // TTL expires them.
+// Rows deliberately moved out of a website's analytics, such as bot traffic,
+// keep every column under this client_id prefix. The deleted-owner scan skips
+// them so the purge never treats an archive as a deleted website.
+export const ARCHIVED_CLIENT_ID_PREFIX = "archived:";
+
 export const CLIENT_ID_PURGE_TABLES = {
 	"analytics.events": "time",
 	"analytics.error_spans": "timestamp",
@@ -100,7 +105,7 @@ function ownerScan(
 	arrivedAt: string,
 	filter = "1"
 ): string {
-	return `SELECT assumeNotNull(${key}) AS id, max(${arrivedAt} > now() - INTERVAL 1 DAY) AS recent FROM ${table} WHERE ${key} != '' AND ${filter} GROUP BY id`;
+	return `SELECT assumeNotNull(${key}) AS id, max(${arrivedAt} > now() - INTERVAL 1 DAY) AS recent FROM ${table} WHERE ${key} != '' AND NOT startsWith(${key}, '${ARCHIVED_CLIENT_ID_PREFIX}') AND ${filter} GROUP BY id`;
 }
 
 const OWNER_SCANS = [

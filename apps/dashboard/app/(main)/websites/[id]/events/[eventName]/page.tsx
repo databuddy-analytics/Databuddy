@@ -76,7 +76,7 @@ export default function EventDetailPage() {
 	if (error) {
 		return (
 			<div className="p-3 sm:p-4">
-				<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6">
+				<div className="rounded-lg border bg-card p-6">
 					<EmptyState
 						description="There was an issue loading data for this event."
 						icon={<LightningIcon />}

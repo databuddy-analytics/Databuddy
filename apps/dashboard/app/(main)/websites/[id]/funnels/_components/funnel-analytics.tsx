@@ -138,14 +138,14 @@ export function FunnelAnalytics({
 
 	if (error) {
 		return (
-			<div className="red-angled-rectangle-gradient rounded border border-destructive/30 bg-destructive/5 p-4">
+			<div className="rounded border bg-card p-4">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
 						<div className="flex size-9 items-center justify-center rounded bg-destructive/10">
 							<WarningCircleIcon className="size-5 text-destructive" />
 						</div>
 						<div>
-							<div className="font-medium text-destructive text-sm">
+							<div className="font-medium text-foreground text-sm">
 								Failed to load analytics
 							</div>
 							<div className="text-muted-foreground text-xs">
@@ -222,7 +222,7 @@ export function FunnelAnalytics({
 			</div>
 
 			{hasErrorCorrelation && (
-				<div className="amber-angled-rectangle-gradient flex items-center gap-3 rounded border border-warning/20 bg-warning/5 p-3">
+				<div className="flex items-center gap-3 rounded border bg-card p-3">
 					<div className="flex size-8 shrink-0 items-center justify-center rounded bg-warning/10">
 						<BugIcon className="size-4 text-warning" />
 					</div>

@@ -157,7 +157,7 @@ export function TransferWebsiteDialog({
 								<ArrowRightIcon className="size-4 rotate-90 text-muted-foreground" />
 							</div>
 
-							<div className="flex items-center gap-2.5 rounded border border-primary/30 bg-primary/5 p-2.5">
+							<div className="flex items-center gap-2.5 rounded border bg-card p-2.5">
 								<img
 									alt={selectedOrg?.name ?? ""}
 									className="size-8 shrink-0 rounded"
@@ -169,7 +169,7 @@ export function TransferWebsiteDialog({
 								/>
 								<div className="min-w-0 flex-1">
 									<p className="text-muted-foreground text-xs">To</p>
-									<p className="truncate font-medium text-primary text-sm">
+									<p className="truncate font-medium text-sm">
 										{selectedOrg?.name}
 									</p>
 								</div>
@@ -281,9 +281,9 @@ export function TransferWebsiteDialog({
 					</div>
 
 					{!isLoadingOrgs && availableOrgs.length === 0 && (
-						<div className="flex items-start gap-2 rounded border border-orange-200 bg-orange-50 p-3 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
-							<WarningIcon className="mt-0.5 size-4 shrink-0" />
-							<p className="text-xs">
+						<div className="flex items-start gap-2 rounded border bg-card p-3">
+							<WarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+							<p className="text-muted-foreground text-xs">
 								No other organizations available. Create a new organization or
 								get invited to one to transfer this website.
 							</p>
@@ -291,9 +291,9 @@ export function TransferWebsiteDialog({
 					)}
 
 					{selectedOrgId && (
-						<div className="flex items-start gap-2 rounded border border-orange-200 bg-orange-50 p-3 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
-							<WarningIcon className="mt-0.5 size-4 shrink-0" />
-							<p className="text-xs">
+						<div className="flex items-start gap-2 rounded border bg-card p-3">
+							<WarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+							<p className="text-muted-foreground text-xs">
 								This will transfer all data, settings, and analytics to{" "}
 								<strong>{selectedOrg?.name}</strong>. This action cannot be
 								undone.

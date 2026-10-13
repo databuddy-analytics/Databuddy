@@ -39,10 +39,17 @@ Open [localhost:3000](http://localhost:3000). The dev command builds the SDK and
 devtools for you. Add provider keys only for the features you're working on;
 see [optional services](README.md#optional-services).
 
+The Insights worker in `apps/insights` is a private submodule that runs on
+Databuddy Cloud, so it stays empty in your clone. Everything else installs,
+builds and tests without it, and a self-hosted instance tells users that
+investigations run on Databuddy Cloud. Maintainers with access fetch it with
+`git submodule update --init apps/insights`; `bun install` keeps it in step on
+pull and checkout, and stops a push that points at an unpublished worker commit.
+
 To explore with sample data, run `bun run workspace --reset`. It targets the
 local Docker services only and prints a login, a website and an API key. Add
-`--anomaly` for a traffic spike and error surge that Insights will flag, or
-`--website YOUR_WEBSITE_ID` to seed a website you already made.
+`--anomaly` for a traffic spike and error surge, or `--website YOUR_WEBSITE_ID`
+to seed a website you already made.
 
 ## Check your changes
 

@@ -241,7 +241,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 	const belowFirstDiscount = quantity < FIRST_TIER_TOP;
 
 	return (
-		<div className="flex min-h-[44px] items-start gap-2 rounded border border-primary/30 bg-primary/5 p-3">
+		<div className="flex min-h-[44px] items-start gap-2 rounded border bg-card p-3">
 			{isCloseToNextTier && nudge ? (
 				<>
 					<TrendDownIcon className="mt-0.5 shrink-0 text-primary" size={14} />

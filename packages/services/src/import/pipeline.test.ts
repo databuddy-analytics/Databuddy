@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	countryName,
 	type ImportedEvent,
-	liveOverlapFilter,
 	PAGE_EXIT_EVENT_NAME,
 	PAGEVIEW_EVENT_NAME,
-	synthesizeDate,
-} from "./pipeline";
+} from "@databuddy/shared/import/records";
+import { countryName, liveOverlapFilter, synthesizeDate } from "./pipeline";
 
 const DATE = "2026-03-04";
 
@@ -28,7 +26,7 @@ function bucket(
 		visits?: number;
 	},
 	pages: [string, number][],
-	dimensions?: Map<"country", { pageviews: number; value: string }[]>
+	dimensions?: Map<"country" | "source", { pageviews: number; value: string }[]>
 ) {
 	return {
 		dimensions: dimensions ?? new Map(),
@@ -183,6 +181,39 @@ describe("rollup synthesis edge cases", () => {
 
 		expect(adjustments.droppedVisits).toBe(250);
 		expect(dashboardMetrics(events).visits).toBe(50);
+	});
+
+	test("small referrers do not take whole sessions from direct traffic", () => {
+		const { events } = synthesizeDate(
+			DATE,
+			bucket(
+				{ bounces: 0, durationSeconds: 600, visitors: 10, visits: 10 },
+				[["/", 100]],
+				new Map([
+					[
+						"source" as const,
+						[
+							{ pageviews: 30, value: "https://google.com" },
+							...["a", "b", "c", "d", "e"].map((name) => ({
+								pageviews: 1,
+								value: `https://${name}.example`,
+							})),
+						],
+					],
+				])
+			),
+			context()
+		);
+
+		const byReferrer = new Map<string, number>();
+		for (const event of events) {
+			if (event.eventName === PAGEVIEW_EVENT_NAME) {
+				const key = event.referrer ?? "direct";
+				byReferrer.set(key, (byReferrer.get(key) ?? 0) + 1);
+			}
+		}
+		expect(byReferrer.get("https://google.com")).toBe(30);
+		expect(byReferrer.get("direct")).toBe(70);
 	});
 
 	test("assigns dimension pageviews in proportion to the source", () => {

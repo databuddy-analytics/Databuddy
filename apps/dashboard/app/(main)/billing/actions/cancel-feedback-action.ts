@@ -3,7 +3,9 @@
 import { auth } from "@databuddy/auth";
 import { config } from "@databuddy/env/app";
 import { Databuddy } from "@databuddy/sdk/node";
+import { useLogger } from "evlog/next";
 import { headers } from "next/headers";
+import { withEvlog } from "@/lib/evlog";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
 
 const databuddyApiKey = config.services.databuddyApiKey;
@@ -31,47 +33,54 @@ interface TrackCancelFeedbackParams {
 	planName: string;
 }
 
-export async function trackCancelFeedbackAction({
-	feedback,
-	planId,
-	planName,
-	immediate,
-}: TrackCancelFeedbackParams): Promise<{ success: boolean }> {
-	try {
-		const session = await auth.api.getSession({
-			headers: await headers(),
+export const trackCancelFeedbackAction = withEvlog(
+	async ({
+		feedback,
+		planId,
+		planName,
+		immediate,
+	}: TrackCancelFeedbackParams): Promise<{ success: boolean }> => {
+		const log = useLogger();
+		log.set({
+			action: "track_cancel_feedback",
+			cancellation: { plan_id: planId, reason: feedback.reason },
 		});
-		if (!session) {
-			return { success: false };
-		}
+		try {
+			const session = await auth.api.getSession({
+				headers: await headers(),
+			});
+			if (!session) {
+				return { success: false };
+			}
 
-		if (!VALID_REASONS.includes(feedback.reason)) {
-			return { success: false };
-		}
+			if (!VALID_REASONS.includes(feedback.reason)) {
+				return { success: false };
+			}
 
-		if (!client) {
+			if (!client) {
+				return { success: true };
+			}
+
+			const result = await client.track({
+				name: "subscription_cancelled",
+				properties: {
+					reason: feedback.reason,
+					details: feedback.details?.trim() ?? null,
+					plan_id: planId,
+					plan_name: planName,
+					cancelled_immediately: immediate,
+				},
+			});
+			if (!result.success) {
+				return { success: false };
+			}
+
+			await client.flush();
+
 			return { success: true };
-		}
-
-		const result = await client.track({
-			name: "subscription_cancelled",
-			properties: {
-				reason: feedback.reason,
-				details: feedback.details?.trim() ?? null,
-				plan_id: planId,
-				plan_name: planName,
-				cancelled_immediately: immediate,
-			},
-		});
-		if (!result.success) {
+		} catch (error) {
+			log.error(error instanceof Error ? error : String(error));
 			return { success: false };
 		}
-
-		await client.flush();
-
-		return { success: true };
-	} catch (error) {
-		console.error("Failed to track cancellation feedback:", error);
-		return { success: false };
 	}
-}
+);

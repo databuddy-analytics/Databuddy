@@ -110,7 +110,7 @@ function AuthErrorPage() {
 			</div>
 
 			<div className="space-y-5 px-6">
-				<div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+				<div className="flex items-center gap-3 rounded-lg border bg-card p-4">
 					<ShieldWarningIcon className="size-5 shrink-0 text-destructive" />
 					<Text tone="muted">{errorInfo.description}</Text>
 				</div>

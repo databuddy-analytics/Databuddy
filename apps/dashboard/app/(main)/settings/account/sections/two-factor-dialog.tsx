@@ -240,12 +240,9 @@ export function TwoFactorDialog({
 						</Dialog.Header>
 
 						<Dialog.Body className="space-y-4">
-							<div className="flex items-start gap-2 rounded-md border border-blue-500/20 bg-blue-500/5 p-3">
-								<KeyIcon className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
-								<Text
-									className="text-blue-600 dark:text-blue-400"
-									variant="caption"
-								>
+							<div className="flex items-start gap-2 rounded-md border bg-card p-3">
+								<KeyIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+								<Text tone="muted" variant="caption">
 									This password will only be used for security actions like
 									enabling or disabling 2FA.
 								</Text>
@@ -447,9 +444,9 @@ export function TwoFactorDialog({
 								))}
 							</div>
 
-							<div className="flex items-start gap-2 rounded-md border border-warning/20 bg-warning/5 p-3">
+							<div className="flex items-start gap-2 rounded-md border bg-card p-3">
 								<WarningCircleIcon className="mt-0.5 size-4 shrink-0 text-warning" />
-								<Text className="text-warning" variant="caption">
+								<Text tone="muted" variant="caption">
 									If you lose access to your authenticator, these codes are the
 									only way to recover your account.
 								</Text>
@@ -489,9 +486,9 @@ export function TwoFactorDialog({
 						</Dialog.Header>
 
 						<Dialog.Body className="space-y-4">
-							<div className="flex items-start gap-2 rounded-md border border-success/20 bg-success/5 p-3">
+							<div className="flex items-start gap-2 rounded-md border bg-card p-3">
 								<ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-success" />
-								<Text className="text-success" variant="caption">
+								<Text tone="muted" variant="caption">
 									Two-factor authentication is active. Your account has an extra
 									layer of security.
 								</Text>

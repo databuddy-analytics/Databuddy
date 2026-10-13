@@ -276,10 +276,8 @@ function AuditEventDetail({
 					</div>
 
 					{event.reason ? (
-						<div className="rounded border border-destructive/20 bg-destructive/5 px-3 py-2.5">
-							<Text className="text-destructive" variant="label">
-								{event.reason}
-							</Text>
+						<div className="rounded border bg-card px-3 py-2.5">
+							<Text variant="label">{event.reason}</Text>
 						</div>
 					) : null}
 

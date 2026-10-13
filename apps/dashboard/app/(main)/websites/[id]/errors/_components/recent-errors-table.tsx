@@ -19,7 +19,7 @@ interface Props {
 
 const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
 	high: "bg-destructive",
-	medium: "bg-amber-500",
+	medium: "bg-warning",
 	low: "bg-muted-foreground/50",
 };
 

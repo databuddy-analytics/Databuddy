@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import JSZip from "jszip";
-import type { ImportRecord } from "./pipeline";
+import type { ImportRecord } from "./records";
 import { plausibleProvider } from "./providers/plausible";
 import { simpleAnalyticsProvider } from "./providers/simple-analytics";
-import { fileSource, zipSource } from "./runner";
+import { fileSource, zipSource } from "./index";
 
 const OVERSIZED_BYTES = 40 * 1024 * 1024;
 
@@ -39,7 +39,9 @@ describe("archive traversal", () => {
 			"unrelated-notes.txt": "x".repeat(OVERSIZED_BYTES),
 		});
 
-		expect(await plausibleProvider.detect(source)).toBe(true);
+		expect(await plausibleProvider.detect(source)).toEqual({
+			label: "Plausible data export",
+		});
 
 		const records: ImportRecord[] = [];
 		for await (const record of plausibleProvider.parse(source, context())) {
@@ -85,6 +87,8 @@ describe("single file traversal", () => {
 			DATAPOINTS_CSV
 		);
 
-		expect(await simpleAnalyticsProvider.detect(source)).toBe(true);
+		expect(await simpleAnalyticsProvider.detect(source)).toEqual({
+			label: "Simple Analytics data points",
+		});
 	});
 });

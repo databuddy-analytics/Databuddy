@@ -467,10 +467,10 @@ function OnboardingFlow() {
 
 	const billingPending = billing.isLoading || billing.isFetching;
 	const canReview = !billing.isError && investigations.hasAccess;
-	const reviewPending = verifiedWebsiteId !== null && billingPending;
-	const reviewFailed =
-		verifiedWebsiteId !== null && billing.isError && !billingPending;
-	const opensInsights = verifiedWebsiteId !== null && canReview;
+	const checksInsights = verifiedWebsiteId !== null && !isSelfHosted;
+	const reviewPending = checksInsights && billingPending;
+	const reviewFailed = checksInsights && billing.isError && !billingPending;
+	const opensInsights = checksInsights && canReview;
 	const offersPlans =
 		!(isSelfHosted || isDashboardE2E || billing.isLoading || billing.isError) &&
 		billing.canUserUpgrade &&

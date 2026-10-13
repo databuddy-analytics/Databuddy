@@ -137,15 +137,13 @@ function InvitationDetails({
 						<div
 							className={cn(
 								"flex size-10 shrink-0 items-center justify-center rounded",
-								isExpiringSoon ? "bg-amber-500/10" : "bg-secondary"
+								isExpiringSoon ? "bg-warning/10" : "bg-secondary"
 							)}
 						>
 							<ClockIcon
 								className={cn(
 									"size-5",
-									isExpiringSoon
-										? "text-amber-600 dark:text-amber-400"
-										: "text-accent-foreground"
+									isExpiringSoon ? "text-warning" : "text-accent-foreground"
 								)}
 							/>
 						</div>
@@ -197,7 +195,7 @@ function SuccessState({ organizationName }: { organizationName: string }) {
 		<div className="flex flex-1 items-center justify-center p-4 sm:p-8">
 			<div className="w-full max-w-md space-y-6 text-center">
 				<div className="flex justify-center">
-					<div className="rounded border border-green-500/20 bg-green-500/10 p-4">
+					<div className="rounded bg-success/10 p-4">
 						<CheckCircleIcon className="size-8 text-success" />
 					</div>
 				</div>

@@ -47,7 +47,7 @@ function Access() {
 test.each([
 	false,
 	true,
-])("self-hosted billing exposes local features and actual AI configuration (%s)", (aiConfigured) => {
+])("self-hosted billing follows AI configuration for chat and never offers investigations (%s)", (aiConfigured) => {
 	const client = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -76,8 +76,8 @@ test.each([
 			goals: "unlimited",
 			events: true,
 			chat: aiConfigured,
-			investigations: aiConfigured,
-			investigationAccess: aiConfigured,
+			investigations: false,
+			investigationAccess: false,
 			paidInvestigations: false,
 		}).replaceAll('"', "&quot;")
 	);

@@ -62,7 +62,7 @@ function ExpiryBadge({ link }: { link: Link }) {
 					"flex items-center gap-1 rounded px-1.5 py-0.5 text-xs",
 					isExpired
 						? "bg-destructive/10 text-destructive"
-						: "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+						: "bg-warning/10 text-warning"
 				)}
 			>
 				<ClockCountdownIcon className="size-3" />

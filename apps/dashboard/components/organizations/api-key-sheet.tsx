@@ -546,14 +546,14 @@ export function ApiKeySheet({
 					>
 						<Sheet.Body className="space-y-6">
 							{newSecret && (
-								<div className="rounded-md border border-success/30 bg-success/5 p-3">
+								<div className="rounded-md border bg-card p-3">
 									<div className="mb-2 flex items-center gap-1.5">
 										<CheckCircleIcon className="text-success" size={13} />
-										<Text className="text-success" variant="label">
+										<Text variant="label">
 											{isCreate ? "Secret key" : "New secret generated"}
 										</Text>
 									</div>
-									<div className="group relative overflow-hidden rounded-md border border-success/20 bg-background">
+									<div className="group relative overflow-hidden rounded-md border border-border/60 bg-background">
 										<div className="relative px-3 py-2.5">
 											<code className="block break-all pr-8 font-mono text-[11px] text-foreground leading-relaxed">
 												{newSecret}
@@ -777,7 +777,7 @@ export function ApiKeySheet({
 												</Text>
 											)}
 											{hasNoPermissions && (
-												<div className="mb-3 flex gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
+												<div className="mb-3 flex gap-2 rounded-md border bg-card px-3 py-2">
 													<TriangleWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" />
 													<Text tone="muted" variant="caption">
 														This key has no permissions selected and will not be
@@ -857,7 +857,7 @@ export function ApiKeySheet({
 												</div>
 
 												{isLoadingWebsites ? (
-													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
+													<div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-3">
 														<GlobeIcon className="size-4 shrink-0 animate-pulse text-muted-foreground" />
 														<Text tone="muted" variant="caption">
 															Loading websites…
@@ -968,7 +968,7 @@ export function ApiKeySheet({
 														})}
 													</div>
 												) : (
-													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
+													<div className="flex items-center gap-2 rounded-md border border-border/60 px-3 py-3">
 														<LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
 														<Text tone="muted" variant="caption">
 															No websites in this organization yet.

@@ -31,7 +31,7 @@ const getMetricStyles = (value: number, metric: string) => {
 
 	if (value <= thresholds.good) {
 		return {
-			colorClass: "text-green-600",
+			colorClass: "text-success",
 			isGood: true,
 			isPoor: false,
 		};
@@ -39,14 +39,14 @@ const getMetricStyles = (value: number, metric: string) => {
 
 	if (value <= thresholds.poor) {
 		return {
-			colorClass: "text-yellow-600",
+			colorClass: "text-warning",
 			isGood: false,
 			isPoor: false,
 		};
 	}
 
 	return {
-		colorClass: "text-red-600",
+		colorClass: "text-destructive",
 		isGood: false,
 		isPoor: true,
 	};

@@ -30,8 +30,8 @@ function resolveStatus(k: ApiKeyListItem): Status {
 
 const STATUS_ICON_STYLE: Record<Status, { container: string; icon: string }> = {
 	active: {
-		container: "bg-emerald-500/10",
-		icon: "text-emerald-500",
+		container: "bg-success/10",
+		icon: "text-success",
 	},
 	disabled: {
 		container: "bg-muted",

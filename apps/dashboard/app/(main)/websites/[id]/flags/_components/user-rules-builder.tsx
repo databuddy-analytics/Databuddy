@@ -221,7 +221,7 @@ export function UserRulesBuilder({ rules, onChange }: UserRulesBuilderProps) {
 
 	if (rules.length === 0) {
 		return (
-			<div className="rounded-lg border border-dashed bg-accent/50 p-4 text-center">
+			<div className="rounded-lg border bg-accent/50 p-4 text-center">
 				<UserIcon className="mx-auto mb-2 size-6 text-muted-foreground" />
 				<p className="mb-3 text-balance text-muted-foreground text-xs">
 					Match users by ID, email, or property

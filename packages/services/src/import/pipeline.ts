@@ -7,9 +7,21 @@ import {
 	IMPORTED_VISITOR_PREFIX,
 	TABLE_NAMES,
 } from "@databuddy/db/clickhouse";
-
-export const PAGEVIEW_EVENT_NAME = "screen_view";
-export const PAGE_EXIT_EVENT_NAME = "page_exit";
+import {
+	allocate,
+	ImportFileError,
+	type ImportContext,
+	type ImportedEvent,
+	type ImportRecord,
+	isSameSite,
+	MAX_BATCH_PAGEVIEWS,
+	PAGE_EXIT_EVENT_NAME,
+	PAGEVIEW_EVENT_NAME,
+	rollupPageviews,
+	type RollupDimensionKind,
+	type RollupMetric,
+	timeZoneOffsetMs,
+} from "@databuddy/shared/import/records";
 
 const IMPORT_MARKER_KEY = "__import";
 const IMPORT_RUN_KEY = "__import_run";
@@ -20,7 +32,6 @@ const INTRA_SESSION_GAP_SECONDS = 60;
 const BOUNCE_DURATION_SECONDS = 1;
 const BOUNCE_DURATION_CEILING_SECONDS = 9;
 const NON_BOUNCE_DURATION_FLOOR_SECONDS = 10;
-const WWW_PREFIX = /^www\./;
 const COUNTRY_CODE = /^[A-Za-z]{2}$/;
 
 const MAXMIND_COUNTRY_NAMES: Record<string, string> = {
@@ -49,206 +60,12 @@ const MAXMIND_COUNTRY_NAMES: Record<string, string> = {
 
 const regionNames = new Intl.DisplayNames("en", { type: "region" });
 
-type ImportGrain = "event" | "rollup";
-
-export type RollupDimensionKind =
-	| "page"
-	| "entry_page"
-	| "exit_page"
-	| "source"
-	| "country"
-	| "browser"
-	| "os"
-	| "device"
-	| "custom_event";
-
-type RollupMetric =
-	| "visitors"
-	| "visits"
-	| "pageviews"
-	| "bounces"
-	| "durationSeconds";
-
-interface RollupDimension {
-	hostname?: string;
-	kind: RollupDimensionKind;
-	value: string;
-}
-
-interface ImportedRollup {
-	date: string;
-	dimension: RollupDimension | null;
-	metrics: Partial<Record<RollupMetric, number>>;
-}
-
-export interface ImportedEvent {
-	browserName?: string | null;
-	city?: string | null;
-	country?: string | null;
-	deviceType?: string | null;
-	eventName: string;
-	hostname?: string;
-	language?: string | null;
-	osName?: string | null;
-	path: string;
-	properties?: Record<string, unknown>;
-	referrer?: string | null;
-	region?: string | null;
-	sessionKey: string;
-	sourceName?: string | null;
-	time: Date;
-	timeOnPage?: number | null;
-	utmCampaign?: string | null;
-	utmContent?: string | null;
-	utmMedium?: string | null;
-	utmSource?: string | null;
-	utmTerm?: string | null;
-	visitorKey: string;
-}
-
-export type ImportRecord =
-	| ({ grain: "event" } & ImportedEvent)
-	| ({ grain: "rollup" } & ImportedRollup);
-
-export interface ImportEntry {
-	name: string;
-	text(): Promise<string>;
-}
-
-export type ImportSource =
-	| { kind: "archive"; entries(): AsyncIterable<ImportEntry> }
-	| { kind: "file"; name: string; text(): Promise<string> };
-
-export interface ImportContext {
-	domain: string;
-	runId: string;
-	timezone: string;
-	websiteId: string;
-}
-
-export interface ImportProvider {
-	detect(source: ImportSource): Promise<boolean>;
-	grain: ImportGrain;
-	id: string;
-	label: string;
-	parse(
-		source: ImportSource,
-		context: ImportContext
-	): AsyncIterable<ImportRecord>;
-}
-
-export interface ImportAdjustments {
+interface ImportAdjustments {
 	droppedVisits: number;
 	durationDeltaSeconds: number;
 }
 
-export interface ImportResult {
-	adjustments: ImportAdjustments;
-	dates: number;
-	overlapSkipped: number;
-	rows: number;
-	skippedRollups: number;
-}
-
 export type LiveDayStarts = ReadonlyMap<string, number>;
-
-export function parseCsv(text: string): Record<string, string>[] {
-	const rows: string[][] = [];
-	let field = "";
-	let row: string[] = [];
-	let quoted = false;
-
-	for (let i = 0; i < text.length; i += 1) {
-		const char = text[i];
-
-		if (quoted) {
-			if (char !== '"') {
-				field += char;
-				continue;
-			}
-			if (text[i + 1] === '"') {
-				field += '"';
-				i += 1;
-				continue;
-			}
-			quoted = false;
-			continue;
-		}
-
-		if (char === '"') {
-			quoted = true;
-			continue;
-		}
-		if (char === ",") {
-			row.push(field);
-			field = "";
-			continue;
-		}
-		if (char === "\r") {
-			continue;
-		}
-		if (char === "\n") {
-			row.push(field);
-			rows.push(row);
-			field = "";
-			row = [];
-			continue;
-		}
-		field += char;
-	}
-
-	if (field.length > 0 || row.length > 0) {
-		row.push(field);
-		rows.push(row);
-	}
-
-	const header = (rows.shift() ?? []).map((name) => name.trim());
-	return rows
-		.filter((entry) => entry.some((value) => value.length > 0))
-		.map((entry) =>
-			Object.fromEntries(
-				header.map((name, index) => [name, entry[index] ?? ""])
-			)
-		);
-}
-
-export function csvNumber(value: string | undefined): number {
-	const parsed = Number(value);
-	return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function offsetMs(at: Date, timeZone: string): number {
-	const formatter = new Intl.DateTimeFormat("en-US", {
-		timeZone,
-		hour12: false,
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-	});
-	const parts = formatter.formatToParts(at);
-	const part = (type: string) =>
-		Number(parts.find((entry) => entry.type === type)?.value ?? "0");
-	const asUtc = Date.UTC(
-		part("year"),
-		part("month") - 1,
-		part("day"),
-		part("hour") % 24,
-		part("minute"),
-		part("second")
-	);
-	return asUtc - at.getTime();
-}
-
-function timeZoneOffsetMs(at: Date, timeZone: string): number {
-	try {
-		return offsetMs(at, timeZone);
-	} catch {
-		return 0;
-	}
-}
 
 function zonedDayStartUtc(date: string, timeZone: string): Date {
 	const utcMidnight = new Date(`${date}T00:00:00Z`);
@@ -258,13 +75,6 @@ function zonedDayStartUtc(date: string, timeZone: string): Date {
 	return new Date(
 		utcMidnight.getTime() - timeZoneOffsetMs(utcMidnight, timeZone)
 	);
-}
-
-export function endOfLocalDay(at: Date, timeZone: string): Date {
-	const dayMs = SECONDS_PER_DAY * 1000;
-	const offset = timeZoneOffsetMs(at, timeZone);
-	const local = at.getTime() + offset;
-	return new Date(Math.floor(local / dayMs) * dayMs + dayMs - 1 - offset);
 }
 
 export function countryName(value: string | null | undefined): string | null {
@@ -302,30 +112,22 @@ export function liveOverlapFilter(
 	};
 }
 
-export async function loadLiveDayStarts(
+async function loadLiveDayStarts(
 	websiteId: string,
-	timeZone: string
+	timeZone: string,
+	range: { fromMs: number; toMs: number }
 ): Promise<LiveDayStarts> {
 	const rows = await chQuery<{ day: string; first_live_ms: string }>(
 		`SELECT toString(toDate(time, {timeZone:String})) AS day, toString(toUnixTimestamp64Milli(min(time))) AS first_live_ms
 		FROM ${TABLE_NAMES.events}
-		WHERE client_id = {websiteId:String} AND ${EXCLUDE_IMPORTED_ROWS}
+		WHERE client_id = {websiteId:String}
+			AND time >= fromUnixTimestamp64Milli({fromMs:Int64})
+			AND time <= fromUnixTimestamp64Milli({toMs:Int64})
+			AND ${EXCLUDE_IMPORTED_ROWS}
 		GROUP BY day`,
-		{ websiteId, timeZone }
+		{ websiteId, timeZone, ...range }
 	);
 	return new Map(rows.map((row) => [row.day, Number(row.first_live_ms)]));
-}
-
-export function isSameSite(
-	hostname: string | undefined,
-	domain: string
-): boolean {
-	if (!hostname) {
-		return true;
-	}
-	const host = hostname.toLowerCase().replace(WWW_PREFIX, "");
-	const site = domain.toLowerCase().replace(WWW_PREFIX, "");
-	return host === site || host.endsWith(`.${site}`);
 }
 
 interface PageSlot {
@@ -349,7 +151,12 @@ const DIMENSION_FIELDS = {
 	country: "country",
 	device: "deviceType",
 	os: "osName",
-	source: "sourceName",
+	source: "referrer",
+	utm_source: "utmSource",
+	utm_medium: "utmMedium",
+	utm_campaign: "utmCampaign",
+	utm_term: "utmTerm",
+	utm_content: "utmContent",
 } as const satisfies Partial<Record<RollupDimensionKind, keyof ImportedEvent>>;
 
 type SynthesizedDimension = keyof typeof DIMENSION_FIELDS;
@@ -368,21 +175,35 @@ interface PlannedSession {
 
 function assignDimension(
 	sessions: PlannedSession[],
-	totals: DimensionTotal[]
+	totals: DimensionTotal[],
+	pageviews: number
 ): Array<string | undefined> {
-	const assigned = Array.from<string | undefined>({
-		length: sessions.length,
-	});
-	let session = 0;
-	for (const total of [...totals].sort((a, b) => b.pageviews - a.pageviews)) {
-		let budget = total.pageviews;
-		let planned = sessions[session];
-		while (budget > 0 && planned !== undefined) {
-			assigned[session] = total.value;
-			budget -= planned.pageviews;
-			session += 1;
-			planned = sessions[session];
+	const listed = totals.reduce((acc, total) => acc + total.pageviews, 0);
+	const budgets = [
+		...totals.map((total) => total.pageviews),
+		Math.max(0, pageviews - listed),
+	];
+	const assigned = Array.from<string | undefined>({ length: sessions.length });
+	let start = 0;
+	while (start < sessions.length) {
+		const size = sessions[start]?.pageviews ?? 0;
+		let end = start;
+		while (sessions[end]?.pageviews === size) {
+			end += 1;
 		}
+		const counts = allocate(
+			end - start,
+			budgets.map((budget) => Math.max(0, budget))
+		);
+		let session = start;
+		for (const [index, count] of counts.entries()) {
+			budgets[index] = (budgets[index] ?? 0) - count * size;
+			for (let n = 0; n < count; n += 1) {
+				assigned[session] = totals[index]?.value;
+				session += 1;
+			}
+		}
+		start = end;
 	}
 	return assigned;
 }
@@ -508,7 +329,7 @@ export function synthesizeDate(
 	const sessionDimensions = new Map(
 		[...bucket.dimensions].map(([kind, totals]) => [
 			kind,
-			assignDimension(sessions, totals),
+			assignDimension(sessions, totals, slots.length),
 		])
 	);
 	const dimensionsFor = (session: number): Partial<ImportedEvent> => {
@@ -641,7 +462,7 @@ function toEventRow(
 		title: null,
 		ip: "",
 		user_agent: "",
-		referrer: event.referrer ?? event.sourceName ?? null,
+		referrer: event.referrer ?? null,
 		browser_name: event.browserName ?? null,
 		os_name: event.osName ?? null,
 		device_type: event.deviceType ?? null,
@@ -661,7 +482,6 @@ function toEventRow(
 		properties: JSON.stringify({
 			[IMPORT_MARKER_KEY]: providerId,
 			[IMPORT_RUN_KEY]: context.runId,
-			...event.properties,
 		}),
 		created_at: clickHouseDateTime(new Date()),
 	};
@@ -669,10 +489,13 @@ function toEventRow(
 
 async function insertChunk(
 	rows: EventsInsert[],
-	providerId: string
+	providerId: string,
+	runId: string
 ): Promise<void> {
 	const token = createHash("sha256")
 		.update(providerId)
+		.update("\0")
+		.update(runId)
 		.update("\0")
 		.update(rows.map((row) => row.id).join("\0"))
 		.digest("hex");
@@ -706,68 +529,38 @@ export async function deleteImportedEvents(options: {
 		);
 	}
 
+	const filter = `client_id = {websiteId:String} AND ${conditions.join(" AND ")}`;
+	const params = {
+		websiteId,
+		...(providerId ? { providerId } : {}),
+		...(exceptRunId ? { exceptRunId } : {}),
+	};
+	const existing = await chQuery<{ found: number }>(
+		`SELECT 1 AS found FROM ${TABLE_NAMES.events} WHERE ${filter} LIMIT 1`,
+		params
+	);
+	if (existing.length === 0) {
+		return;
+	}
+
 	await clickHouse.command({
-		query: `ALTER TABLE ${TABLE_NAMES.events} DELETE WHERE client_id = {websiteId:String} AND ${conditions.join(" AND ")}`,
-		query_params: {
-			websiteId,
-			...(providerId ? { providerId } : {}),
-			...(exceptRunId ? { exceptRunId } : {}),
-		},
+		query: `ALTER TABLE ${TABLE_NAMES.events} DELETE WHERE ${filter}`,
+		query_params: params,
 		clickhouse_settings: { mutations_sync: "1" },
 	});
 }
 
-export async function runImport(options: {
-	provider: ImportProvider;
-	source: ImportSource;
-	context: ImportContext;
-	liveDayStarts?: LiveDayStarts;
-	onProgress?: (progress: { rows: number }) => void | Promise<void>;
-}): Promise<ImportResult> {
-	const { provider, source, context, onProgress } = options;
-	const overlapsLiveData = liveOverlapFilter(
-		options.liveDayStarts ?? new Map(),
-		context.timezone
-	);
+export interface ImportBatch extends ImportContext {
+	providerId: string;
+	records: ImportRecord[];
+}
+
+function bucketRollups(records: ImportRecord[]) {
 	const buckets = new Map<string, DateBucket>();
-	const pending: EventsInsert[] = [];
-	let rows = 0;
-	let skippedRollups = 0;
-	let overlapSkipped = 0;
-	const adjustments: ImportAdjustments = {
-		droppedVisits: 0,
-		durationDeltaSeconds: 0,
-	};
-
-	const flush = async (force: boolean) => {
-		while (
-			pending.length >= INSERT_CHUNK_SIZE ||
-			(force && pending.length > 0)
-		) {
-			const chunk = pending.splice(0, INSERT_CHUNK_SIZE);
-			await insertChunk(chunk, provider.id);
-			rows += chunk.length;
-			await onProgress?.({ rows });
-		}
-	};
-
-	const emit = async (events: ImportedEvent[]) => {
-		for (const event of events) {
-			if (overlapsLiveData(event.time)) {
-				overlapSkipped += 1;
-				continue;
-			}
-			pending.push(toEventRow(event, context, provider.id));
-		}
-		await flush(false);
-	};
-
-	for await (const record of provider.parse(source, context)) {
+	for (const record of records) {
 		if (record.grain === "event") {
-			await emit([record]);
 			continue;
 		}
-
 		const bucket = buckets.get(record.date) ?? {
 			totals: {},
 			pages: [],
@@ -792,26 +585,69 @@ export async function runImport(options: {
 				pageviews: record.metrics.pageviews ?? 0,
 			});
 			bucket.dimensions.set(kind, totals);
-		} else {
-			skippedRollups += 1;
 		}
 		buckets.set(record.date, bucket);
 	}
+	return buckets;
+}
 
-	for (const [date, bucket] of buckets) {
-		const synthesized = synthesizeDate(date, bucket, context);
-		adjustments.droppedVisits += synthesized.adjustments.droppedVisits;
-		adjustments.durationDeltaSeconds +=
-			synthesized.adjustments.durationDeltaSeconds;
-		await emit(synthesized.events);
+export async function ingestImportBatch(
+	batch: ImportBatch
+): Promise<{ rows: number; overlapSkipped: number }> {
+	const pageviews = rollupPageviews(batch.records);
+	if (pageviews > MAX_BATCH_PAGEVIEWS) {
+		throw new ImportFileError(
+			`This batch holds ${pageviews.toLocaleString("en-US")} pageviews, more than the ${MAX_BATCH_PAGEVIEWS.toLocaleString("en-US")} one batch can hold.`
+		);
 	}
-	await flush(true);
 
-	return {
-		rows,
-		dates: buckets.size,
-		skippedRollups,
-		overlapSkipped,
-		adjustments,
-	};
+	const records = batch.records.filter((record) =>
+		isSameSite(
+			record.grain === "event" ? record.hostname : record.dimension?.hostname,
+			batch.domain
+		)
+	);
+	const buckets = bucketRollups(records);
+	const events: ImportedEvent[] = records.filter(
+		(record): record is Extract<ImportRecord, { grain: "event" }> =>
+			record.grain === "event"
+	);
+	for (const [date, bucket] of buckets) {
+		for (const event of synthesizeDate(date, bucket, batch).events) {
+			events.push(event);
+		}
+	}
+	if (events.length === 0) {
+		return { rows: 0, overlapSkipped: 0 };
+	}
+
+	let fromMs = Number.POSITIVE_INFINITY;
+	let toMs = Number.NEGATIVE_INFINITY;
+	for (const event of events) {
+		fromMs = Math.min(fromMs, event.time.getTime());
+		toMs = Math.max(toMs, event.time.getTime());
+	}
+	const dayMs = SECONDS_PER_DAY * 1000;
+	const liveDayStarts = await loadLiveDayStarts(
+		batch.websiteId,
+		batch.timezone,
+		{
+			fromMs: fromMs - dayMs,
+			toMs: toMs + dayMs,
+		}
+	);
+	const overlapsLiveData = liveOverlapFilter(liveDayStarts, batch.timezone);
+	const rows = events
+		.filter((event) => !overlapsLiveData(event.time))
+		.map((event) => toEventRow(event, batch, batch.providerId));
+
+	for (let start = 0; start < rows.length; start += INSERT_CHUNK_SIZE) {
+		await insertChunk(
+			rows.slice(start, start + INSERT_CHUNK_SIZE),
+			batch.providerId,
+			batch.runId
+		);
+	}
+
+	return { rows: rows.length, overlapSkipped: events.length - rows.length };
 }

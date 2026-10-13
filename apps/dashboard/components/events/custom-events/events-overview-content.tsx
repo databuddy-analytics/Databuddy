@@ -58,7 +58,7 @@ export function EventsOverviewContent({
 	if (query.error) {
 		return (
 			<div className="p-3 sm:p-4">
-				<div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6">
+				<div className="rounded-lg border bg-card p-6">
 					<EmptyState
 						description="There was an issue loading your events analytics. Refresh using the toolbar above."
 						icon={<LightningIcon />}
@@ -75,7 +75,7 @@ export function EventsOverviewContent({
 	return (
 		<div className={cn("space-y-3 p-3 sm:space-y-4 sm:p-4", className)}>
 			{showRefreshingIndicator && (
-				<div className="flex h-9 items-center justify-center gap-2 rounded-md border border-primary/20 bg-primary/5 text-primary text-sm">
+				<div className="flex h-9 items-center justify-center gap-2 rounded-md border bg-card text-muted-foreground text-sm">
 					<ArrowClockwiseIcon className="size-4 animate-spin" />
 					<span>Refreshing data…</span>
 				</div>

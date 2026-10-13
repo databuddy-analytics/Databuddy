@@ -1,3 +1,4 @@
 [submodule "apps/insights"]
 	path = apps/insights
 	url = https://github.com/databuddy-analytics/databuddy-intelligence.git
+	branch = main

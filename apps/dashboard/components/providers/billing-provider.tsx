@@ -138,7 +138,8 @@ function SelfHostedBillingProvider({ children }: { children: ReactNode }) {
 		retry: false,
 	});
 	const canUse = (feature: string) =>
-		feature === "events" || data?.aiConfigured === true;
+		feature === "events" ||
+		(feature !== INVESTIGATION_USAGE.featureId && data?.aiConfigured === true);
 	const value: BillingContextValue = {
 		...DEMO_BILLING_VALUE,
 		currentPlanId: null,

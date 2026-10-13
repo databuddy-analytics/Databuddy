@@ -39,7 +39,7 @@ function MonitorRow({
 					className={cn(
 						"flex size-7 shrink-0 items-center justify-center rounded",
 						isActive
-							? "bg-emerald-500/10 text-emerald-500"
+							? "bg-success/10 text-success"
 							: "bg-muted text-muted-foreground"
 					)}
 				>
@@ -168,7 +168,7 @@ export function MonitorsSection({
 							className="block border-t px-5 py-2 text-center text-muted-foreground text-xs hover:bg-accent/50 hover:text-foreground"
 							href="/monitors"
 						>
-							View all {totalMonitors} monitors →
+							View all {totalMonitors} monitors
 						</Link>
 					)}
 				</>
