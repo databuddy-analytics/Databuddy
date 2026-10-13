@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { getPropertyTypeLabel } from "./classify-properties";
 import { PropertyValueCard } from "./property-value-card";
 import type { ClassifiedEvent, ClassifiedProperty } from "./types";
@@ -11,10 +12,12 @@ import {
 	ArrowClockwiseIcon,
 	ArrowRightIcon,
 	ChartBarIcon,
+	CaretUpDownIcon,
+	CheckIcon,
 	ListBulletsIcon,
 } from "@databuddy/ui/icons";
-import { Badge, EmptyState } from "@databuddy/ui";
-import { Select } from "@databuddy/ui/client";
+import { Badge, Button, EmptyState } from "@databuddy/ui";
+import { Popover, SearchList } from "@databuddy/ui/client";
 
 interface PropertySummaryProps {
 	events: ClassifiedEvent[];
@@ -37,6 +40,8 @@ export function PropertySummary({
 	onPropertyValueSelect,
 	selectionQueryKey = "event",
 }: PropertySummaryProps) {
+	const [isEventPickerOpen, setIsEventPickerOpen] = useState(false);
+	const [eventSearch, setEventSearch] = useState("");
 	const [selectedEvent, setSelectedEvent] = useQueryState(
 		selectionQueryKey,
 		parseAsString.withDefault("")
@@ -70,19 +75,65 @@ export function PropertySummary({
 		<div className="space-y-3">
 			<div className="flex min-h-8 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex min-w-0 flex-wrap items-center gap-2">
-					<Select
-						onValueChange={(value) => setSelectedEvent(String(value))}
-						value={activeEvent.name}
+					<Popover
+						onOpenChange={(open) => {
+							setIsEventPickerOpen(open);
+							setEventSearch("");
+						}}
+						open={isEventPickerOpen}
 					>
-						<Select.Trigger className="w-full sm:w-60" />
-						<Select.Content className="max-h-64 overflow-y-auto">
-							{events.map((event) => (
-								<Select.Item key={event.name} value={event.name}>
-									{event.name}
-								</Select.Item>
-							))}
-						</Select.Content>
-					</Select>
+						<Popover.Trigger
+							render={
+								<Button
+									aria-label={`Custom event: ${activeEvent.name}`}
+									className="w-full justify-between font-normal sm:w-60"
+									size="sm"
+									variant="secondary"
+								>
+									<span className="truncate">{activeEvent.name}</span>
+									<CaretUpDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+								</Button>
+							}
+						/>
+						<Popover.Content
+							align="start"
+							aria-label="Choose custom event"
+							className="w-(--anchor-width) p-0"
+						>
+							<SearchList defaultValue={activeEvent.name} label="Custom events">
+								<SearchList.Input
+									aria-label="Search custom events"
+									autoFocus
+									onValueChange={setEventSearch}
+									placeholder="Search events…"
+									value={eventSearch}
+								/>
+								<SearchList.List className="max-h-64">
+									<SearchList.Empty>
+										No events found. Try a different search.
+									</SearchList.Empty>
+									{events.map((event) => (
+										<SearchList.Item
+											key={event.name}
+											onSelect={() => {
+												setSelectedEvent(event.name);
+												setIsEventPickerOpen(false);
+											}}
+											value={event.name}
+										>
+											<CheckIcon
+												className={cn(
+													"size-3.5 shrink-0",
+													event.name !== activeEvent.name && "opacity-0"
+												)}
+											/>
+											<span className="truncate">{event.name}</span>
+										</SearchList.Item>
+									))}
+								</SearchList.List>
+							</SearchList>
+						</Popover.Content>
+					</Popover>
 					<Badge size="sm" variant="muted">
 						{activeEvent.summaryProperties.length} propert
 						{activeEvent.summaryProperties.length === 1 ? "y" : "ies"}
