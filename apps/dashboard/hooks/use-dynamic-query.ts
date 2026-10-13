@@ -192,7 +192,7 @@ export function useDynamicQuery<
 
 	return {
 		data: processedData,
-		isLoading: query.isLoading || query.isFetching,
+		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		isError: query.isError,
 		error: query.error,
@@ -282,7 +282,7 @@ export function useBatchDynamicQuery(
 
 	return {
 		results: processedResults,
-		isLoading: query.isLoading || query.isFetching,
+		isLoading: query.isLoading,
 		isError: query.isError,
 		error: query.error,
 		refetch: query.refetch,
