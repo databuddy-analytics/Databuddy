@@ -38,7 +38,7 @@ function SegmentedControl<T extends string>({
 		<div
 			className={cn(
 				"inline-flex items-center rounded-md bg-secondary",
-				size === "sm" ? "h-8 gap-0.5 p-0.5" : "gap-1 p-1",
+				size === "sm" ? "h-8 gap-0.5 p-1" : "gap-1 p-1",
 				disabled && "pointer-events-none opacity-50",
 				className
 			)}
