@@ -4,6 +4,7 @@ import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { useMemo, useState } from "react";
 import { formatNumber } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { getPropertyTypeLabel } from "./classify-properties";
 import { PropertyValueCard } from "./property-value-card";
 import type { ClassifiedEvent, ClassifiedProperty } from "./types";
@@ -108,7 +109,9 @@ export function PropertySummary({
 									value={eventSearch}
 								/>
 								<SearchList.List className="max-h-64">
-									<SearchList.Empty>No events found.</SearchList.Empty>
+									<SearchList.Empty>
+										No events found. Try a different search.
+									</SearchList.Empty>
 									{events.map((event) => (
 										<SearchList.Item
 											key={event.name}
@@ -119,7 +122,10 @@ export function PropertySummary({
 											value={event.name}
 										>
 											<CheckIcon
-												className={`size-3.5 shrink-0 ${event.name === activeEvent.name ? "opacity-100" : "opacity-0"}`}
+												className={cn(
+													"size-3.5 shrink-0",
+													event.name !== activeEvent.name && "opacity-0"
+												)}
 											/>
 											<span className="truncate">{event.name}</span>
 										</SearchList.Item>
