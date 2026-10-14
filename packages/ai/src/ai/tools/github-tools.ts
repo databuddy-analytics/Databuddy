@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { and, db, eq, isNull, websites } from "@databuddy/db";
 import { getGithubTokenForOrg } from "@databuddy/services/github-app";
 import { tool, type ToolSet } from "ai";
@@ -10,6 +11,9 @@ const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
 const MAX_FILE_CHARACTERS = 15_000;
 const MAX_COMMIT_PATCH_CHARACTERS = 12_000;
+const THROTTLE_RETRY_MS = 1000;
+const MAX_THROTTLE_WAIT_MS = 5000;
+const RATE_LIMIT_MESSAGE = /rate limit/i;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
 const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
 const PRODUCTION_ENVIRONMENT = /prod/i;
@@ -72,7 +76,30 @@ interface GitHubDeploymentStatus {
 	updated_at: string;
 }
 
-async function githubFetch(path: string, token: string): Promise<unknown> {
+async function githubErrorMessage(res: Response): Promise<string> {
+	const body: unknown = await res.json().catch(() => null);
+	return body &&
+		typeof body === "object" &&
+		"message" in body &&
+		typeof body.message === "string"
+		? body.message
+		: "";
+}
+
+function isGithubThrottle(res: Response, message: string): boolean {
+	return (
+		(res.status === 403 || res.status === 429) &&
+		(res.headers.get("x-ratelimit-remaining") === "0" ||
+			res.headers.has("retry-after") ||
+			RATE_LIMIT_MESSAGE.test(message))
+	);
+}
+
+async function githubFetch(
+	path: string,
+	token: string,
+	retried = false
+): Promise<unknown> {
 	try {
 		const res = await fetch(`${GITHUB_API}${path}`, {
 			headers: {
@@ -84,7 +111,29 @@ async function githubFetch(path: string, token: string): Promise<unknown> {
 		});
 
 		if (!res.ok) {
-			return { error: `GitHub API ${res.status}: ${res.statusText}` };
+			const message = await githubErrorMessage(res);
+			if (isGithubThrottle(res, message)) {
+				if (!retried) {
+					const retryAfterMs = Number(res.headers.get("retry-after")) * 1000;
+					await sleep(
+						Math.min(
+							retryAfterMs > 0 ? retryAfterMs : THROTTLE_RETRY_MS,
+							MAX_THROTTLE_WAIT_MS
+						)
+					);
+					return githubFetch(path, token, true);
+				}
+				return {
+					error:
+						"GitHub is rate limiting requests; repository access is still connected. Continue with the evidence already gathered or retry this read later.",
+				};
+			}
+			return {
+				error:
+					res.status === 403
+						? `GitHub API 403: this endpoint needs a permission the GitHub App lacks; other repository reads still work.${message ? ` (${message.slice(0, 160)})` : ""}`
+						: `GitHub API ${res.status}: ${res.statusText}${message ? ` (${message.slice(0, 160)})` : ""}`,
+			};
 		}
 
 		return await res.json();
@@ -580,6 +629,218 @@ export async function listGitHubCommits(params: {
 			};
 		}),
 	};
+}
+
+const CODE_FILE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|py|go|rb|php|swift|kt)$/;
+const CHANGE_LIST_PAGES = 10;
+const CHANGE_CHUNK_COMMITS = 40;
+const CHANGE_CHUNK_LIMIT = 25;
+const CHANGE_AUTHOR_SCAN = 10;
+const CHANGE_COMPARE_BATCH = 5;
+const CHANGED_LINE_LIMIT = 80;
+
+export interface GitHubLineChange {
+	change: "added" | "removed";
+	file: string;
+	text: string;
+}
+
+export interface GitHubCommitChange {
+	committedAt: string;
+	lines: GitHubLineChange[];
+	message: string;
+	sha: string;
+}
+
+function matchingLines(
+	files: { filename: string; patch?: string }[],
+	matches: (line: string) => boolean
+): GitHubLineChange[] {
+	return files
+		.filter((file) => CODE_FILE.test(file.filename))
+		.flatMap((file) =>
+			(file.patch ?? "")
+				.split("\n")
+				.filter(
+					(line) =>
+						(line.startsWith("+") || line.startsWith("-")) &&
+						!(line.startsWith("+++") || line.startsWith("---")) &&
+						matches(line.slice(1))
+				)
+				.map(
+					(line): GitHubLineChange => ({
+						change: line.startsWith("+") ? "added" : "removed",
+						file: file.filename,
+						text: line.slice(1).trim().slice(0, CHANGED_LINE_LIMIT),
+					})
+				)
+		);
+}
+
+interface CompareCommit {
+	commit: { committer: { date: string } | null; message: string };
+	parents?: { sha: string }[];
+	sha: string;
+}
+
+export async function findGitHubCodeChanges(params: {
+	around: { from: string; to: string };
+	matches: (line: string) => boolean;
+	repository: GitHubRepository;
+	request?: GitHubRequest;
+	since: string;
+	token: string;
+	until: string;
+}): Promise<
+	{ error: string } | { commits: GitHubCommitChange[]; scanned: number }
+> {
+	const request = params.request ?? githubFetch;
+	const path = repositoryPath(params.repository);
+	const listed: CompareCommit[] = [];
+	for (let page = 1; page <= CHANGE_LIST_PAGES; page++) {
+		const query = new URLSearchParams({
+			page: String(page),
+			per_page: "100",
+			since: params.since,
+			until: params.until,
+		});
+		const data = await request(`/repos/${path}/commits?${query}`, params.token);
+		const error = githubApiError(data);
+		if (error) {
+			return { error };
+		}
+		const batch = data as CompareCommit[];
+		listed.push(...batch);
+		if (batch.length < 100) {
+			break;
+		}
+	}
+	const chronological = listed.reverse();
+	const from = Date.parse(params.around.from);
+	const to = Date.parse(params.around.to);
+	const distance = (commit: CompareCommit | undefined) => {
+		const at = Date.parse(commit?.commit.committer?.date ?? "");
+		return at < from ? from - at : at > to ? at - to : 0;
+	};
+	const chunks = Array.from(
+		{ length: Math.ceil(chronological.length / CHANGE_CHUNK_COMMITS) },
+		(_, index) => {
+			const commits = chronological.slice(
+				index * CHANGE_CHUNK_COMMITS,
+				(index + 1) * CHANGE_CHUNK_COMMITS
+			);
+			const base =
+				index === 0
+					? commits[0]?.parents?.[0]?.sha
+					: chronological[index * CHANGE_CHUNK_COMMITS - 1]?.sha;
+			return { base, commits, head: commits.at(-1)?.sha };
+		}
+	)
+		.filter((chunk) => chunk.base && chunk.head)
+		.sort(
+			(a, b) =>
+				Math.min(distance(a.commits[0]), distance(a.commits.at(-1))) -
+				Math.min(distance(b.commits[0]), distance(b.commits.at(-1)))
+		)
+		.slice(0, CHANGE_CHUNK_LIMIT);
+	const changes = new Map<string, GitHubCommitChange>();
+	const seen = new Set<string>();
+	let scanned = 0;
+	const compared: unknown[] = [];
+	for (let offset = 0; offset < chunks.length; offset += CHANGE_COMPARE_BATCH) {
+		compared.push(
+			...(await Promise.all(
+				chunks
+					.slice(offset, offset + CHANGE_COMPARE_BATCH)
+					.map((chunk) =>
+						request(
+							`/repos/${path}/compare/${chunk.base}...${chunk.head}`,
+							params.token
+						)
+					)
+			))
+		);
+	}
+	for (const [index, chunk] of chunks.entries()) {
+		const data = compared[index];
+		if (githubApiError(data)) {
+			continue;
+		}
+		scanned += chunk.commits.length;
+		const lines = matchingLines(
+			(data as { files?: { filename: string; patch?: string }[] }).files ?? [],
+			params.matches
+		).filter((line) => !seen.has(lineKey(line)));
+		for (const file of new Set(lines.map((line) => line.file))) {
+			const fileLines = lines.filter((line) => line.file === file);
+			const author = await commitWithLine(
+				request,
+				path,
+				params.token,
+				chunk.commits,
+				file,
+				params.matches
+			);
+			const sha = author?.sha ?? chunk.head ?? "";
+			const change = changes.get(sha) ?? {
+				committedAt: author?.commit.committer?.date ?? "",
+				lines: [],
+				message: (author?.commit.message.split("\n", 1)[0] ?? "").slice(0, 120),
+				sha,
+			};
+			change.lines.push(...fileLines);
+			changes.set(sha, change);
+			for (const line of fileLines) {
+				seen.add(lineKey(line));
+			}
+		}
+	}
+	return {
+		commits: [...changes.values()].sort((a, b) =>
+			a.committedAt.localeCompare(b.committedAt)
+		),
+		scanned,
+	};
+}
+
+function lineKey(line: GitHubLineChange): string {
+	return `${line.file}:${line.change}:${line.text}`;
+}
+
+async function commitWithLine(
+	request: GitHubRequest,
+	path: string,
+	token: string,
+	chunk: CompareCommit[],
+	file: string,
+	matches: (line: string) => boolean
+): Promise<CompareCommit | undefined> {
+	const inChunk = new Set(chunk.map((commit) => commit.sha));
+	const history = await request(
+		`/repos/${path}/commits?${new URLSearchParams({ path: file, per_page: String(CHANGE_AUTHOR_SCAN), sha: chunk.at(-1)?.sha ?? "" })}`,
+		token
+	);
+	if (githubApiError(history)) {
+		return;
+	}
+	for (const commit of (history as CompareCommit[]).filter((item) =>
+		inChunk.has(item.sha)
+	)) {
+		const detail = await request(`/repos/${path}/commits/${commit.sha}`, token);
+		const files = githubApiError(detail)
+			? []
+			: ((detail as { files?: { filename: string; patch?: string }[] }).files ??
+				[]);
+		if (
+			matchingLines(
+				files.filter((item) => item.filename === file),
+				matches
+			).length > 0
+		) {
+			return commit;
+		}
+	}
+	return;
 }
 
 export function createGitHubTools(
