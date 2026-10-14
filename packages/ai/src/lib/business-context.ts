@@ -147,6 +147,20 @@ function sourceFromDocument(
 	};
 }
 
+const SIGN_IN_PATH =
+	/^\/(?:log-?in|sign-?in|sign_in|sign-?up|register|auth)(?:\/|$)/i;
+
+function isSignInPage(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+	try {
+		return SIGN_IN_PATH.test(new URL(url).pathname);
+	} catch {
+		return false;
+	}
+}
+
 function prepareBusinessContext(contexts: BusinessContext[]) {
 	const sources = new Map<string, BusinessSource>();
 	// Later contexts contain exact/recalled context and canonical reply text.
@@ -158,7 +172,9 @@ function prepareBusinessContext(contexts: BusinessContext[]) {
 			}
 		}
 	}
-	const ordered = [...sources.values()];
+	const ordered = [...sources.values()].filter(
+		(source) => !(source.kind === "website" && isSignInPage(source.url))
+	);
 	const pages = ordered.filter((source) => source.kind === "website");
 	const homepage =
 		pages.find(
@@ -514,6 +530,16 @@ export async function loadBusinessProfile(
 				new Date(),
 				"unavailable",
 				"Business website could not be read; coverage is incomplete."
+			)
+		);
+	}
+	if (isSignInPage(page.finalUrl)) {
+		return mergeBusinessContext(
+			stored,
+			context(
+				new Date(),
+				"partial",
+				"The website homepage requires sign-in; only saved team and organization context is available."
 			)
 		);
 	}
