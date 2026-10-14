@@ -112,6 +112,7 @@ from ungrounded raw data.
 The agent receives:
 
 - the exact named subject, its definition and business description, comparison windows, and prior outcomes;
+- facts code computes before the agent starts: when an event stopped and the commits in that window whose diffs mention the event or its flag key, an event's property values, the share of sessions by hostname for site-wide signals, and the other pages in a page-view goal's section;
 - website identity and the ability to inspect relevant pages before asking a person;
 - relevant analytics, errors, sessions, funnels, goals, vitals, and revenue tools;
 - connected repositories, deploys, commits, code search, and file reads;
@@ -124,7 +125,8 @@ loads its public profile once and recalls relevant explanations for each subject
 recent and exact-subject PostgreSQL replies remain available during indexing delays or
 outages. Recalled meaning takes priority over unrelated recent conversation. Public
 copy explains the offering and audience; it does not establish completed behavior from
-an event name. Explicit team corrections, guesses, and historical metrics remain
+an event name. An organization profile generated from public pages is not supplied to
+investigations; team-written or team-edited profiles are. Explicit team corrections, guesses, and historical metrics remain
 distinct from current measured evidence. When the final profile/recall merge would
 omit optional pages, one bounded Jev call may rank those pages for the exact subject.
 Native code keeps the source budget, original records, and baseline-selected profile,
@@ -146,7 +148,7 @@ locks. Legacy replies without an original scope
 remain history rather than being relabeled as current business facts. Scope changes
 during execution reject the old outcome before persistence.
 
-Scheduled goal/funnel recovery checks and explicit Apply verification replies are deterministic: one exact native read verifies the saved subject, population, definition, full window, minimum sample and threshold without a model call. Code renders the result and keeps inconclusive checks private. An unfinished window preserves the case and saved check until midnight UTC after its inclusive end date; a completed check resolves without inventing another repair. Free-form human replies retain the investigation agent and their supplied context. Unsupported legacy population checks remain inconclusive without an aggregate read. Read inputs, results and failures remain observable. Other investigations use discoverable tools. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight model turns, including a reserved final turn. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Supplied evidence and successful reads include exact citation references. Sufficient supplied evidence can finish immediately; requested reads must complete before finishing. The finish tool asks for sources and claims before the publication decision; code renders structured revenue claims and validates every claim against those sources before storing the existing text outcome. The agent does not restart the conversation to repair output.
+Scheduled goal/funnel recovery checks and explicit Apply verification replies are deterministic: one exact native read verifies the saved subject, population, definition, full window, minimum sample and threshold without a model call. Code renders the result and keeps inconclusive checks private. An unfinished window preserves the case and saved check until midnight UTC after its inclusive end date. Only a passed condition resolves the case; failed and inconclusive conditions keep it open with the exact saved check and a future recheck time, without inventing another repair or repeating its mutation. These retries remain included verification and do not widen the saved window or change its population. Identical repeated verdicts stay in internal history rather than republishing in Insights. The existing five-minute maintenance sweep independently dispatches due saved goal/funnel checks through durable verification replies, even when the next analysis scan is later. It selects the latest source before due eligibility and reuses one reply and queue identity per observation. Automatic replies reject resolved or superseded work before measurement and persistence, and native saved checks bypass detector refresh and business enrichment. Queue interruption leaves the reply recoverable; worker failures use the existing bounded retries, with final failures visible for explicit retry. Checks without a bound definition and legacy referrer populations are excluded from automatic dispatch. When a same-case reply already records a Slack thread, due verification retains that delivery context and keeps unchanged or inconclusive results quiet. Free-form human replies retain the investigation agent and their supplied context. Unsupported legacy population checks remain inconclusive without an aggregate read. Read inputs, results and failures remain observable. Other investigations use discoverable tools. There is no fixed first query, query family, receipt choreography, or two-read limit. Each investigation uses one tool loop with at most eight investigation turns; the eighth is reserved for finishing, and a rejected finish may use its remaining attempts as finish-only repair turns. It ends through `finish_investigation`, which validates the outcome and returns any repair error in the same conversation; at most three finish attempts are allowed. Supplied evidence and successful reads include exact citation references. Sufficient supplied evidence can finish immediately; requested reads must complete before finishing. The finish tool asks for sources and claims before the publication decision; code renders structured revenue claims and validates every claim against those sources before storing the existing text outcome. The agent does not restart the conversation to repair output.
 
 Native `revenue_overview` evidence selects a currency and metric fields from exact successful result references. Code renders labels, values, units, dates and differences for complete equal-duration comparison windows with the same website, timezone and filters, including fresh windows on a later recheck. The stored evidence remains text. This binds those numeric comparisons; other sources retain numeric grounding checks and every finding still needs semantic quality review.
 
@@ -155,16 +157,16 @@ Native `revenue_overview` evidence selects a currency and metric fields from exa
 Every completed turn reports:
 
 - **summary:** what happened and who or what is affected, with measured scope when available; legacy impact paragraphs remain readable;
-- **root cause:** the known mechanism, or `unknown`;
+- **root cause:** the most likely mechanism, prefixed with its confidence: `Confirmed:` when inspected in code, configuration, a definition or a deploy diff; `Likely:` when a concentration or timing match points one way; `Possible:` for a weaker lead. It says where the problem lives and what happens there in words a non-engineer follows, without notes about what would confirm it, and is `unknown` only when nothing points anywhere;
 - **evidence:** one or two concise entries that support or contradict it, each citing all contributing supplied signals, provided context, prior verification conditions, or exact successful tool results; failed queries are limitations, and a partial table cannot establish absence;
-- **publish:** whether this turn adds a new customer-relevant fact to Insights;
+- **publish:** decided last, after evidence, cause and next: whether a teammate would do something different today after reading it. `act` and `ask` publish, as do verification verdicts on a reported fix; a `resolve` normally stays private, because silence on a signal that needs nothing is the correct answer;
 - **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
 
 The next outcome is one of:
 
 - `act` — exact change, target, and verification condition;
-- `ask` — one self-contained question that says what the answer unlocks;
+- `ask` — one self-contained question that confirms a likely cause or chooses between concrete fixes, and says what the answer unlocks. When one answer would unlock an action, asking beats staying silent;
 - `resolve` — why no investigation needs to remain open, even if a recommendation remains.
 
 Goal and funnel actions may save a structured verification check when the metric, dates, sample and grounded threshold are known. Databuddy binds the expected population to the inspected definition plus the proposed edit. Existing analytics tools return their actual definition, filters and inclusive UTC period; changed populations, shortened windows, unfinished periods and insufficient samples are inconclusive. Code determines whether that check passed, failed or remains inconclusive and writes the verification summary. It does not infer a check from legacy prose. A passed check verifies that condition, not an unmeasured downstream result. Other investigation strategy and next moves remain agent-owned.
@@ -205,7 +207,7 @@ Goal and funnel repairs must match the signal's exact definition ID in the lates
 - An insight is useful when it teaches the teammate something specific they would otherwise need to discover.
 - An investigation is useful when the teammate can act without asking “what exactly should I do?”
 
-Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, or creates duplicate work.
+Reject output that merely restates a percentage, invents a cause, asks for data Databuddy can read, gives a generic recommendation, creates duplicate work, or publishes a caveat in place of a finding. The test for publishing is whether it changes what the team does today.
 
 Stop gathering when further reads cannot change the decision, while retaining established changes and controls that change its interpretation. An overview of the current subject can reveal independent business facts even when its headline metric is stable: stable gross revenue does not erase falling attribution or rising refunds. Prefer these distinct comparisons over redundant counts. Capability discovery can inspect a compact complete catalog, then retrieve the relevant query contract; an empty search in one category cannot establish that a capability is unavailable everywhere.
 
