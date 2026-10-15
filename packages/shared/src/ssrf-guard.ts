@@ -207,6 +207,41 @@ async function fetchPinnedWithUndici(
 	}
 }
 
+const CROSS_ORIGIN_REDIRECT_HEADERS = new Set([
+	"accept",
+	"accept-language",
+	"content-type",
+	"user-agent",
+]);
+
+export function redirectInit<
+	T extends Pick<SafeFetchInit, "body" | "headers" | "method">,
+>(init: T, status: number, from: string, to: URL): T {
+	const next = { ...init };
+	const method = (init.method ?? "GET").toUpperCase();
+	const dropsBody =
+		(status === 303 && method !== "GET" && method !== "HEAD") ||
+		((status === 301 || status === 302) && method === "POST");
+	if (dropsBody) {
+		next.method = "GET";
+		next.body = undefined;
+	}
+	const crossOrigin = new URL(from).origin !== to.origin;
+	if (init.headers && (crossOrigin || dropsBody)) {
+		const kept: Record<string, string> = {};
+		new Headers(init.headers as HeadersInit).forEach((value, name) => {
+			const allowed = crossOrigin
+				? CROSS_ORIGIN_REDIRECT_HEADERS.has(name)
+				: true;
+			if (allowed && !(dropsBody && name.startsWith("content-"))) {
+				kept[name] = value;
+			}
+		});
+		next.headers = kept;
+	}
+	return next;
+}
+
 export async function safeFetch(
 	url: string,
 	init: SafeFetchInit = {}
@@ -216,8 +251,9 @@ export async function safeFetch(
 		maxRedirects = DEFAULT_MAX_REDIRECTS,
 		timeoutMs = DEFAULT_TIMEOUT_MS,
 		signal: externalSignal,
-		...fetchInit
+		...initialFetchInit
 	} = init;
+	let fetchInit = initialFetchInit;
 
 	const timeoutSignal = AbortSignal.timeout(timeoutMs);
 	const signal = externalSignal
@@ -267,11 +303,14 @@ export async function safeFetch(
 		}
 		await response.body?.cancel().catch(() => undefined);
 
+		let next: URL;
 		try {
-			current = new URL(location, current).toString();
+			next = new URL(location, current);
 		} catch {
 			throw new SsrfError(`Invalid redirect target: ${location}`);
 		}
+		fetchInit = redirectInit(fetchInit, response.status, current, next);
+		current = next.toString();
 	}
 
 	throw new SsrfError(`Too many redirects (>${maxRedirects})`);
