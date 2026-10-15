@@ -617,6 +617,12 @@ const investigationResolveNextSchema = z.object({
 		.describe(
 			"One short reason, for the team, that nothing needs doing today."
 		),
+	stillOpen: z
+		.boolean()
+		.optional()
+		.describe(
+			"True only when an earlier fix or question on this signal is still pending and its problem persists, so the case stays open. Omit it when the problem was fixed, the earlier finding was wrong, or nothing was open."
+		),
 });
 
 const investigationNextSchema = z.discriminatedUnion("type", [
