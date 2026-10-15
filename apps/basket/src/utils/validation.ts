@@ -133,7 +133,13 @@ export function redactSensitiveQueryParams(input: string): string {
 			? beforeHash
 			: `${beforeHash.slice(0, queryIndex)}?${redactParams(beforeHash.slice(queryIndex + 1))}`;
 	if (hashIndex !== -1) {
-		result += `#${redactParams(input.slice(hashIndex + 1))}`;
+		const fragment = input.slice(hashIndex + 1);
+		// Hash-routed apps keep their query after the route: `#/reset?token=...`.
+		const fragmentQueryIndex = fragment.indexOf("?");
+		result +=
+			fragmentQueryIndex === -1
+				? `#${redactParams(fragment)}`
+				: `#${fragment.slice(0, fragmentQueryIndex)}?${redactParams(fragment.slice(fragmentQueryIndex + 1))}`;
 	}
 	return result;
 }
