@@ -28,7 +28,14 @@ export const VALIDATION_LIMITS = {
 	EVENT_ID_MAX_LENGTH: 512,
 } as const;
 
-export function sanitizeString(input: unknown, maxLength?: number): string {
+const UNSAFE_CHARS_REGEX = /[<>'"&]/g;
+const URL_UNSAFE_CHARS_REGEX = /[<>'"]/g;
+
+function sanitizeText(
+	input: unknown,
+	maxLength: number | undefined,
+	unsafeChars: RegExp
+): string {
 	if (typeof input !== "string") {
 		return "";
 	}
@@ -58,7 +65,11 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 		result = result.replace(/<[^>]*>/g, "");
 	} while (result !== prev);
 
-	return result.replace(/[<>'"&]/g, "").replace(/\s+/g, " ");
+	return result.replace(unsafeChars, "").replace(/\s+/g, " ");
+}
+
+export function sanitizeString(input: unknown, maxLength?: number): string {
+	return sanitizeText(input, maxLength, UNSAFE_CHARS_REGEX);
 }
 
 const SENSITIVE_QUERY_PARAMS = new Set([
@@ -131,7 +142,12 @@ export function sanitizeUrl(input: unknown, maxLength?: number): string {
 	if (typeof input !== "string") {
 		return "";
 	}
-	return sanitizeString(redactSensitiveQueryParams(input), maxLength);
+	// `&` separates query parameters, so it must survive in stored URLs.
+	return sanitizeText(
+		redactSensitiveQueryParams(input),
+		maxLength,
+		URL_UNSAFE_CHARS_REGEX
+	);
 }
 
 const sessionIdRegex = /^[a-zA-Z0-9_-]+$/;
