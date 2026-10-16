@@ -362,7 +362,7 @@ describe("insightDefinitionOperationSchema", () => {
 		expect(
 			describeInsightDefinitionAction("Reached workspace", operation)
 		).toBe(
-			'For Reached workspace, set target to "/workspace"; set type to PAGE_VIEW; set filters to none.'
+			'Update Reached workspace: point it at "/workspace", track page views, remove its filters.'
 		);
 		if (operation.operation !== "edit") {
 			throw new Error("Expected an edit");

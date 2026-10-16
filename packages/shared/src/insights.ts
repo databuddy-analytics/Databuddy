@@ -413,7 +413,7 @@ export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 			index: z.number().int().nonnegative(),
 		})
 		.describe(
-			"A zero-based index of an investigation in history for this exact signal. Cites only the prior action’s saved verification condition, never historical measurements, current measurements, or a human reply."
+			"Index of a past investigation of this signal; cites only its saved verification condition."
 		),
 	z
 		.strictObject({ source: z.literal("customer_impact") })
@@ -427,7 +427,7 @@ export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 	z
 		.strictObject({ source: z.literal("signal") })
 		.describe(
-			"The supplied signal measurement, including its exact comparison windows and metric delta. Always available, even when evidence is empty."
+			"The supplied signal measurement and its comparison windows; always citable."
 		),
 	z
 		.object({
@@ -451,15 +451,13 @@ export const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
 			toolCallId: z
 				.string()
 				.min(1)
-				.describe(
-					"Exact tool call ID from this investigation; cite a successful result, not merely a tool name."
-				),
+				.describe("Exact tool call ID of a successful read."),
 			resultKey: z
 				.string()
 				.min(1)
 				.nullable()
 				.describe(
-					"For get_data, the exact key under results (including any website or # suffix). For other tools, null."
+					"For get_data, the exact results key, including any suffix; otherwise null."
 				),
 		})
 		.strict(),
@@ -575,7 +573,7 @@ const investigationActNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe(
-			"One short, concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
+			"One action of at most 12 words that starts with a verb and names the exact page, setting or code a teammate changes today. No rationale after it."
 		),
 	target: z
 		.string()
@@ -599,7 +597,7 @@ const investigationAskNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe(
-			"One short, teammate-facing question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
+			'One yes/no question of at most 12 words that the founder can answer from memory, such as a campaign or a plan change, and whose answer chooses the fix. Never "A or B?", never data you can read, and no rationale after it.'
 		),
 });
 
@@ -617,7 +615,13 @@ const investigationResolveNextSchema = z.object({
 		.trim()
 		.min(1)
 		.describe(
-			"One short, teammate-facing reason no investigation needs to remain open; a non-interrupting recommendation may still exist."
+			"One short reason, for the team, that nothing needs doing today."
+		),
+	stillOpen: z
+		.boolean()
+		.optional()
+		.describe(
+			"True only when an earlier fix or question on this signal is still pending and its problem persists, so the case stays open. Omit it when the problem was fixed, the earlier finding was wrong, or nothing was open."
 		),
 });
 
@@ -701,7 +705,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"In 8–10 words, add one distinct supported control, scope limit, or consequence. No restatement of the headline, generic advice, or unmeasured customer/revenue harm. Keep comparisons in evidence and the inspected mechanism in rootCause."
+				'What this means for the team, in one sentence of at most 15 words, such as "Your bounce rate looks worse than real visitors behave." State the consequence plainly; never say what is not verified or not established. Never an instruction, and do not repeat the title.'
 			),
 		// Retain stored briefs; new investigations include the consequence in summary.
 		impact: z.string().trim().min(1).nullable().default(null),
@@ -711,7 +715,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, inspected mechanism naming the actual failing operation; otherwise null. A business brief or team reply alone cannot verify an implementation or measurement defect. Error text, a runtime stack, route, timing or annotation is not an inspected mechanism."
+				'Why it happens, explained so a non-engineer gets it, in at most 30 words, starting with a confidence that matches the evidence: "Confirmed:" for an inspected mechanism in code, configuration, a definition or a deploy diff; "Likely:" when a concentration or timing match points one way; "Possible:" for a weaker lead. Say where the problem lives, in names the team uses (the SDK, the docs site, the checkout page, a goal), then what happens there and its effect, such as "Likely: the checkout page sends its tracking before the payment form loads, so card payments are never counted." One cause, no code identifiers, no notes about what would confirm it. Use null only when nothing points anywhere.'
 			),
 		// Supplied background only; does not establish which facts influenced a claim.
 		contextSnapshot: businessContextSchema.optional(),
@@ -725,7 +729,8 @@ export const investigationOutcomeSchema = z
 		if (outcome.next.type === "act" && outcome.rootCause === null) {
 			context.addIssue({
 				code: "custom",
-				message: "Actions require a known mechanism",
+				message:
+					"next.act needs a rootCause: add your best lead, starting with Confirmed:, Likely: or Possible:",
 				path: ["rootCause"],
 			});
 		}
@@ -819,7 +824,7 @@ const agentTitleSchema = z
 		message: `Titles are headlines of at most ${TITLE_WORD_LIMIT} words; describe recorded names instead of copying them`,
 	})
 	.describe(
-		"A natural 4–8 word headline stating the finding. Directly measured reliability or user impact may lead with an affected count, never a bare count. Structured revenue headlines stay qualitative. Measurement findings name the inspected mismatch or measured blind spot without implying product harm; counts belong with dates in evidence. Never use raw identifiers, event names or URLs."
+		'The problem in plain words, at most 8 words, such as "Preview visits are inflating your bounce rate" or "Onboarding step views stopped on Oct 2". Name what is wrong, not the metric\'s new value; include a number or date only when it is the point. No fix, system terms, raw identifiers, event names or URLs.'
 	);
 
 export const agentInvestigationOutcomeSchema = z
@@ -843,10 +848,10 @@ export const agentInvestigationOutcomeSchema = z
 		publish: z
 			.boolean()
 			.describe(
-				"True for a new material measured change or coverage gap, inspected defect, or verification verdict; act and ask outcomes are always published. False for a baseline alone, normal maturation, explained/excluded changes, stale business context, or missing diagnostic access. Answering a question does not itself merit a feed incident."
+				"Decide last. True for act or ask, and for a verdict on a reported fix. False for resolve: silence is the right answer when nothing needs doing."
 			),
 		findingKind: insightFindingKindSchema.describe(
-			"Classify the cited evidence: user_experience needs a measured downstream consequence; product_outcome needs a measured result of known-purpose behavior; reliability_exposure reports measured errors or performance. measurement_definition needs an inspected current definition or emitter mismatch, not a stale brief or reply alone. measurement_coverage needs a measured missing population or inspected collection defect, not immature cohorts or unavailable diagnostics. Event names alone establish no business purpose."
+			"Classify the cited evidence: reliability_exposure for measured errors or performance; user_experience for a measured downstream consequence; product_outcome for a measured result of behavior with a known purpose; measurement_definition for an inspected definition or tracking-code mismatch; measurement_coverage for a measured missing or polluted population or an inspected collection defect. Event names alone do not establish purpose."
 		),
 		publicationBasis: insightPublicationBasisSchema.nullable(),
 	})
@@ -1008,28 +1013,32 @@ export function describeInsightDefinitionAction(
 	const changes = operation.changes;
 	const edits: string[] = [];
 	if (changes.target != null) {
-		edits.push(`set target to ${JSON.stringify(changes.target)}`);
+		edits.push(`point it at ${JSON.stringify(changes.target)}`);
 	}
 	if (changes.type != null) {
-		edits.push(`set type to ${changes.type}`);
+		edits.push(
+			`track ${changes.type === "PAGE_VIEW" ? "page views" : "events"}`
+		);
 	}
 	if (changes.steps != null) {
 		edits.push(
-			`replace steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target}${step.conditions && Object.keys(step.conditions).length > 0 ? "; existing conditions kept" : ""})`).join(" → ")}`
+			`replace its steps with ${changes.steps.map((step) => `${step.name} (${step.type}: ${step.target}${step.conditions && Object.keys(step.conditions).length > 0 ? "; existing conditions kept" : ""})`).join(" → ")}`
 		);
 	}
 	if (changes.filters != null) {
 		edits.push(
-			`set filters to ${changes.filters.length ? changes.filters.map((filter) => `${filter.field} ${filter.operator} ${JSON.stringify(filter.value)}`).join(" AND ") : "none"}`
+			`${changes.filters.length ? `filter it to ${changes.filters.map((filter) => `${filter.field} ${filter.operator} ${JSON.stringify(filter.value)}`).join(" and ")}` : "remove its filters"}`
 		);
 	}
 	if (changes.name != null) {
-		edits.push(`rename to ${JSON.stringify(changes.name)}`);
+		edits.push(`rename it to ${JSON.stringify(changes.name)}`);
 	}
 	if (changes.description != null) {
-		edits.push(`set description to ${JSON.stringify(changes.description)}`);
+		edits.push(
+			`update its description to ${JSON.stringify(changes.description)}`
+		);
 	}
-	return `For ${label}, ${edits.join("; ")}.`;
+	return `Update ${label}: ${edits.join(", ")}.`;
 }
 
 export function insightDefinitionEditError(
@@ -1055,7 +1064,7 @@ export function formatInvestigationNext(
 ): string {
 	const next = outcome.next;
 	if (next.type === "act") {
-		return `${next.action} Target: ${next.target}. Done when: ${next.verification}`;
+		return next.action;
 	}
 	if (next.type === "ask") {
 		return next.question;

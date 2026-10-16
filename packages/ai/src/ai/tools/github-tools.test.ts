@@ -1,8 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import type { ToolSet } from "ai";
 import { z } from "zod";
 import {
 	createGitHubTools,
+	findGitHubCodeChanges,
 	type GitHubToolDependencies,
 	listGitHubProductionDeployments,
 } from "./github-tools";
@@ -1053,5 +1054,139 @@ describe("GitHub bounded file evidence", () => {
 				"error"
 			);
 		}
+	});
+});
+
+describe("GitHub throttling", () => {
+	const throttled = () =>
+		new Response(
+			JSON.stringify({ message: "You have exceeded a secondary rate limit." }),
+			{ status: 403, headers: { "retry-after": "1" } }
+		);
+	const found = () =>
+		new Response(
+			JSON.stringify({
+				total_count: 1,
+				items: [{ name: "billing.ts", path: "src/billing.ts", html_url: "" }],
+			}),
+			{ status: 200 }
+		);
+	const search = () =>
+		executeTool(
+			createGitHubTools(
+				{ organizationId: "org_1", repository },
+				{ getToken: async () => "fixture-token" }
+			),
+			"github_search_code",
+			{ query: "billing" }
+		);
+	let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, "fetch">>;
+
+	afterEach(() => fetchSpy.mockRestore());
+
+	test("retries a throttled request once before reporting a result", async () => {
+		fetchSpy = spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(throttled())
+			.mockResolvedValueOnce(found());
+		expect(await search()).toEqual({
+			totalResults: 1,
+			matches: [{ file: "src/billing.ts", name: "billing.ts" }],
+		});
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+	});
+
+	test("reports persistent throttling as a rate limit, not lost access", async () => {
+		fetchSpy = spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(throttled())
+			.mockResolvedValueOnce(throttled());
+		const result = z.object({ error: z.string() }).parse(await search());
+		expect(result.error).toContain("rate limiting");
+		expect(result.error).not.toContain("Forbidden");
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("code changes mentioning a subject", () => {
+	test("compares the window in chunks and credits the commit whose diff has the line", async () => {
+		const commit = (sha: string, date: string, message: string) => ({
+			commit: { committer: { date }, message },
+			parents: [{ sha: `${sha}-parent` }],
+			sha,
+		});
+		const calls: string[] = [];
+		const result = await findGitHubCodeChanges({
+			around: { from: "2026-10-05T00:00:00Z", to: "2026-10-05T02:00:00Z" },
+			matches: (line) => line.includes('useFlag("mcp")'),
+			repository,
+			since: "2026-10-04T00:00:00Z",
+			token: "token",
+			until: "2026-10-06T00:00:00Z",
+			request: async (path) => {
+				calls.push(path);
+				if (path.includes("/compare/")) {
+					return {
+						files: [
+							{
+								filename: "apps/web/mcp/page.tsx",
+								patch:
+									'@@ -1 +1 @@\n-\tconst flag = useFlag("mcp");\n+\tconst open = true;',
+							},
+							{ filename: "docs/flags.md", patch: '+useFlag("mcp") example' },
+						],
+					};
+				}
+				if (path.includes("path=")) {
+					return [
+						commit("badge", "2026-10-05T00:45:00Z", "feat: badge"),
+						commit(
+							"gate",
+							"2026-10-04T23:47:00Z",
+							"feat: open MCP analytics\n\nbody"
+						),
+					];
+				}
+				if (path.endsWith("/commits/badge")) {
+					return {
+						files: [
+							{ filename: "apps/web/mcp/page.tsx", patch: "+\t<Badge />" },
+						],
+					};
+				}
+				if (path.endsWith("/commits/gate")) {
+					return {
+						files: [
+							{
+								filename: "apps/web/mcp/page.tsx",
+								patch: '-\tconst flag = useFlag("mcp");',
+							},
+						],
+					};
+				}
+				return [
+					commit("badge", "2026-10-05T00:45:00Z", "feat: badge"),
+					commit("gate", "2026-10-04T23:47:00Z", "feat: open MCP analytics"),
+				];
+			},
+		});
+		expect(
+			calls.filter((path) => path.includes("/compare/gate-parent...badge"))
+		).toHaveLength(1);
+		expect(result).toEqual({
+			commits: [
+				{
+					committedAt: "2026-10-04T23:47:00Z",
+					lines: [
+						{
+							change: "removed",
+							file: "apps/web/mcp/page.tsx",
+							text: 'const flag = useFlag("mcp");',
+						},
+					],
+					message: "feat: open MCP analytics",
+					sha: "gate",
+				},
+			],
+			scanned: 2,
+		});
 	});
 });

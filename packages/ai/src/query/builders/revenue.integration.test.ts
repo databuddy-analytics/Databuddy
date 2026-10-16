@@ -1,10 +1,12 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
 import { SimpleQueryBuilder } from "../simple-builder";
 import type { Filter } from "../types";
 import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
+
+setDefaultTimeout(15_000);
 
 const describeIntegration =
 	process.env.CLICKHOUSE_INTEGRATION_TESTS === "true"

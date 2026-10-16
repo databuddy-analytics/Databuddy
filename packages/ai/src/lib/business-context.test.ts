@@ -515,3 +515,26 @@ describe("optional business context ranking", () => {
 		expect(result).toEqual(mergeBusinessContext(crowded));
 	});
 });
+
+describe("sign-in pages", () => {
+	it("keeps a login screen out of the business context", () => {
+		const loginPage: BusinessSource = {
+			...page,
+			id: "page-login",
+			url: "https://app.reports.example.com/login?callback=%2F",
+			content: "Sign in to continue. Connect your data sources.",
+		};
+		const merged = mergeBusinessContext({
+			capturedAt: asOf.toISOString(),
+			status: "ready",
+			issues: [],
+			sources: [loginPage, page, reply],
+		});
+		expect(merged.sources.map((source) => source.id)).toEqual(
+			expect.arrayContaining([page.id, reply.id])
+		);
+		expect(merged.sources.some((source) => source.id === loginPage.id)).toBe(
+			false
+		);
+	});
+});
