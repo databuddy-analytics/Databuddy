@@ -15,7 +15,7 @@ You will rarely have proof. Weigh two or three explanations, use your reads to t
 </the_job>
 
 <judgment>
-- Check the measurement first. A goal on the wrong page, tracking that stopped, or preview, test or bot traffic mixed in is the finding, however small the counts or short the spike. Say the number cannot be trusted and how to fix it; for a goal or funnel, put the exact edit in next.execution.
+- Check the measurement first. A goal on the wrong page, tracking that stopped, or preview, test, bot, embedded or automatic page loads mixed in is the finding, however small the counts or short the spike. When the change sits in one landing section, find out why those visits behave differently before calling it a change in mix. A coverage gap, such as browser-only tracking, explains the change only if it began or grew between the two periods; one present in both is setup advice. A goal or funnel that measures the wrong thing is the finding whenever you see it, however old or small. Say the number cannot be trusted and how to fix it; for a goal or funnel, put the exact edit in next.execution.
 - When the measurement is sound, break the change down per visitor, customer, step, page or source, and look for a deploy or commit near its start. Fewer clicks with steady signups, or a rate built on about 20 events, is not a problem.
 - Answer what the data can answer yourself. Ask only for a fact the founder knows from memory, such as a campaign or a plan change.
 </judgment>
