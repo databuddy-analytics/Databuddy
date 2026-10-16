@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { useWebsites } from "@/hooks/use-websites";
+import { usePinnedWebsites, useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { WebsiteCard } from "./_components/website-card";
 import { ArrowClockwiseIcon, GlobeIcon, PlusIcon } from "@databuddy/ui/icons";
@@ -64,6 +64,8 @@ export default function WebsitesPage() {
 		isFetching,
 		refetch,
 	} = useWebsites();
+	const { sortPinnedFirst } = usePinnedWebsites();
+	const orderedWebsites = sortPinnedFirst(websites);
 
 	return (
 		<div className="flex h-full flex-col">
@@ -143,7 +145,7 @@ export default function WebsitesPage() {
 							aria-live="polite"
 							className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
 						>
-							{websites.map((website) => (
+							{orderedWebsites.map((website) => (
 								<WebsiteCard
 									activeUsers={activeUsers?.[website.id]}
 									chartData={chartData?.[website.id]}

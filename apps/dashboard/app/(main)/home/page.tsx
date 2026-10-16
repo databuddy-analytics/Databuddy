@@ -7,7 +7,7 @@ import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { WebsiteDialog } from "@/components/website-dialog";
-import { useWebsites } from "@/hooks/use-websites";
+import { usePinnedWebsites, useWebsites } from "@/hooks/use-websites";
 import { insightQueries } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
 import { WebsiteCard } from "../websites/_components/website-card";
@@ -109,7 +109,11 @@ export default function HomePage() {
 		]);
 	};
 
-	const websitePreview = websites.slice(0, WEBSITE_PREVIEW_LIMIT);
+	const { sortPinnedFirst } = usePinnedWebsites();
+	const websitePreview = sortPinnedFirst(websites).slice(
+		0,
+		WEBSITE_PREVIEW_LIMIT
+	);
 	const hasMoreWebsites = websites.length > WEBSITE_PREVIEW_LIMIT;
 
 	return (

@@ -5,7 +5,10 @@ import type { ProcessedMiniChartData } from "@/types/website";
 
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAtom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 import { usePathname } from "next/navigation";
+import { useCallback, useMemo } from "react";
 import { orpc } from "@/lib/orpc";
 
 export type { Website } from "@databuddy/db/schema";
@@ -106,6 +109,53 @@ export function useWebsites(options?: { enabled?: boolean }) {
 		isError: query.isError,
 		refetch: query.refetch,
 	};
+}
+
+const pinnedWebsiteIdsAtom = atomWithStorage<string[]>(
+	"databuddy-pinned-websites",
+	[],
+	undefined,
+	{ getOnInit: true }
+);
+
+export function usePinnedWebsites() {
+	const [pinnedIds, setPinnedIds] = useAtom(pinnedWebsiteIdsAtom);
+
+	const isPinned = useCallback(
+		(websiteId: string) => pinnedIds.includes(websiteId),
+		[pinnedIds]
+	);
+
+	const togglePin = useCallback(
+		(websiteId: string) => {
+			setPinnedIds((prev) =>
+				prev.includes(websiteId)
+					? prev.filter((id) => id !== websiteId)
+					: [...prev, websiteId]
+			);
+		},
+		[setPinnedIds]
+	);
+
+	const sortPinnedFirst = useCallback(
+		<T extends { id: string }>(sites: T[]): T[] => {
+			if (pinnedIds.length === 0) {
+				return sites;
+			}
+			const rank = new Map(pinnedIds.map((id, index) => [id, index]));
+			const unpinnedRank = pinnedIds.length;
+			return sites.toSorted(
+				(a, b) =>
+					(rank.get(a.id) ?? unpinnedRank) - (rank.get(b.id) ?? unpinnedRank)
+			);
+		},
+		[pinnedIds]
+	);
+
+	return useMemo(
+		() => ({ isPinned, togglePin, sortPinnedFirst }),
+		[isPinned, togglePin, sortPinnedFirst]
+	);
 }
 
 export function useWebsitesLight(options?: { enabled?: boolean }) {

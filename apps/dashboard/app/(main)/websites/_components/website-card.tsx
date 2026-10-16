@@ -23,7 +23,7 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ds/context-menu";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
-import { useDeleteWebsite } from "@/hooks/use-websites";
+import { useDeleteWebsite, usePinnedWebsites } from "@/hooks/use-websites";
 import { formatNumber } from "@/lib/formatters";
 import { TOAST_MESSAGES } from "../[id]/_components/constants/settings-constants";
 import MiniChart from "./mini-chart";
@@ -38,12 +38,13 @@ import {
 	GearIcon,
 	MinusIcon,
 	PencilSimpleIcon,
+	StarIcon,
 	TrashIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Card, Skeleton, StatusDot } from "@databuddy/ui";
+import { Button, Card, Skeleton, StatusDot, cn } from "@databuddy/ui";
 
 interface WebsiteCardProps {
 	activeUsers?: number;
@@ -122,6 +123,13 @@ export const WebsiteCard = memo(
 		const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 		const [showTransferDialog, setShowTransferDialog] = useState(false);
 		const deleteWebsiteMutation = useDeleteWebsite();
+		const { isPinned, togglePin } = usePinnedWebsites();
+		const pinned = isPinned(website.id);
+		const pinLabel = pinned ? "Unpin" : "Pin to top";
+
+		const handleTogglePin = useCallback(() => {
+			togglePin(website.id);
+		}, [togglePin, website.id]);
 
 		const handleOpen = useCallback(() => {
 			router.push(`/websites/${website.id}`);
@@ -178,7 +186,7 @@ export const WebsiteCard = memo(
 		return (
 			<>
 				<ContextMenuRoot>
-					<ContextMenuTrigger className="block h-full rounded outline-none focus-visible:outline-none">
+					<ContextMenuTrigger className="group/website relative block h-full rounded outline-none focus-visible:outline-none">
 						<PrefetchZone
 							className="block h-full"
 							href={`/websites/${website.id}`}
@@ -259,6 +267,23 @@ export const WebsiteCard = memo(
 								</Card>
 							</Link>
 						</PrefetchZone>
+						<Button
+							aria-label={`${pinLabel} ${website.name ?? website.domain}`}
+							aria-pressed={pinned}
+							className={cn(
+								"absolute top-2 left-2 z-60 size-7 p-0 transition-opacity duration-200 ease-in-out focus-visible:opacity-100 group-hover/website:opacity-100",
+								pinned ? "text-foreground" : "opacity-0"
+							)}
+							data-track="website-card-pin-toggle"
+							onClick={handleTogglePin}
+							size="sm"
+							title={pinLabel}
+							variant="ghost"
+						>
+							<StarIcon
+								className={cn("size-4", pinned && "[&_path]:[fill-opacity:1]")}
+							/>
+						</Button>
 					</ContextMenuTrigger>
 					<ContextMenuPortal>
 						<ContextMenuPositioner className="z-50">
@@ -283,6 +308,13 @@ export const WebsiteCard = memo(
 								>
 									<CopyIcon className="size-4" />
 									Copy link
+								</ContextMenuItem>
+								<ContextMenuItem
+									className="flex w-full cursor-default select-none items-center gap-2 rounded-none px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+									onClick={handleTogglePin}
+								>
+									<StarIcon className="size-4" />
+									{pinLabel}
 								</ContextMenuItem>
 								<ContextMenuSeparator className="h-px bg-border" />
 								<ContextMenuItem
