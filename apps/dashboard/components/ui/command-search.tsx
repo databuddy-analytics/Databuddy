@@ -37,7 +37,7 @@ import {
 import { ApiKeySheet } from "@/components/organizations/api-key-sheet";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { useWebsites } from "@/hooks/use-websites";
+import { usePinnedWebsites, useWebsites } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -302,6 +302,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 	const { push } = useRouter();
 	const pathname = usePathname();
 	const { websites } = useWebsites({ enabled: open });
+	const { sortPinnedFirst } = usePinnedWebsites();
 	const { isFeatureEnabled, isLoading: isBillingLoading } = useBillingContext();
 	const { activeOrganization, activeOrganizationId, isSwitchingOrganization } =
 		useOrganizationsContext();
@@ -428,7 +429,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		if (!isDemoPath && websites.length > 0) {
 			result.push({
 				category: "Websites",
-				items: websites.map((w) => ({
+				items: sortPinnedFirst(websites).map((w) => ({
 					name: w.name || w.domain,
 					path: `/websites/${w.id}`,
 					icon: GlobeIcon,
@@ -476,6 +477,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		activeOrganization,
 		apiKeys,
 		websites,
+		sortPinnedFirst,
 		currentWebsiteId,
 		isDemoPath,
 		isBillingLoading,
