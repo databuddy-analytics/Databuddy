@@ -572,6 +572,7 @@ const investigationActNextSchema = z.object({
 		.string()
 		.trim()
 		.min(1)
+		.max(320)
 		.describe(
 			"One action of at most 12 words that starts with a verb and names the exact page, setting or code a teammate changes today. No rationale after it."
 		),
@@ -579,11 +580,13 @@ const investigationActNextSchema = z.object({
 		.string()
 		.trim()
 		.min(1)
+		.max(200)
 		.describe("Smallest inspected target, using a readable product name."),
 	verification: z
 		.string()
 		.trim()
 		.min(1)
+		.max(400)
 		.describe("One short measured condition that proves the repair worked."),
 	check: insightVerificationCheckSchema.nullable().optional(),
 	recheckAt: z.iso.datetime().optional(),
@@ -596,14 +599,15 @@ const investigationAskNextSchema = z.object({
 		.string()
 		.trim()
 		.min(1)
+		.max(320)
 		.describe(
-			'One yes/no question of at most 12 words that the founder can answer from memory, such as a campaign or a plan change, and whose answer chooses the fix. Never "A or B?", never data you can read, and no rationale after it.'
+			'One yes/no question of at most 12 words that the founder can answer from memory, such as a campaign or a plan change, and whose yes and no lead to different work today; if either answer leaves nothing to change, resolve instead. Never "A or B?", never data you can read, and no rationale after it.'
 		),
 });
 
 const investigationWatchNextSchema = z.object({
 	type: z.literal("watch"),
-	escalation: z.string().trim().min(1),
+	escalation: z.string().trim().min(1).max(600),
 	recheckAt: z.iso.datetime().optional(),
 	threshold: insightWatchThresholdSchema.optional(),
 });
@@ -614,6 +618,7 @@ const investigationResolveNextSchema = z.object({
 		.string()
 		.trim()
 		.min(1)
+		.max(600)
 		.describe(
 			"One short reason, for the team, that nothing needs doing today."
 		),
@@ -699,11 +704,12 @@ export const investigationOutcomeSchema = z
 			.optional(),
 		// Optional only for legacy stored outcomes.
 		findingKind: insightFindingKindSchema.optional(),
-		title: z.string().trim().min(1),
+		title: z.string().trim().min(1).max(200),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
+			.max(400)
 			.describe(
 				'What this means for the team, in one sentence of at most 15 words, such as "Your bounce rate looks worse than real visitors behave." State the consequence plainly; never say what is not verified or not established. Never an instruction, and do not repeat the title.'
 			),
@@ -713,13 +719,14 @@ export const investigationOutcomeSchema = z
 			.string()
 			.trim()
 			.min(1)
+			.max(500)
 			.nullable()
 			.describe(
-				'Why it happens, explained so a non-engineer gets it, in at most 30 words, starting with a confidence that matches the evidence: "Confirmed:" for an inspected mechanism in code, configuration, a definition or a deploy diff; "Likely:" when a concentration or timing match points one way; "Possible:" for a weaker lead. Say where the problem lives, in names the team uses (the SDK, the docs site, the checkout page, a goal), then what happens there and its effect, such as "Likely: the checkout page sends its tracking before the payment form loads, so card payments are never counted." One cause, no code identifiers, no notes about what would confirm it. Use null only when nothing points anywhere.'
+				'Why it happens, explained so a non-engineer gets it, in at most 30 words, starting with a confidence that matches the evidence: "Confirmed:" for an inspected mechanism in code, configuration, a definition or a deploy diff that the data shows accounts for the change; "Likely:" when a concentration or timing match points one way; "Possible:" for a weaker lead. Say where the problem lives, in names the team uses (the SDK, the docs site, the checkout page, a goal), then what happens there and its effect, such as "Likely: the checkout page sends its tracking before the payment form loads, so card payments are never counted." One cause, no code identifiers, no notes about what would confirm it. Use null only when nothing points anywhere.'
 			),
 		// Supplied background only; does not establish which facts influenced a claim.
 		contextSnapshot: businessContextSchema.optional(),
-		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		evidence: z.array(z.string().trim().min(1).max(1500)).min(1).max(2),
 		publish: z.boolean().optional(),
 		publicationBasis: insightPublicationBasisSchema.nullable().optional(),
 		next: investigationNextSchema,
