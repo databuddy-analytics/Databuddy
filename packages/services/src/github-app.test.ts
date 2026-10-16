@@ -119,6 +119,35 @@ describe("getInstallationToken", () => {
 				"https://api.github.com/app/installations/42/access_tokens"
 			);
 			expect(init.method).toBe("POST");
+			expect(init.body).toBeUndefined();
+		} finally {
+			fetchSpy.mockRestore();
+		}
+	});
+
+	it("mints a repository-scoped token separately from the installation-wide one", async () => {
+		setAppEnv();
+		const fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					token: "ghs_scoped",
+					expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+				}),
+				{ status: 201 }
+			)
+		);
+		try {
+			expect(await getInstallationToken("42", ["Databuddy"])).toBe(
+				"ghs_scoped"
+			);
+			expect(await getInstallationToken("42", ["Databuddy"])).toBe(
+				"ghs_scoped"
+			);
+			expect(fetchSpy).toHaveBeenCalledTimes(1);
+			const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+			expect(JSON.parse(String(init.body))).toEqual({
+				repositories: ["Databuddy"],
+			});
 		} finally {
 			fetchSpy.mockRestore();
 		}

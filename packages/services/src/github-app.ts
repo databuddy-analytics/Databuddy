@@ -108,9 +108,11 @@ interface CachedInstallationToken {
 const installationTokens = new Map<string, CachedInstallationToken>();
 
 export async function getInstallationToken(
-	installationId: string
+	installationId: string,
+	repositories: readonly string[] = []
 ): Promise<string | null> {
-	const cached = installationTokens.get(installationId);
+	const cacheKey = [installationId, ...repositories].join(":");
+	const cached = installationTokens.get(cacheKey);
 	if (
 		cached &&
 		cached.expiresAt - INSTALLATION_TOKEN_REFRESH_BUFFER_MS > Date.now()
@@ -124,11 +126,14 @@ export async function getInstallationToken(
 		{
 			method: "POST",
 			headers: githubHeaders(createAppJwt(config)),
+			...(repositories.length > 0
+				? { body: JSON.stringify({ repositories }) }
+				: {}),
 			signal: AbortSignal.timeout(10_000),
 		}
 	);
 	if (!response.ok) {
-		installationTokens.delete(installationId);
+		installationTokens.delete(cacheKey);
 		return null;
 	}
 	const parsed = installationTokenSchema.safeParse(
@@ -137,7 +142,7 @@ export async function getInstallationToken(
 	if (!parsed.success) {
 		return null;
 	}
-	installationTokens.set(installationId, {
+	installationTokens.set(cacheKey, {
 		token: parsed.data.token,
 		expiresAt: new Date(parsed.data.expires_at).getTime(),
 	});
@@ -179,7 +184,8 @@ export const getGithubIntegrationForOrg = cacheable(
 );
 
 export async function getGithubTokenForOrg(
-	organizationId: string
+	organizationId: string,
+	repository?: { owner: string; repo: string } | null
 ): Promise<string | null> {
 	if (!isGitHubAppConfigured()) {
 		return null;
@@ -188,7 +194,10 @@ export async function getGithubTokenForOrg(
 	if (!integration || integration.status !== "active") {
 		return null;
 	}
-	return getInstallationToken(integration.installationId);
+	return getInstallationToken(
+		integration.installationId,
+		repository ? [repository.repo] : []
+	);
 }
 
 const installationAccountSchema = z.object({

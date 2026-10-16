@@ -854,7 +854,10 @@ export function createGitHubTools(
 	const repository = params.repository;
 	const getToken =
 		dependencies.getToken ??
-		(() => getGithubTokenForOrg(params.organizationId).catch(() => null));
+		(() =>
+			getGithubTokenForOrg(params.organizationId, repository).catch(
+				() => null
+			));
 	let linkedRepositories: Promise<GitHubRepository[]> | undefined;
 	const getLinkedRepositories =
 		dependencies.getLinkedRepositories ??
