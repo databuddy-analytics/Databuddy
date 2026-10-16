@@ -7,6 +7,7 @@ import { FlagsProvider } from "@databuddy/sdk/react";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ThemeProvider } from "next-themes";
+import { usePathname } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useEffect, useMemo, useState } from "react";
 import { IdentifyUser } from "@/components/providers/identify-user";
@@ -28,6 +29,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	const [queryClient] = useState(getQueryClient);
 	const persister = useMemo(() => makeQueryPersister(userId), [userId]);
 	const shouldPersist = !(isDashboardE2E || isPending) && Boolean(userId);
+	const isDemo = usePathname()?.startsWith("/demo/") ?? false;
 
 	const content = (
 		<FlagsProviderWrapper>
@@ -42,7 +44,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	);
 
 	return (
-		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+		<ThemeProvider
+			attribute="class"
+			defaultTheme="system"
+			enableSystem
+			forcedTheme={isDemo ? "dark" : undefined}
+		>
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				{shouldPersist ? (
 					<PersistQueryClientProvider
