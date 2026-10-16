@@ -1,14 +1,14 @@
 "use client";
 
+import { Button } from "@databuddy/ui";
 import { ArrowRightIcon } from "@databuddy/ui/icons";
 import { SiClaude } from "@icons-pack/react-simple-icons";
 import { useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SectionBullet } from "../icons/section-bullet";
-import { InvestigationStage } from "./databunny-demo-visuals";
+import { ChatQuery } from "./databunny-demo-visuals";
 import { useTimeline } from "./demo-primitives";
-import { SciFiButton } from "./scifi-btn";
 import { cn } from "@/lib/utils";
 
 interface TerminalCall {
@@ -316,20 +316,22 @@ export function AiSection() {
 			<div className="mb-10 lg:mb-12">
 				<h2 className="mx-auto flex max-w-4xl items-start gap-2 text-balance font-semibold text-2xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
 					<span className="mt-1.5 hidden sm:block">
-						<SectionBullet color="#6E56CF" />
+						<SectionBullet color="#B24A7E" />
 					</span>
 					<span className="text-foreground">
-						Know what changed without opening a dashboard.
+						Ask Databunny a question and open the query behind the answer.
 					</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					Scheduled checks on Business and Scale: every day or week, Databunny
-					compares the last 7 days of your metrics with the prior 7. When one
-					really moves, you get what it found and the next step in Slack.
+					Databunny is the built-in analyst on every plan. Ask about traffic,
+					funnels, errors or performance in plain words, and check the query it
+					ran before you trust the number. On Business and Scale it also checks
+					your metrics every day or week and posts real changes to Slack with
+					the next step.
 				</p>
 			</div>
 
-			<InvestigationStage />
+			<ChatQuery />
 			<div className="mt-4 flex justify-end">
 				<Link
 					className="inline-flex items-center gap-1 text-foreground text-sm transition-opacity hover:opacity-80"
@@ -352,9 +354,9 @@ export function AiSection() {
 					</p>
 
 					<div className="mt-6 flex flex-wrap items-center gap-4">
-						<SciFiButton asChild>
+						<Button asChild variant="secondary">
 							<Link href="/docs/api/mcp">Set up MCP</Link>
-						</SciFiButton>
+						</Button>
 						<Link
 							className="inline-flex items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-foreground"
 							href="/docs/api"

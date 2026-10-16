@@ -9,9 +9,9 @@ import {
 } from "motion/react";
 import { type KeyboardEvent, useId, useState } from "react";
 import { Branding } from "@/components/logo/branding";
-import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 import { SectionBullet } from "../icons/section-bullet";
+import { FRAME } from "./demo-primitives";
 
 interface FaqItem {
 	answer: string;
@@ -100,11 +100,8 @@ export function FaqSection({
 				</div>
 			</div>
 
-			<SciFiCard
-				className="border border-border bg-card/40 lg:col-span-8"
-				cornerOpacity="opacity-60"
-			>
-				<div className="flex h-12 items-center justify-between border-border border-b px-4 sm:px-6">
+			<div className={cn(FRAME, "lg:col-span-8")}>
+				<div className="flex h-12 items-center justify-between border-white/[0.06] border-b px-4 sm:px-6">
 					<div className="flex items-center gap-2.5">
 						<Branding heightPx={16} variant="logomark" />
 						<span className="font-medium text-foreground text-sm">
@@ -195,7 +192,7 @@ export function FaqSection({
 						);
 					})}
 				</div>
-			</SciFiCard>
+			</div>
 		</div>
 	);
 }

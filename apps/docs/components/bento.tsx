@@ -11,13 +11,19 @@ import {
 	UsersIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { AnimatePresence, motion } from "motion/react";
+import {
+	AnimatePresence,
+	motion,
+	useInView,
+	useReducedMotion,
+} from "motion/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { Count, FRAME, IN_OUT } from "./landing/demo-primitives";
 
 const BentoCard = ({
 	title,
@@ -36,33 +42,26 @@ const BentoCard = ({
 	contentClassName?: string;
 	href?: string;
 }) => (
-	<div
-		className={cn(
-			"group relative overflow-hidden border border-border bg-card backdrop-blur-xl duration-500",
-			className
-		)}
-	>
+	<div className={cn(FRAME, "group relative overflow-hidden", className)}>
 		<CardHeader className="relative z-20 px-6 py-4">
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3">
-					<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
+					<div className="flex size-8 items-center justify-center border border-white/[0.06] bg-white/[0.02]">
 						<Icon className="size-4 text-muted-foreground" />
 					</div>
 					<div className="flex flex-col gap-0.5">
-						<CardTitle className="font-medium font-mono text-foreground text-sm">
+						<CardTitle className="font-medium text-foreground text-sm">
 							{title}
 						</CardTitle>
 						{description && (
-							<p className="font-mono text-muted-foreground text-xs">
-								{description}
-							</p>
+							<p className="text-muted-foreground text-xs">{description}</p>
 						)}
 					</div>
 				</div>
 				{href && (
 					<Link
 						aria-label={`Learn more about ${title}`}
-						className="z-30 flex size-10 shrink-0 items-center justify-center rounded border border-border/50 bg-card text-muted-foreground shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-border hover:text-foreground"
+						className="z-30 flex size-10 shrink-0 items-center justify-center border border-white/[0.06] bg-white/[0.02] text-muted-foreground transition-colors duration-200 ease-in-out hover:border-white/[0.12] hover:text-foreground"
 						href={href}
 					>
 						<ArrowRightIcon className="size-5" />
@@ -75,6 +74,30 @@ const BentoCard = ({
 		</CardContent>
 	</div>
 );
+
+const useTick = (seconds: number, live: boolean, offsetSeconds = 0) => {
+	const [tick, setTick] = useState(0);
+	useEffect(() => {
+		if (!live) {
+			return;
+		}
+		let interval: number | undefined;
+		const start = window.setTimeout(() => {
+			setTick((current) => current + 1);
+			interval = window.setInterval(
+				() => setTick((current) => current + 1),
+				seconds * 1000
+			);
+		}, offsetSeconds * 1000);
+		return () => {
+			window.clearTimeout(start);
+			if (interval !== undefined) {
+				window.clearInterval(interval);
+			}
+		};
+	}, [live, seconds, offsetSeconds]);
+	return tick;
+};
 
 const buildSmoothPath = (values: number[], width: number, height: number) => {
 	const pts = values.map((v, i) => ({
@@ -96,129 +119,66 @@ const buildSmoothPath = (values: number[], width: number, height: number) => {
 	return d;
 };
 
-const FunnelsFeature = () => {
-	const data = [
-		{
-			value: 100,
-			name: "Pageview",
+const FUNNEL_STAGES = [
+	{ value: 100, name: "Pricing view", fill: "var(--primary)" },
+	{ value: 41, name: "Signup", fill: "var(--muted-foreground)" },
+	{ value: 22, name: "Website added", fill: "var(--accent)" },
+	{ value: 13, name: "Script live", fill: "var(--secondary)" },
+] as const;
 
-			fill: "var(--primary)",
-			stroke: "var(--primary)",
-		},
-		{
-			value: 65,
-			name: "Signup",
-			fill: "var(--muted-foreground)",
-			stroke: "var(--muted-foreground)",
-		},
-		{
-			value: 45,
-			name: "Onboarding",
-			fill: "var(--accent)",
-			stroke: "var(--accent)",
-		},
-		{
-			value: 25,
-			name: "Paid",
-			fill: "var(--secondary)",
-			stroke: "var(--secondary)",
-		},
-	];
-
-	return (
-		<div className="flex w-full min-w-0 flex-col">
-			<div className="mb-4 flex items-center justify-between">
-				<div className="space-y-1">
-					<motion.div
-						animate={{ opacity: 1, scale: 1 }}
-						className="font-medium not-[]:font-mono text-3xl text-foreground tracking-tighter"
-						initial={{ opacity: 0, scale: 0.5 }}
-						transition={{ duration: 0.5, delay: 0.2 }}
-					>
-						24.5%
-					</motion.div>
-					<div className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Conversion rate
-					</div>
+const FunnelsFeature = () => (
+	<div className="flex w-full min-w-0 flex-col">
+		<div className="mb-4 flex items-center justify-between">
+			<div className="space-y-1">
+				<div className="font-medium text-3xl text-foreground tracking-tighter">
+					13%
 				</div>
-				<Badge variant="gray">+2.4%</Badge>
+				<div className="text-muted-foreground text-xs">Conversion rate</div>
 			</div>
-			<div
-				className="flex h-[320px] w-full flex-col gap-1"
-				style={{
-					maskImage: "linear-gradient(to bottom, black 20%, transparent 100%)",
-				}}
-			>
-				{data.map((stage, i) => {
-					const top = stage.value * 0.5;
-					const bottom = (data[i + 1]?.value ?? stage.value) * 0.5;
-					const points = `${(100 - top) / 2},0 ${(100 + top) / 2},0 ${(100 + bottom) / 2},80 ${(100 - bottom) / 2},80`;
-					return (
-						<div className="relative min-h-0 flex-1 py-1" key={stage.name}>
-							<svg
-								aria-hidden="true"
-								className="h-full w-full"
-								preserveAspectRatio="none"
-								viewBox="0 0 100 80"
-							>
-								<motion.polygon
-									animate={{ opacity: 1, scale: 1 }}
-									fill={stage.fill}
-									initial={{ opacity: 0, scale: 0.8 }}
-									points={points}
-									transition={{ duration: 0.4, delay: i * 0.15 }}
-								/>
-							</svg>
-							<span
-								className="absolute top-1/2 -translate-y-1/2 font-medium font-mono text-muted-foreground text-xs"
-								style={{ left: `calc(${(100 + top) / 2}% + 12px)` }}
-							>
-								{stage.name}
-							</span>
-						</div>
-					);
-				})}
-			</div>
+			<Badge variant="gray">+2.4%</Badge>
 		</div>
+		<div className="flex h-[320px] w-full flex-col gap-1">
+			{FUNNEL_STAGES.map((stage, i) => {
+				const top = stage.value * 0.5;
+				const bottom = (FUNNEL_STAGES[i + 1]?.value ?? stage.value) * 0.5;
+				const points = `${(100 - top) / 2},0 ${(100 + top) / 2},0 ${(100 + bottom) / 2},80 ${(100 - bottom) / 2},80`;
+				return (
+					<div className="relative min-h-0 flex-1 py-1" key={stage.name}>
+						<svg
+							aria-hidden="true"
+							className="h-full w-full"
+							preserveAspectRatio="none"
+							viewBox="0 0 100 80"
+						>
+							<polygon fill={stage.fill} points={points} />
+						</svg>
+						<span
+							className="absolute top-1/2 -translate-y-1/2 font-medium font-mono text-muted-foreground text-xs"
+							style={{ left: `calc(${(100 + top) / 2}% + 12px)` }}
+						>
+							{stage.name}
+						</span>
+					</div>
+				);
+			})}
+		</div>
+	</div>
+);
+
+const TRAFFIC = [
+	42, 46, 51, 49, 55, 61, 58, 64, 70, 67, 73, 78, 74, 69, 63, 66, 72, 77, 81,
+	76, 70, 64, 58, 52,
+] as const;
+const TRAFFIC_WINDOW = 12;
+
+const RealTimeFeature = ({ live }: { live: boolean }) => {
+	const tick = useTick(2.5, live);
+	const values = Array.from(
+		{ length: TRAFFIC_WINDOW },
+		(_, index) => TRAFFIC[(tick + index) % TRAFFIC.length]
 	);
-};
-
-const RealTimeFeature = () => {
-	const [data, setData] = useState([
-		{ value: 30 },
-		{ value: 45 },
-		{ value: 35 },
-		{ value: 50 },
-		{ value: 40 },
-		{ value: 60 },
-		{ value: 55 },
-		{ value: 70 },
-		{ value: 65 },
-		{ value: 80 },
-		{ value: 75 },
-		{ value: 90 },
-	]);
-	const [liveUsers, setLiveUsers] = useState(142);
-
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setData((prev) => {
-				const nextValue = 40 + Math.random() * 50;
-				const next = [...prev.slice(1), { value: nextValue }];
-
-				setLiveUsers(Math.floor(100 + nextValue * 0.8));
-
-				return next;
-			});
-		}, 2000);
-		return () => clearInterval(interval);
-	}, []);
-
-	const linePath = buildSmoothPath(
-		data.map((d) => d.value),
-		300,
-		120
-	);
+	const linePath = buildSmoothPath(values, 300, 120);
+	const liveUsers = 90 + Math.round((values.at(-1) ?? 0) * 0.6);
 
 	return (
 		<div className="relative flex h-full flex-col">
@@ -230,26 +190,21 @@ const RealTimeFeature = () => {
 								scale: [1, 1.5, 1],
 								opacity: [0.75, 0, 0.75],
 							}}
-							className="absolute inline-flex h-full w-full rounded-full bg-muted-foreground opacity-75"
+							className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
 							transition={{
 								duration: 2,
+								ease: IN_OUT,
 								repeat: Number.POSITIVE_INFINITY,
 							}}
 						/>
-						<span className="relative inline-flex size-2 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+						<span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
 					</span>
-					<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Live users
-					</span>
+					<span className="text-muted-foreground text-xs">Live users</span>
 				</div>
-				<motion.div
-					animate={{ opacity: 1, y: 0 }}
+				<Count
 					className="font-medium font-mono text-2xl text-foreground tracking-tighter"
-					initial={{ opacity: 0.5, y: 5 }}
-					key={liveUsers}
-				>
-					{liveUsers}
-				</motion.div>
+					value={liveUsers}
+				/>
 			</div>
 			<div className="mt-auto h-[120px] w-full">
 				<svg
@@ -268,7 +223,7 @@ const RealTimeFeature = () => {
 						animate={{ d: `${linePath} L 300 120 L 0 120 Z` }}
 						fill="url(#colorRealTime)"
 						initial={false}
-						transition={{ duration: 0.8, ease: "easeOut" }}
+						transition={{ duration: 0.8, ease: IN_OUT }}
 					/>
 					<motion.path
 						animate={{ d: linePath }}
@@ -277,7 +232,7 @@ const RealTimeFeature = () => {
 						stroke="var(--primary)"
 						strokeWidth={2}
 						style={{ filter: "drop-shadow(0 0 5px var(--primary))" }}
-						transition={{ duration: 0.8, ease: "easeOut" }}
+						transition={{ duration: 0.8, ease: IN_OUT }}
 						vectorEffect="non-scaling-stroke"
 					/>
 				</svg>
@@ -286,181 +241,108 @@ const RealTimeFeature = () => {
 	);
 };
 
-const SessionsFeature = () => {
-	const [sessions, setSessions] = useState([
-		{
-			id: "1",
-			country: "US",
-			browser: "Chrome",
-			os: "Mac OS",
-			time: "2m ago",
-			path: "/pricing",
-			flag: "🇺🇸",
-		},
-		{
-			id: "2",
-			country: "DE",
-			browser: "Firefox",
-			os: "Windows",
-			time: "5m ago",
-			path: "/docs/api",
-			flag: "🇩🇪",
-		},
-		{
-			id: "3",
-			country: "JP",
-			browser: "Safari",
-			os: "iOS",
-			time: "8m ago",
-			path: "/blog/v2",
-			flag: "🇯🇵",
-		},
-		{
-			id: "4",
-			country: "GB",
-			browser: "Chrome",
-			os: "Android",
-			time: "12m ago",
-			path: "/features",
-			flag: "🇬🇧",
-		},
-		{
-			id: "5",
-			country: "FR",
-			browser: "Safari",
-			os: "iOS",
-			time: "15m ago",
-			path: "/blog/v2",
-			flag: "🇫🇷",
-		},
-		{
-			id: "6",
-			country: "IT",
-			browser: "Safari",
-			os: "iOS",
-			time: "18m ago",
-			path: "/blog/v2",
-			flag: "🇮🇹",
-		},
-		{
-			id: "7",
-			country: "ES",
-			browser: "Safari",
-			os: "iOS",
-			time: "21m ago",
-			path: "/blog/v2",
-			flag: "🇪🇸",
-		},
-	]);
+const SESSIONS = [
+	{ path: "/docs/getting-started", browser: "Chrome", os: "macOS", flag: "🇺🇸" },
+	{ path: "/pricing", browser: "Safari", os: "iOS", flag: "🇩🇪" },
+	{ path: "/databunny", browser: "Firefox", os: "Windows", flag: "🇬🇧" },
+	{ path: "/compare/posthog", browser: "Chrome", os: "Android", flag: "🇮🇳" },
+	{ path: "/docs/sdk/mcp", browser: "Arc", os: "macOS", flag: "🇫🇷" },
+	{ path: "/changelog", browser: "Safari", os: "macOS", flag: "🇳🇱" },
+	{ path: "/errors", browser: "Chrome", os: "Windows", flag: "🇧🇷" },
+] as const;
+const SESSION_ROWS = 6;
+const SESSION_AGES = [
+	"Just now",
+	"1m ago",
+	"3m ago",
+	"6m ago",
+	"9m ago",
+	"12m ago",
+];
 
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setSessions((prev) => {
-				const [first, ...rest] = prev;
-				return [
-					...rest,
-					{ ...first, time: "Just now", id: Math.random().toString() },
-				];
-			});
-		}, 3000);
-		return () => clearInterval(interval);
-	}, []);
+const SessionsFeature = ({ live }: { live: boolean }) => {
+	const tick = useTick(6, live);
+	const rows = Array.from({ length: SESSION_ROWS }, (_, index) => {
+		const session =
+			SESSIONS[(tick - index + SESSIONS.length * 64) % SESSIONS.length];
+		return { ...session, age: SESSION_AGES[index], position: tick - index };
+	});
 
 	return (
-		<div
-			className="relative max-h-[380px] overflow-hidden"
-			style={{
-				maskImage:
-					"linear-gradient(to bottom, transparent 0%, black 10%, black 75%, transparent 100%)",
-			}}
-		>
-			<div className="space-y-2">
-				<AnimatePresence initial={false} mode="popLayout">
-					{sessions.map((session) => (
-						<motion.div
-							animate={{ opacity: 1, y: 0 }}
-							className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-sm"
-							exit={{ y: -60 }}
-							initial={{ opacity: 0, y: 60 }}
-							key={session.id}
-							layout
-							transition={{
-								layout: { duration: 0.4, ease: "easeInOut" },
-								y: { duration: 0.4, ease: "easeOut" },
-							}}
-						>
-							<div className="flex items-center gap-3.5">
-								<div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background text-lg grayscale backdrop-blur-sm">
-									{session.flag}
-								</div>
-								<div className="flex flex-col gap-1">
-									<span className="font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
-										{session.path}
-									</span>
-									<span className="font-mono text-muted-foreground text-xs">
-										{session.browser} • {session.os}
-									</span>
-								</div>
+		<div className="space-y-2">
+			<AnimatePresence initial={false} mode="popLayout">
+				{rows.map((session) => (
+					<motion.div
+						animate={{ opacity: 1, y: 0 }}
+						className="flex items-center justify-between border border-white/[0.06] bg-white/[0.02] p-2 text-sm"
+						exit={{ opacity: 0 }}
+						initial={{ opacity: 0, y: -12 }}
+						key={session.position}
+						layout
+						transition={{ duration: 0.5, ease: IN_OUT }}
+					>
+						<div className="flex items-center gap-3.5">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-background text-lg grayscale">
+								{session.flag}
 							</div>
-							<div className="flex items-center gap-2">
-								<div className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+							<div className="flex flex-col gap-1">
+								<span className="font-medium font-mono text-accent-foreground text-xs">
+									{session.path}
+								</span>
 								<span className="font-mono text-muted-foreground text-xs">
-									{session.time}
+									{session.browser} · {session.os}
 								</span>
 							</div>
-						</motion.div>
-					))}
-				</AnimatePresence>
-			</div>
+						</div>
+						<div className="flex items-center gap-2">
+							<div className="size-1.5 rounded-full bg-emerald-400" />
+							<span className="font-mono text-muted-foreground text-xs">
+								{session.age}
+							</span>
+						</div>
+					</motion.div>
+				))}
+			</AnimatePresence>
 		</div>
 	);
 };
 
+const ERROR_BARS = [40, 70, 30, 80, 50, 90, 60, 40, 65, 85, 45, 75] as const;
+
 const ErrorTrackingFeature = () => (
 	<div className="flex h-full flex-1 flex-col">
-		<div className="relative overflow-hidden border border-border bg-secondary/20 p-4 transition-all">
+		<div className="border border-white/[0.06] bg-white/[0.02] p-4">
 			<div className="flex items-start gap-3">
 				<div className="rounded-md bg-destructive/10 p-2">
-					<motion.div
-						animate={{ scale: [1, 1.2, 1] }}
-						transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-					>
-						<WarningCircleIcon className="size-4 shrink-0 text-destructive" />
-					</motion.div>
+					<WarningCircleIcon className="size-4 shrink-0 text-destructive" />
 				</div>
 				<div className="min-w-0 flex-1 space-y-2">
 					<div className="flex items-center justify-between gap-2">
 						<p className="truncate font-medium font-mono text-[11px] text-accent-foreground">
-							TypeError: undefined is not a function
+							TypeError: Cannot read &apos;plan&apos; of undefined
 						</p>
 						<Badge variant="destructive">
-							<motion.span
-								animate={{ opacity: [1, 0.5, 1] }}
-								className="font-mono text-[10px]"
-								transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
-							>
-								CRITICAL
-							</motion.span>
+							<span className="font-mono text-[10px]">CRITICAL</span>
 						</Badge>
 					</div>
-					<p className="rounded border border-border bg-background/50 p-1.5 font-mono text-[10px] text-muted-foreground">
-						at /app/layout.tsx:42:15
+					<p className="truncate rounded border border-border bg-background/50 p-1.5 font-mono text-[10px] text-muted-foreground">
+						/pricing at app/(home)/pricing/_pricing/table.tsx:88:11
 					</p>
 				</div>
 			</div>
 		</div>
 
 		<div className="mt-5 flex flex-col">
-			<div className="flex justify-between px-1 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
+			<div className="flex justify-between px-1 text-muted-foreground text-xs">
 				<span>Last 24 hours</span>
-				<span>12 Affected</span>
+				<span>12 affected</span>
 			</div>
-			<div className="mt-6 flex h-14 items-end gap-1 opacity-60">
-				{[40, 70, 30, 80, 50, 90, 60, 40, 65, 85, 45, 75].map((h, i) => (
-					<motion.div
-						className="flex-1 rounded-t-[1px] bg-accent-foreground duration-300 hover:bg-accent-foreground/50"
-						key={`bar-${h}-${i}`}
-						style={{ height: `${h}%` }}
+			<div className="mt-4 flex h-12 items-end gap-1">
+				{ERROR_BARS.map((height, index) => (
+					<div
+						className="flex-1 rounded-t-[1px] bg-red-400/70"
+						key={`bar-${height}-${index}`}
+						style={{ height: `${height}%` }}
 					/>
 				))}
 			</div>
@@ -468,210 +350,140 @@ const ErrorTrackingFeature = () => (
 	</div>
 );
 
-const FeatureFlagsFeature = () => {
-	const flags = [
-		{ name: "New Dashboard", enabled: true, env: "100% rollout" },
-		{ name: "AI Assistant", enabled: false, env: "off" },
-		{ name: "Dark Mode V2", enabled: true, env: "25% rollout" },
-		{ name: "Analytics V3", enabled: true, env: "3 variants" },
-	];
-
-	return (
-		<div
-			className="max-h-[180px] space-y-2"
-			style={{
-				maskImage: "linear-gradient(to bottom, black 70%, transparent 100%)",
-			}}
-		>
-			{flags.map((flag) => (
-				<div
-					className="group flex items-center justify-between border border-border/50 bg-secondary/20 p-3 transition-all"
-					key={flag.name}
-				>
-					<div className="flex min-w-0 flex-1 items-center gap-3">
-						<div
-							className={cn(
-								"size-2 shrink-0 rounded-full ring-4 ring-opacity-20 transition-all duration-300",
-								flag.enabled
-									? "bg-primary shadow-[0_0_12px_var(--primary)] ring-primary/30"
-									: "bg-muted ring-muted-foreground/30"
-							)}
-						>
-							{flag.enabled && (
-								<motion.div
-									animate={{ scale: 1 }}
-									className="h-full w-full rounded-full bg-primary"
-									initial={{ scale: 0.95 }}
-								/>
-							)}
-						</div>
-						<div className="flex min-w-0 flex-col gap-0.5">
-							<span className="truncate font-medium font-mono text-accent-foreground text-xs group-hover:text-foreground">
-								{flag.name}
-							</span>
-							<span className="font-medium font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
-								{flag.env}
-							</span>
-						</div>
-					</div>
-					<Switch
-						checked={flag.enabled}
-						className="min-h-0! min-w-0!"
-						disabled
-					/>
-				</div>
-			))}
-		</div>
-	);
-};
-
-const WEB_VITALS_METRICS = [
-	{ label: "LCP", value: "0.8s", score: 98 },
-	{ label: "INP", value: "148ms", score: 100 },
-	{ label: "CLS", value: "0.02", score: 95 },
+const FLAGS = [
+	{ name: "onboarding-plan-step", enabled: true, env: "25% rollout" },
+	{ name: "databunny-chat", enabled: true, env: "100% rollout" },
+	{ name: "pricing-estimator", enabled: false, env: "Off" },
 ] as const;
 
-const WebVitalsFeature = () => {
-	const metrics = WEB_VITALS_METRICS;
-
-	return (
-		<div className="grid h-[150px] grid-cols-3 gap-3">
-			{metrics.map((m, _i) => (
-				<div
-					className={cn(
-						"angled-rectangle-gradient flex h-full flex-col items-center justify-between gap-2 border border-border border-b-0 p-3"
-					)}
-					key={m.label}
-				>
-					<div className="relative flex size-14 items-center justify-center">
-						<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
-							<title>Score indicator</title>
-							<circle
-								className="stroke-secondary"
-								cx="18"
-								cy="18"
-								fill="none"
-								r="16"
-								strokeWidth="2.5"
-							/>
-							<circle
-								className="stroke-primary"
-								cx="18"
-								cy="18"
-								fill="none"
-								pathLength="100"
-								r="16"
-								strokeDasharray="100"
-								strokeDashoffset={100 - m.score}
-								strokeLinecap="round"
-								strokeWidth="2.5"
-								style={{ opacity: 0.5 }}
-							/>
-							<circle
-								className="stroke-primary"
-								cx="18"
-								cy="18"
-								fill="none"
-								pathLength="100"
-								r="16"
-								strokeDasharray="100"
-								strokeDashoffset={100 - m.score}
-								strokeLinecap="round"
-								strokeWidth="2.5"
-							/>
-						</svg>
-						<span className="absolute font-medium font-mono text-foreground text-sm">
-							{m.score}
+const FeatureFlagsFeature = () => (
+	<div className="space-y-2">
+		{FLAGS.map((flag) => (
+			<div
+				className="flex items-center justify-between border border-white/[0.06] bg-white/[0.02] p-3"
+				key={flag.name}
+			>
+				<div className="flex min-w-0 flex-1 items-center gap-3">
+					<div
+						className={cn(
+							"size-2 shrink-0 rounded-full ring-4",
+							flag.enabled
+								? "bg-emerald-400 ring-emerald-400/20"
+								: "bg-muted ring-muted-foreground/30"
+						)}
+					/>
+					<div className="flex min-w-0 flex-col gap-0.5">
+						<span className="truncate font-medium font-mono text-accent-foreground text-xs">
+							{flag.name}
+						</span>
+						<span className="text-[11px] text-muted-foreground">
+							{flag.env}
 						</span>
 					</div>
-					<div className="space-y-0.5 text-center">
-						<div className="font-bold font-mono text-[10px] text-muted-foreground uppercase tracking-widest">
-							{m.label}
-						</div>
-						<div className="font-medium font-mono text-foreground text-xs opacity-90">
-							{m.value}
-						</div>
-					</div>
 				</div>
-			))}
-		</div>
-	);
-};
+				<Switch checked={flag.enabled} className="min-h-0! min-w-0!" disabled />
+			</div>
+		))}
+	</div>
+);
 
-const CustomEventsFeature = () => {
-	const [events, setEvents] = useState([
-		{ name: "checkout_completed", count: "2.4k", id: "1" },
-		{ name: "add_to_cart", count: "8.9k", id: "2" },
-		{ name: "video_played", count: "12k", id: "3" },
-		{ name: "signup_started", count: "5.2k", id: "4" },
-		{ name: "button_clicked", count: "15k", id: "5" },
-		{ name: "form_submitted", count: "10k", id: "6" },
-		{ name: "link_clicked", count: "18k", id: "7" },
-		{ name: "search_performed", count: "9.5k", id: "8" },
-		{ name: "product_viewed", count: "13k", id: "9" },
-		{ name: "payment_successful", count: "7.8k", id: "10" },
-	]);
+// p75 for databuddy.cc, 30 days to Oct 16 2026; all three are inside the Good band
+const WEB_VITALS_METRICS = [
+	{ label: "LCP", value: "2.1s", rating: "Good" },
+	{ label: "INP", value: "144ms", rating: "Good" },
+	{ label: "CLS", value: "0.00", rating: "Good" },
+] as const;
 
-	useEffect(() => {
-		const interval = setInterval(() => {
-			setEvents((prev) => {
-				const [first, ...rest] = prev;
-				const newCount = `${(Math.random() * 20).toFixed(1)}k`;
-				return [
-					...rest,
-					{ ...first, count: newCount, id: Math.random().toString() },
-				];
-			});
-		}, 2500);
-		return () => clearInterval(interval);
-	}, []);
+const WebVitalsFeature = () => (
+	<div className="grid h-[150px] grid-cols-3 gap-3">
+		{WEB_VITALS_METRICS.map((m) => (
+			<div
+				className="angled-rectangle-gradient flex h-full flex-col items-center justify-between gap-2 border border-white/[0.06] border-b-0 p-3"
+				key={m.label}
+			>
+				<div className="relative flex size-14 items-center justify-center">
+					<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
+						<title>Score indicator</title>
+						<circle
+							className="stroke-secondary"
+							cx="18"
+							cy="18"
+							fill="none"
+							r="16"
+							strokeWidth="2.5"
+						/>
+						<circle
+							className="stroke-emerald-400"
+							cx="18"
+							cy="18"
+							fill="none"
+							pathLength="100"
+							r="16"
+							strokeLinecap="round"
+							strokeWidth="2.5"
+						/>
+					</svg>
+					<span className="absolute font-medium font-mono text-foreground text-xs">
+						{m.value}
+					</span>
+				</div>
+				<div className="space-y-0.5 text-center">
+					<div className="font-medium text-foreground text-xs">{m.label}</div>
+					<div className="text-emerald-400 text-xs">{m.rating}</div>
+				</div>
+			</div>
+		))}
+	</div>
+);
+
+const EVENTS = [
+	{ name: "signup_cta_clicked", base: 1284, step: 3 },
+	{ name: "demo_opened", base: 836, step: 2 },
+	{ name: "website_added", base: 412, step: 1 },
+] as const;
+
+const CustomEventsFeature = ({ live }: { live: boolean }) => {
+	const tick = useTick(6, live, 3);
 
 	return (
-		<div
-			className="relative max-h-[180px] overflow-hidden"
-			style={{
-				maskImage:
-					"linear-gradient(to bottom, transparent 0%, black 10%, black 70%, transparent 100%)",
-			}}
-		>
-			<div className="space-y-2">
-				<AnimatePresence initial={false} mode="popLayout">
-					{events.map((event) => (
-						<motion.div
-							animate={{ opacity: 1, y: 0 }}
-							className="flex items-center justify-between border border-border/50 bg-secondary/20 p-2 text-xs"
-							exit={{ y: -60 }}
-							initial={{ opacity: 0, y: 60 }}
-							key={event.id}
-							layout
-							transition={{
-								layout: { duration: 0.4, ease: "easeInOut" },
-								y: { duration: 0.4, ease: "easeOut" },
-							}}
-						>
-							<div className="flex items-center gap-3">
-								<div className="rounded-md border border-border bg-background p-2 text-muted-foreground">
-									<CursorClickIcon className="size-3" />
-								</div>
-								<span className="font-mono text-muted-foreground">
-									{event.name}
-								</span>
-							</div>
-							<Badge variant="gray">{event.count}</Badge>
-						</motion.div>
-					))}
-				</AnimatePresence>
-			</div>
+		<div className="space-y-2">
+			{EVENTS.map((event) => (
+				<div
+					className="flex items-center justify-between border border-white/[0.06] bg-white/[0.02] p-2 text-xs"
+					key={event.name}
+				>
+					<div className="flex items-center gap-3">
+						<div className="rounded-md border border-border bg-background p-2 text-muted-foreground">
+							<CursorClickIcon className="size-3" />
+						</div>
+						<span className="font-mono text-muted-foreground">
+							{event.name}
+						</span>
+					</div>
+					<Badge variant="gray">
+						<Count value={event.base + tick * event.step} />
+					</Badge>
+				</div>
+			))}
 		</div>
 	);
 };
 
 export default function Bento() {
+	const ref = useRef<HTMLDivElement>(null);
+	const visible = useInView(ref, { amount: 0.2 });
+	const reduce = useReducedMotion();
+	const live = visible && !reduce;
+
 	return (
-		<div className="grid h-full w-full grid-cols-1 gap-4 p-1 md:grid-cols-12">
+		<div
+			className="grid h-full w-full grid-cols-1 gap-4 p-1 md:grid-cols-12"
+			ref={ref}
+		>
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
 				description="Track user journeys through your app"
+				href="/demo"
 				icon={FunnelIcon}
 				title="Conversion funnels"
 			>
@@ -682,19 +494,21 @@ export default function Bento() {
 				className="h-full md:col-span-4 md:row-span-1"
 				contentClassName="px-0 pb-0"
 				description="See who's on your site right now"
+				href="/docs/dashboard"
 				icon={ChartActivityIcon}
 				title="Real-time"
 			>
-				<RealTimeFeature />
+				<RealTimeFeature live={live} />
 			</BentoCard>
 
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
 				description="See each session's page, country, and browser"
+				href="/docs/dashboard"
 				icon={UsersIcon}
 				title="Sessions"
 			>
-				<SessionsFeature />
+				<SessionsFeature live={live} />
 			</BentoCard>
 
 			<BentoCard
@@ -710,7 +524,6 @@ export default function Bento() {
 
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-1"
-				contentClassName="pb-0"
 				description="Catch and fix bugs fast"
 				href="/errors"
 				icon={BugIcon}
@@ -732,10 +545,11 @@ export default function Bento() {
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-1"
 				description="Track what matters to you"
+				href="/docs/dashboard#custom-events-analytics"
 				icon={CursorClickIcon}
 				title="Events"
 			>
-				<CustomEventsFeature />
+				<CustomEventsFeature live={live} />
 			</BentoCard>
 		</div>
 	);

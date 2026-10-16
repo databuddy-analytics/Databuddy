@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@databuddy/ui";
 import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import {
@@ -15,7 +16,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { IN_OUT, StatusLine } from "./landing/demo-primitives";
-import { SciFiButton } from "./landing/scifi-btn";
 import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
@@ -452,7 +452,7 @@ function FooterScene() {
 					Start free with 10,000 events per month. No credit card required.
 				</p>
 				<div className="mt-6 flex flex-wrap items-center gap-3">
-					<SciFiButton asChild className="px-6 py-5">
+					<Button asChild size="lg">
 						<a
 							data-destination="register"
 							data-placement="footer_hero"
@@ -461,8 +461,8 @@ function FooterScene() {
 						>
 							Start free
 						</a>
-					</SciFiButton>
-					<SciFiButton asChild className="px-6 py-5">
+					</Button>
+					<Button asChild size="lg" variant="secondary">
 						<Link
 							data-destination="demo"
 							data-placement="footer_hero"
@@ -471,7 +471,7 @@ function FooterScene() {
 						>
 							Try the live demo
 						</Link>
-					</SciFiButton>
+					</Button>
 				</div>
 			</div>
 			<div className="relative mt-32 h-36 w-[160%] -translate-x-[18.75%] sm:h-48 sm:w-full sm:translate-x-0 lg:mt-6 lg:h-56">
@@ -484,7 +484,7 @@ function FooterScene() {
 
 function FooterHeading({ children }: { children: React.ReactNode }) {
 	return (
-		<h3 className="font-mono text-foreground text-xs uppercase tracking-widest">
+		<h3 className="font-medium text-foreground text-sm">
 			{children}
 			<span className="mt-3 block h-px w-6 bg-foreground/40" />
 		</h3>

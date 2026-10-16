@@ -31,7 +31,7 @@ export function PricingPreview() {
 			<div className="mb-10 text-start lg:mb-12 lg:text-left">
 				<h2 className="mx-auto flex max-w-4xl items-start gap-2 text-balance font-semibold text-2xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
 					<span className="mt-1.5 hidden sm:block">
-						<SectionBullet color="#3E8E6A" />
+						<SectionBullet color="#E3A514" />
 					</span>
 					<span className="text-foreground">
 						10,000 events free, then from $9.99.
@@ -43,10 +43,10 @@ export function PricingPreview() {
 				</p>
 			</div>
 
-			<div className="grid gap-px border border-border bg-border sm:grid-cols-3">
+			<div className="grid gap-px border border-white/[0.06] bg-white/[0.06] sm:grid-cols-3">
 				{selfServePlans.map((plan) => (
-					<div className="flex flex-col gap-1 bg-card p-6" key={plan.id}>
-						<span className="font-medium font-mono text-muted-foreground text-xs uppercase tracking-wide">
+					<div className="flex flex-col gap-1 bg-background p-6" key={plan.id}>
+						<span className="font-medium text-muted-foreground text-sm">
 							{plan.name}
 						</span>
 						<span className="font-semibold text-3xl text-foreground tabular-nums">

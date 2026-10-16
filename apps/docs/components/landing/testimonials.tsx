@@ -3,7 +3,6 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { SectionBullet } from "../icons/section-bullet";
-import { SciFiCard } from "../scifi-card";
 
 interface Person {
 	avatar: string;
@@ -91,7 +90,7 @@ function Attribution({ person }: { person: Person }) {
 		<div className="flex items-center gap-3">
 			<Image
 				alt=""
-				className="size-9 shrink-0 rounded-sm ring-1 ring-white/10"
+				className="size-9 shrink-0 rounded-sm ring-1 ring-white/[0.06]"
 				height={36}
 				src={person.avatar}
 				width={36}
@@ -103,7 +102,7 @@ function Attribution({ person }: { person: Person }) {
 						@{new URL(person.link).pathname.split("/")[1]}
 					</span>
 				</p>
-				<p className="truncate font-mono text-[11px] text-muted-foreground uppercase tracking-wide">
+				<p className="truncate text-muted-foreground text-xs">
 					{person.profession}
 				</p>
 			</div>
@@ -148,11 +147,11 @@ export default function Testimonials() {
 				</span>
 				<div>
 					<h2 className="mb-2 font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-5xl">
-						Why developers are switching
+						Why founders are switching
 					</h2>
 					<p className="max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-xl">
-						Hear from developers using Databuddy alongside or instead of GA4,
-						PostHog, and Plausible.
+						Founders and developers on what changed after they moved to
+						Databuddy.
 					</p>
 				</div>
 			</div>
@@ -162,9 +161,8 @@ export default function Testimonials() {
 					className="md:col-span-2 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1"
 					person={featured}
 				>
-					<SciFiCard
+					<div
 						className="flex h-full flex-col justify-between gap-12 p-6 sm:p-8"
-						cornerOpacity="opacity-60"
 						style={{
 							backgroundImage:
 								"linear-gradient(to right, rgb(255 255 255 / 0.025) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.025) 1px, transparent 1px)",
@@ -184,7 +182,7 @@ export default function Testimonials() {
 							”
 						</blockquote>
 						<Attribution person={featured} />
-					</SciFiCard>
+					</div>
 				</QuoteLink>
 
 				{testimonials.map((testimonial, index) => (

@@ -94,17 +94,17 @@ const half = Math.ceil(companies.length / 2);
 const companyRows = [companies.slice(0, half), companies.slice(half)];
 
 const devTeams = [
-	{ name: "CodeRabbit", logo: "/social/coderabbit.svg" },
 	{ name: "OpenAI", logo: "/social/openai.svg" },
 	{ name: "Vercel", logo: "/social/vercel.svg" },
 	{ name: "Supabase", logo: "/social/supabase.svg" },
 	{ name: "Upstash", logo: "/social/upstash.svg" },
+	{ name: "CodeRabbit", logo: "/social/coderabbit.svg" },
 ];
 
 function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 	return (
 		<a
-			className="group relative flex h-24 w-44 items-center justify-center rounded-lg border border-border/50 bg-card/50 px-4 transition-colors duration-300 hover:border-border hover:bg-card sm:h-26 sm:w-52"
+			className="group relative flex h-24 w-44 items-center justify-center border border-white/[0.06] bg-white/[0.02] px-4 transition-colors duration-200 ease-in-out hover:border-white/[0.12] hover:bg-white/[0.04] sm:h-26 sm:w-52"
 			href={company.url}
 			rel="noopener noreferrer"
 			target="_blank"
@@ -147,7 +147,7 @@ function CompanyCard({ company }: { company: (typeof companies)[number] }) {
 export function TrustedBy() {
 	return (
 		<div className="w-full py-10 sm:py-12">
-			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm uppercase tracking-wide">
+			<p className="mb-6 text-pretty text-center text-muted-foreground text-sm">
 				Used by developers at
 			</p>
 
@@ -173,7 +173,7 @@ export function TrustedBy() {
 
 			<div className="mx-auto my-8 h-px w-full max-w-xs bg-border/50 sm:my-10" />
 
-			<p className="mb-5 text-center text-muted-foreground/60 text-xs uppercase tracking-wide">
+			<p className="mb-5 text-center text-muted-foreground text-sm">
 				And teams including
 			</p>
 
