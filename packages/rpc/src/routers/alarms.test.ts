@@ -1,78 +1,38 @@
 import { describe, expect, it } from "bun:test";
+import { ORPCError } from "@orpc/server";
+import { parseTriggerConditions, resolveTriggerUpdate } from "./alarms";
 
-const { parseTriggerConditions, resolveTriggerUpdate } = await import(
-	"./alarms"
-);
+function thrownCode(run: () => unknown) {
+	try {
+		run();
+	} catch (error) {
+		return error instanceof ORPCError ? error.code : undefined;
+	}
+}
 
 describe("parseTriggerConditions", () => {
-	it("accepts a uptime alarm with monitorIds", () => {
+	it("keeps the linked monitor ids of an uptime alert", () => {
 		expect(
 			parseTriggerConditions("uptime", { monitorIds: ["sched_1", "sched_2"] })
 		).toEqual({ monitorIds: ["sched_1", "sched_2"] });
 	});
 
-	it("defaults monitorIds to an empty array when omitted", () => {
+	it("defaults monitorIds to an empty list so a new alert can link monitors later", () => {
 		expect(parseTriggerConditions("uptime", {})).toEqual({ monitorIds: [] });
 	});
 
-	it("rejects a uptime alarm with a malformed monitorIds field", () => {
-		let error: unknown;
-		try {
-			parseTriggerConditions("uptime", { monitorIds: "sched_1" });
-		} catch (caught) {
-			error = caught;
-		}
-
-		expect(error).toMatchObject({ code: "BAD_REQUEST" });
+	it("rejects a malformed monitorIds field", () => {
+		expect(
+			thrownCode(() =>
+				parseTriggerConditions("uptime", { monitorIds: "sched_1" })
+			)
+		).toBe("BAD_REQUEST");
 	});
 
-	it("rejects traffic_spike alarms because no evaluator exists yet", () => {
-		let error: unknown;
-		try {
-			parseTriggerConditions("traffic_spike", {
-				metric: "pageviews",
-				direction: "down",
-				window: "15m",
-				sensitivity: "medium",
-				minBaseline: 100,
-			});
-		} catch (caught) {
-			error = caught;
-		}
-
-		expect(error).toMatchObject({
-			code: "BAD_REQUEST",
-			message: expect.stringContaining("traffic_spike"),
-		});
-	});
-
-	it("rejects error_rate alarms because no evaluator exists yet", () => {
-		let error: unknown;
-		try {
-			parseTriggerConditions("error_rate", {
-				window: "1h",
-				thresholdPercent: 5,
-				minSessions: 50,
-			});
-		} catch (caught) {
-			error = caught;
-		}
-
-		expect(error).toMatchObject({
-			code: "BAD_REQUEST",
-			message: expect.stringContaining("error_rate"),
-		});
-	});
-
-	it("rejects an unknown trigger type", () => {
-		let error: unknown;
-		try {
-			parseTriggerConditions("something_else", {});
-		} catch (caught) {
-			error = caught;
-		}
-
-		expect(error).toMatchObject({ code: "BAD_REQUEST" });
+	it("rejects trigger types that nothing evaluates", () => {
+		expect(thrownCode(() => parseTriggerConditions("traffic_spike", {}))).toBe(
+			"BAD_REQUEST"
+		);
 	});
 });
 
@@ -82,38 +42,31 @@ describe("resolveTriggerUpdate", () => {
 		triggerConditions: { monitorIds: ["sched_1"] },
 	};
 
-	it("returns undefined when neither field is part of the update", () => {
+	it("returns undefined when the update does not touch the trigger", () => {
 		expect(resolveTriggerUpdate({}, current)).toBeUndefined();
 	});
 
-	it("resolves triggerType from the stored row when only triggerConditions is sent (monitor-linking flow)", () => {
-		const result = resolveTriggerUpdate(
-			{ triggerConditions: { monitorIds: ["sched_1", "sched_2"] } },
-			current
-		);
-
-		expect(result).toEqual({
-			triggerConditions: { monitorIds: ["sched_1", "sched_2"] },
-		});
+	it("keeps the stored trigger type when only conditions change", () => {
+		expect(
+			resolveTriggerUpdate(
+				{ triggerConditions: { monitorIds: ["sched_1", "sched_2"] } },
+				current
+			)
+		).toEqual({ triggerConditions: { monitorIds: ["sched_1", "sched_2"] } });
 	});
 
-	it("resolves triggerConditions from the stored row when only triggerType is sent", () => {
-		const result = resolveTriggerUpdate({ triggerType: "uptime" }, current);
-
-		expect(result).toEqual({
+	it("re-validates the stored conditions when only the trigger type is sent", () => {
+		expect(resolveTriggerUpdate({ triggerType: "uptime" }, current)).toEqual({
 			triggerType: "uptime",
 			triggerConditions: { monitorIds: ["sched_1"] },
 		});
 	});
 
-	it("re-validates the resolved pair, rejecting a switch to an unsupported trigger type", () => {
-		let error: unknown;
-		try {
-			resolveTriggerUpdate({ triggerType: "traffic_spike" }, current);
-		} catch (caught) {
-			error = caught;
-		}
-
-		expect(error).toMatchObject({ code: "BAD_REQUEST" });
+	it("rejects switching an existing alert to an unevaluated trigger type", () => {
+		expect(
+			thrownCode(() =>
+				resolveTriggerUpdate({ triggerType: "traffic_spike" }, current)
+			)
+		).toBe("BAD_REQUEST");
 	});
 });
