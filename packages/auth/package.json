@@ -16,7 +16,7 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "test": "bun test src",
-    "test:integration": "BUSINESS_CONTEXT_INTEGRATION_TESTS=true MCP_OAUTH_INTEGRATION_TESTS=true REQUIRE_EMAIL_VERIFICATION=false bun test --isolate src/organization-metadata.integration.test.ts src/mcp-oauth.integration.test.ts"
+    "test:integration": "BUSINESS_CONTEXT_INTEGRATION_TESTS=true MCP_OAUTH_INTEGRATION_TESTS=true ORGANIZATION_INTEGRATION_TESTS=true REQUIRE_EMAIL_VERIFICATION=false bun test --isolate src/organization-metadata.integration.test.ts src/organization-membership-cache.integration.test.ts src/mcp-oauth.integration.test.ts"
   },
   "dependencies": {
     "@better-auth/cimd": "1.7.5",

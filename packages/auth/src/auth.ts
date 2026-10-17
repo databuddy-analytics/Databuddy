@@ -401,6 +401,32 @@ async function invalidateMemberCaches(member: {
 	}
 }
 
+async function invalidateMembershipCaches(
+	where: { organizationId: string } | { userId: string }
+): Promise<void> {
+	const members = await db.query.member.findMany({
+		where,
+		columns: { organizationId: true, userId: true },
+	});
+	await Promise.all(members.map(invalidateMemberCaches));
+}
+
+// Better Auth's leave route fires no organization hook, so the cached role
+// would keep granting access until it expires.
+const forgetLeftMembership = createAuthMiddleware(async (ctx) => {
+	if (
+		ctx.path !== "/organization/leave" ||
+		ctx.context.returned instanceof APIError
+	) {
+		return;
+	}
+	const { organizationId } = ctx.body as { organizationId?: string };
+	const session = await getSessionFromCtx(ctx);
+	if (organizationId && session) {
+		await invalidateMemberCaches({ organizationId, userId: session.user.id });
+	}
+});
+
 const betterAuthSystemActor: AuditActor = {
 	type: "system",
 	id: "better-auth",
@@ -763,6 +789,7 @@ const authAudit = {
 export const baseAuthOptions = {
 	hooks: {
 		before: refuseBlockedAccountDeletion,
+		after: forgetLeftMembership,
 	},
 	logger: {
 		log: forwardAuthLog,
@@ -778,10 +805,6 @@ export const baseAuthOptions = {
 	}),
 	session: {
 		storeSessionInDatabase: true,
-		cookieCache: {
-			enabled: true,
-			maxAge: 5 * 60,
-		},
 	},
 	rateLimit: {
 		window: 60,
@@ -968,7 +991,10 @@ export const baseAuthOptions = {
 						operation: "auth.deleteUser",
 						request: request ? toAuditRequest(request) : undefined,
 					},
-					() => deleteSoleMemberOrganizations(userToDelete.id)
+					async () => {
+						await invalidateMembershipCaches({ userId: userToDelete.id });
+						await deleteSoleMemberOrganizations(userToDelete.id);
+					}
 				),
 			afterDelete: (deletedUser, request) => {
 				const requestContext = request ? toAuditRequest(request) : undefined;
@@ -1180,6 +1206,7 @@ export const baseAuthOptions = {
 					return Promise.resolve();
 				},
 				beforeDeleteOrganization: async ({ organization }) => {
+					await invalidateMembershipCaches({ organizationId: organization.id });
 					try {
 						await deleteOrganizationWithBusinessMemory(organization.id);
 					} catch (error) {
@@ -1291,7 +1318,13 @@ export const baseAuthOptions = {
 						toAuditActor(inviter)
 					);
 				},
-				afterAcceptInvitation: async ({ invitation, organization, user }) => {
+				afterAcceptInvitation: async ({
+					invitation,
+					member,
+					organization,
+					user,
+				}) => {
+					await invalidateMemberCaches(member);
 					await recordAuthAudit(
 						organization.id,
 						{

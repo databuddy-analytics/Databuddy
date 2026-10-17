@@ -1,6 +1,5 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
 import {
-	customSessionClient,
 	emailOTPClient,
 	lastLoginMethodClient,
 	magicLinkClient,
@@ -9,13 +8,11 @@ import {
 	twoFactorClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
-import type { auth } from "../auth";
 import { ac, admin, member, owner } from "../permissions";
 
 export const authClient = createAuthClient({
 	plugins: [
 		oauthProviderClient(),
-		customSessionClient<typeof auth>(),
 		twoFactorClient(),
 		multiSessionClient(),
 		emailOTPClient(),
