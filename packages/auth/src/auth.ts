@@ -36,6 +36,7 @@ import {
 	getRedisCache,
 	invalidateOrganizationMembershipCaches,
 	ratelimit,
+	runAuthStorageCommand,
 } from "@databuddy/redis";
 import {
 	appendAuditEvent,
@@ -786,6 +787,11 @@ const authAudit = {
 	hooks: { after: [{ matcher: () => true, handler: recordAuthOutcome }] },
 } satisfies BetterAuthPlugin;
 
+const sessionStorage = redisStorage({
+	client: getRedisCache(),
+	keyPrefix: "ba:",
+});
+
 export const baseAuthOptions = {
 	hooks: {
 		before: refuseBlockedAccountDeletion,
@@ -799,10 +805,12 @@ export const baseAuthOptions = {
 		schema,
 		transaction: true,
 	}),
-	secondaryStorage: redisStorage({
-		client: getRedisCache(),
-		keyPrefix: "ba:",
-	}),
+	secondaryStorage: {
+		...sessionStorage,
+		get: (key) => runAuthStorageCommand(() => sessionStorage.get(key)),
+		getAndDelete: (key) =>
+			runAuthStorageCommand(() => sessionStorage.getAndDelete(key)),
+	},
 	session: {
 		storeSessionInDatabase: true,
 	},
