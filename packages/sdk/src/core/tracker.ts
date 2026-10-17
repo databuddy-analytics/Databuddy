@@ -18,8 +18,7 @@ const PENDING_LIMIT = 100;
 const PENDING_POLL_MS = 150;
 const PENDING_TIMEOUT_MS = 15_000;
 
-// Must match the tracker's inactivity window: it rotates `did_session` once
-// the timestamp is older than this, so a stale id is no longer current.
+// Mirrors the tracker's inactivity window (packages/tracker uses the literal).
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const pendingCalls: Array<() => void> = [];
@@ -176,11 +175,7 @@ export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 	}
 }
 
-/**
- * Get current session ID. Priority: URL params → active tracker → sessionStorage.
- * The stored id resets after 30 min inactivity — except while the tracker runs
- * on the page, where the stored id is returned as-is (the tracker owns rotation).
- */
+/** Get current session ID. Priority: URL params → active tracker → sessionStorage (null once the tracker's 30-minute window has passed). */
 export function getSessionId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
@@ -199,9 +194,8 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 			return null;
 		}
 		if (isTrackerAvailable()) {
-			// The tracker only refreshes `did_session_timestamp` on page load
-			// (and bfcache restore), yet keeps sending the same `did_session`
-			// across SPA navigations — a stale timestamp does not mean rotation.
+			// A running tracker keeps its in-memory id across SPA navigations without
+			// refreshing did_session_timestamp, so a stale timestamp is not a rotation.
 			return storedId;
 		}
 		const storedAt = Number.parseInt(
