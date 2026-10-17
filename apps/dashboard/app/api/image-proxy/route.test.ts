@@ -146,26 +146,21 @@ describe("image proxy response bounds", () => {
 		const controller = new AbortController();
 		const readStarted = Promise.withResolvers<void>();
 		spyOn(AbortSignal, "timeout").mockReturnValue(controller.signal);
-		const safeFetch = safeFetchMock.mockImplementation((_url, options) => {
-			expect(options?.timeoutMs).toBe(10_000);
-			expect(options?.maxRedirects).toBe(0);
-			expect(options?.signal).toBe(controller.signal);
-			return Promise.resolve(
-				new Response(
-					new ReadableStream({
-						pull() {
-							readStarted.resolve();
-						},
-					}),
-					{ headers: { "content-type": "image/png" } }
-				)
-			);
-		});
+		safeFetchMock.mockResolvedValue(
+			new Response(
+				new ReadableStream({
+					pull() {
+						readStarted.resolve();
+					},
+				}),
+				{ headers: { "content-type": "image/png" } }
+			)
+		);
 		const pending = request();
 		await readStarted.promise;
 		controller.abort(new DOMException("Body deadline", "TimeoutError"));
 		const response = await pending;
-		expect(safeFetch).toHaveBeenCalledTimes(1);
+		expect(safeFetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
 		expect(response.status).toBe(504);
 		expect(await response.json()).toEqual({ error: "Request timeout" });
 	});

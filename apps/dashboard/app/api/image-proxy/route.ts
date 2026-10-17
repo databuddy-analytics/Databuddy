@@ -76,24 +76,22 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			return NextResponse.json({ error: "Image too large" }, { status: 400 });
 		}
 
-		// Keep one bounded buffer rather than retaining an unbounded body or a
-		// potentially huge list of small chunks. Check before copying each chunk.
-		const image = new Uint8Array(MAX_IMAGE_SIZE);
+		const chunks: Uint8Array<ArrayBuffer>[] = [];
 		let bytesRead = 0;
 		await response.body?.pipeTo(
-			new WritableStream<Uint8Array>({
+			new WritableStream<Uint8Array<ArrayBuffer>>({
 				write(chunk) {
-					if (bytesRead + chunk.byteLength > MAX_IMAGE_SIZE) {
+					bytesRead += chunk.byteLength;
+					if (bytesRead > MAX_IMAGE_SIZE) {
 						throw new ImageTooLargeError();
 					}
-					image.set(chunk, bytesRead);
-					bytesRead += chunk.byteLength;
+					chunks.push(chunk);
 				},
 			}),
 			{ signal: deadline }
 		);
 
-		return new NextResponse(image.subarray(0, bytesRead), {
+		return new NextResponse(new Blob(chunks), {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
@@ -121,8 +119,7 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			{ status: 500 }
 		);
 	} finally {
-		// Release rejected or unread upstream bodies; cancellation may reject if
-		// the stream has already failed or was aborted by the request deadline.
+		// cancel() rejects when the body already errored or was aborted.
 		await response?.body?.cancel().catch(() => undefined);
 	}
 });
