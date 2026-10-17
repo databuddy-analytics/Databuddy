@@ -62,10 +62,22 @@ export function captureError<Fields extends object = Record<string, unknown>>(
 		return;
 	}
 	if (requestLog) {
-		if (payload) {
-			requestLog.error(err, payload);
-		} else {
-			requestLog.error(err);
+		try {
+			if (payload) {
+				requestLog.error(err, payload);
+			} else {
+				requestLog.error(err);
+			}
+		} catch {
+			// evlog's mergeInto can throw when the error object contains frozen/sealed
+			// sub-objects (e.g. AutumnDefaultError.rawResponse). Fall back to plain
+			// logging so captureError never propagates and disrupts error-handling callers.
+			log.error({
+				service: "api",
+				error_message: err.message,
+				...(err.stack ? { error_stack: err.stack } : {}),
+				...(payload ?? {}),
+			});
 		}
 		return;
 	}
