@@ -213,7 +213,12 @@ export function SidebarUtilities({ collapsed }: { collapsed: boolean }) {
 				collapsed ? "items-center px-1.5" : "px-2"
 			)}
 		>
-			<div className="flex items-center gap-0.5">
+			<div
+				className={cn(
+					"flex gap-0.5",
+					collapsed ? "flex-col items-center" : "items-center"
+				)}
+			>
 				<SupportMenu collapsed={collapsed} />
 				<ThemeCycleButton collapsed={collapsed} />
 			</div>
