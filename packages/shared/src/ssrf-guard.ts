@@ -209,6 +209,7 @@ async function fetchPinnedWithUndici(
 
 const CROSS_ORIGIN_REDIRECT_HEADERS = new Set([
 	"accept",
+	"accept-encoding",
 	"accept-language",
 	"content-type",
 	"user-agent",
