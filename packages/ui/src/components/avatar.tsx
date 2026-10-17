@@ -63,15 +63,12 @@ export function Avatar({
 					.toUpperCase()
 			: "?");
 
-	// Forget a previous failure once the source changes, so retrying that
-	// URL later gets a fresh load attempt instead of staying on fallback.
-	if (failedSrc !== null && failedSrc !== src) {
+	// Clearing during render lets a source that failed earlier retry when it is set again.
+	if (failedSrc !== null && failedSrc !== safeSrc) {
 		setFailedSrc(null);
 	}
 
-	const failed = failedSrc !== null && failedSrc === src;
-
-	if (!safeSrc || failed) {
+	if (!safeSrc || failedSrc === safeSrc) {
 		return <span className={cn(avatar({ size }), className)}>{initials}</span>;
 	}
 
@@ -81,11 +78,7 @@ export function Avatar({
 		<img
 			alt={alt}
 			className={cn(avatar({ size }), "object-cover", className)}
-			onError={() => {
-				if (typeof src === "string") {
-					setFailedSrc(src);
-				}
-			}}
+			onError={() => setFailedSrc(safeSrc)}
 			src={safeSrc}
 			{...rest}
 		/>
