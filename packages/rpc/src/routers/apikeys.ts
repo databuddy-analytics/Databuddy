@@ -102,22 +102,14 @@ const rateLimitSchema = z.object({
 	window: z.number().int().positive().nullable().optional(),
 });
 
-const expirationSchema = z.iso.datetime({ offset: true });
-
-function parseExpiration(value: string | null | undefined) {
-	if (value === null || value === undefined) {
-		return value;
-	}
-	const parsed = expirationSchema.safeParse(value);
-	if (!parsed.success) {
-		throw rpcError.badRequest("Expiration must be a valid ISO 8601 timestamp");
-	}
-	const expiresAt = new Date(parsed.data);
-	if (expiresAt.getTime() <= Date.now()) {
-		throw rpcError.badRequest("Expiration must be in the future");
-	}
-	return expiresAt;
-}
+export const apiKeyExpiresAtSchema = z.iso
+	.datetime({
+		offset: true,
+		message: "Enter the expiration as an ISO 8601 timestamp with a timezone.",
+	})
+	.refine((value) => new Date(value).getTime() > Date.now(), {
+		message: "The expiration must be in the future.",
+	});
 
 const apiKeyOutputSchema = z.object({
 	id: z.string(),
@@ -341,7 +333,7 @@ export const apikeysRouter = {
 				scopes: z.array(scopeEnum).default([]),
 				resources: resourcesSchema.optional(),
 				tags: z.array(z.string().max(50)).max(10).optional(),
-				expiresAt: z.string().optional(),
+				expiresAt: apiKeyExpiresAtSchema.optional(),
 				ratelimit: rateLimitSchema.optional(),
 			})
 		)
@@ -349,7 +341,6 @@ export const apikeysRouter = {
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ type: input.type, has_expiry: !!input.expiresAt });
 			await authorizeKeyManagement(context, input.organizationId);
-			const expiresAt = parseExpiration(input.expiresAt);
 
 			const grantingScopes =
 				input.scopes.length > 0 ||
@@ -400,7 +391,7 @@ export const apikeysRouter = {
 						rateLimitEnabled: input.ratelimit?.enabled ?? true,
 						rateLimitMax: input.ratelimit?.max,
 						rateLimitTimeWindow: input.ratelimit?.window,
-						expiresAt: expiresAt ?? null,
+						expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
 						metadata: nextMetadata,
 					})
 					.returning();
@@ -458,14 +449,13 @@ export const apikeysRouter = {
 				scopes: z.array(scopeEnum).optional(),
 				resources: resourcesSchema.nullable().optional(),
 				tags: z.array(z.string().max(50)).max(10).nullable().optional(),
-				expiresAt: z.string().nullable().optional(),
+				expiresAt: apiKeyExpiresAtSchema.nullable().optional(),
 				ratelimit: rateLimitSchema.optional(),
 			})
 		)
 		.output(apiKeyOutputSchema)
 		.handler(async ({ context, input }) => {
 			const key = await getAuthorizedKey(context, input.id);
-			const expiresAt = parseExpiration(input.expiresAt);
 			const meta = getMeta(key);
 
 			const grantingScopes =
@@ -510,8 +500,8 @@ export const apikeysRouter = {
 								...(input.name !== undefined && { name: input.name }),
 								...(input.enabled !== undefined && { enabled: input.enabled }),
 								...(input.scopes !== undefined && { scopes: input.scopes }),
-								...(expiresAt !== undefined && {
-									expiresAt,
+								...(input.expiresAt !== undefined && {
+									expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
 								}),
 								...(input.ratelimit?.enabled !== undefined && {
 									rateLimitEnabled: input.ratelimit.enabled,
