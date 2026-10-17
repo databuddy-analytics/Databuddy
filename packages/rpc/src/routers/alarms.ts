@@ -5,7 +5,10 @@ import {
 	alarmTriggerTypeValues,
 	websites,
 } from "@databuddy/db/schema";
-import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
+import {
+	FORBIDDEN_WEBHOOK_HEADERS,
+	MAX_ALARM_DESTINATIONS,
+} from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
 import { createSelectSchema } from "drizzle-orm/zod";
@@ -22,25 +25,13 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const FORBIDDEN_HEADER_NAMES = new Set([
-	"authorization",
-	"cookie",
-	"host",
-	"connection",
-	"content-length",
-	"transfer-encoding",
-	"x-forwarded-for",
-	"x-forwarded-host",
-	"x-real-ip",
-]);
-
 const webhookHeadersSchema = z
 	.record(
 		z
 			.string()
 			.min(1)
 			.max(128)
-			.refine((name) => !FORBIDDEN_HEADER_NAMES.has(name.toLowerCase()), {
+			.refine((name) => !FORBIDDEN_WEBHOOK_HEADERS.has(name.toLowerCase()), {
 				message:
 					"This header cannot be set on a webhook. Use a different header name.",
 			}),
@@ -100,6 +91,55 @@ const alarmOutputSchema = createSelectSchema(alarms, {
 		createSelectSchema(alarmDestinations, { config: jsonRecord })
 	),
 });
+
+const uptimeTriggerConditionsSchema = z.object({
+	monitorIds: z.array(z.string().min(1)).default([]),
+});
+
+export function parseTriggerConditions(
+	triggerType: string,
+	triggerConditions: Record<string, unknown>
+): Record<string, unknown> {
+	if (triggerType !== "uptime") {
+		throw rpcError.badRequest(
+			`Only uptime alerts can be created or updated right now; nothing evaluates "${triggerType}" alerts yet.`
+		);
+	}
+	const result = uptimeTriggerConditionsSchema.safeParse(triggerConditions);
+	if (!result.success) {
+		throw rpcError.badRequest(
+			`Invalid trigger conditions: ${result.error.issues
+				.map((issue) => issue.message)
+				.join("; ")}`
+		);
+	}
+	return result.data;
+}
+
+interface TriggerFields {
+	triggerConditions: Record<string, unknown>;
+	triggerType: string;
+}
+
+export function resolveTriggerUpdate(
+	input: Partial<TriggerFields>,
+	current: TriggerFields
+): Partial<TriggerFields> | undefined {
+	if (
+		input.triggerType === undefined &&
+		input.triggerConditions === undefined
+	) {
+		return;
+	}
+	const triggerType = input.triggerType ?? current.triggerType;
+	return {
+		...(input.triggerType === undefined ? {} : { triggerType }),
+		triggerConditions: parseTriggerConditions(
+			triggerType,
+			input.triggerConditions ?? current.triggerConditions
+		),
+	};
+}
 
 function maskTail(value: string, keep = 4): string {
 	if (value.length <= keep) {
@@ -240,6 +280,11 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
+			const triggerConditions = parseTriggerConditions(
+				input.triggerType,
+				input.triggerConditions
+			);
+
 			setTrackProperties({
 				trigger_type: input.triggerType,
 				destination_count: input.destinations.length,
@@ -269,7 +314,7 @@ export const alarmsRouter = {
 					description: input.description ?? null,
 					enabled: input.enabled,
 					triggerType: input.triggerType,
-					triggerConditions: input.triggerConditions,
+					triggerConditions,
 					createdAt: now,
 					updatedAt: now,
 				});
@@ -336,9 +381,13 @@ export const alarmsRouter = {
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
-			const updateData = Object.fromEntries(
-				Object.entries(fields).filter(([_, v]) => v !== undefined)
-			);
+			const resolvedTrigger = resolveTriggerUpdate(input, alarm);
+			const updateData = {
+				...Object.fromEntries(
+					Object.entries(fields).filter(([_, v]) => v !== undefined)
+				),
+				...resolvedTrigger,
+			};
 
 			await withTransaction(async (tx) => {
 				await tx
