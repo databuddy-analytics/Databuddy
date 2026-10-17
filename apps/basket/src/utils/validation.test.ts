@@ -97,6 +97,16 @@ describe("redactSensitiveQueryParams", () => {
 			"/cb?token=abc&page=2#access_token=xyz&state=ok",
 			"/cb?token=REDACTED&page=2#access_token=REDACTED&state=ok",
 		],
+		[
+			"hash-routed query",
+			"/#/reset?token=abc&page=2",
+			"/#/reset?token=REDACTED&page=2",
+		],
+		[
+			"fragment route and fragment query both redacted",
+			"/cb#access_token=secret&state=/next?x=1",
+			"/cb#access_token=REDACTED&state=%2Fnext?x=1",
+		],
 		["relative path with otp", "/verify?otp=123456", "/verify?otp=REDACTED"],
 		["empty string", "", ""],
 	];

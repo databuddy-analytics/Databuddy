@@ -133,7 +133,11 @@ export function redactSensitiveQueryParams(input: string): string {
 			? beforeHash
 			: `${beforeHash.slice(0, queryIndex)}?${redactParams(beforeHash.slice(queryIndex + 1))}`;
 	if (hashIndex !== -1) {
-		result += `#${redactParams(input.slice(hashIndex + 1))}`;
+		result += `#${input
+			.slice(hashIndex + 1)
+			.split("?")
+			.map(redactParams)
+			.join("?")}`;
 	}
 	return result;
 }
