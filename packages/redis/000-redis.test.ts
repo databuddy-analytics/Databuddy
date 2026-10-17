@@ -1,4 +1,12 @@
-import { afterAll, describe, expect, it, mock } from "bun:test";
+import {
+	afterAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	mock,
+	setSystemTime,
+} from "bun:test";
 import {
 	createLinkCacheRedisConnectionOptions,
 	createRateLimitRedisConnectionOptions,
@@ -8,7 +16,8 @@ process.env.REDIS_URL = "redis://test-host:6379";
 
 const {
 	getRedisCache,
-	runAuthCacheCommand,
+	resetAuthStorageFailFast,
+	runAuthStorageCommand,
 	runLinkCacheCommand,
 	runRateLimitCommand,
 	shutdownRedis,
@@ -105,40 +114,63 @@ describe("redis", () => {
 			expect(linkCacheError.message).not.toContain("failing fast");
 		});
 	});
-	describe("auth cache fail-fast", () => {
+	describe("auth storage fail-fast", () => {
+		beforeEach(() => {
+			resetAuthStorageFailFast();
+		});
 		afterAll(async () => {
+			setSystemTime();
 			await shutdownRedis();
 		});
 
-		it("rejects immediately after a recent failure without running the operation", async () => {
+		it("opens a window after a timed-out read and fails fast inside it", async () => {
 			await expect(
-				runAuthCacheCommand(async () => {
-					throw new Error("redis down");
-				})
-			).rejects.toThrow("redis down");
+				runAuthStorageCommand(() => new Promise<never>(() => {}))
+			).rejects.toThrow("exceeded");
 
 			const operation = mock(async () => "value");
 			const startedAt = performance.now();
-			await expect(runAuthCacheCommand(operation)).rejects.toThrow(
+			await expect(runAuthStorageCommand(operation)).rejects.toThrow(
 				"failing fast"
 			);
 			expect(performance.now() - startedAt).toBeLessThan(100);
 			expect(operation).not.toHaveBeenCalled();
 		});
 
-		it("tracks its window independently of the link cache", async () => {
-			await shutdownRedis();
+		it("keeps the window open when an earlier read succeeds late", async () => {
+			let finishEarlier = (value: string) => value;
+			const earlier = runAuthStorageCommand(
+				() =>
+					new Promise<string>((resolve) => {
+						finishEarlier = (value) => {
+							resolve(value);
+							return value;
+						};
+					})
+			);
 			await expect(
-				runAuthCacheCommand(async () => {
+				runAuthStorageCommand(async () => {
 					throw new Error("redis down");
 				})
 			).rejects.toThrow("redis down");
 
-			const linkCacheError = await runLinkCacheCommand(
-				async () => "value"
-			).catch((caught: Error) => caught);
-			expect(linkCacheError).toBeInstanceOf(Error);
-			expect(linkCacheError.message).not.toContain("failing fast");
+			finishEarlier("stale success");
+			await expect(earlier).resolves.toBe("stale success");
+			await expect(runAuthStorageCommand(async () => "value")).rejects.toThrow(
+				"failing fast"
+			);
+		});
+
+		it("probes again once the window has expired", async () => {
+			await expect(
+				runAuthStorageCommand(async () => {
+					throw new Error("redis down");
+				})
+			).rejects.toThrow("redis down");
+			setSystemTime(new Date(Date.now() + 6000));
+			await expect(runAuthStorageCommand(async () => "value")).resolves.toBe(
+				"value"
+			);
 		});
 	});
 });

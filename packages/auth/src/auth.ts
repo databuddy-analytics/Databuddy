@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { redisStorage } from "@better-auth/redis-storage";
 import {
 	defineRequestState,
 	runWithTransaction,
@@ -32,8 +33,10 @@ import {
 import { billingMode, config, readBooleanEnv } from "@databuddy/env/app";
 import { SlackProvider } from "@databuddy/notifications";
 import {
+	getRedisCache,
 	invalidateOrganizationMembershipCaches,
 	ratelimit,
+	runAuthStorageCommand,
 } from "@databuddy/redis";
 import {
 	appendAuditEvent,
@@ -75,7 +78,6 @@ import { maskEmail } from "evlog/better-auth";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 import { getAuthAuditContext, runWithAuthAuditContext } from "./audit-context";
-import { createAuthSecondaryStorage } from "./auth-redis-storage";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -785,6 +787,11 @@ const authAudit = {
 	hooks: { after: [{ matcher: () => true, handler: recordAuthOutcome }] },
 } satisfies BetterAuthPlugin;
 
+const sessionStorage = redisStorage({
+	client: getRedisCache(),
+	keyPrefix: "ba:",
+});
+
 export const baseAuthOptions = {
 	hooks: {
 		before: refuseBlockedAccountDeletion,
@@ -798,7 +805,12 @@ export const baseAuthOptions = {
 		schema,
 		transaction: true,
 	}),
-	secondaryStorage: createAuthSecondaryStorage(),
+	secondaryStorage: {
+		...sessionStorage,
+		get: (key) => runAuthStorageCommand(() => sessionStorage.get(key)),
+		getAndDelete: (key) =>
+			runAuthStorageCommand(() => sessionStorage.getAndDelete(key)),
+	},
 	session: {
 		storeSessionInDatabase: true,
 	},

@@ -18,11 +18,11 @@ export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
 const REDIS_FAIL_FAST_WINDOW_MS = 5000;
 const RATE_LIMIT_CONNECT_DEADLINE_MS = 1250;
 export const RATE_LIMIT_OPERATION_DEADLINE_MS = 1500;
-export const AUTH_CACHE_OPERATION_DEADLINE_MS = 1500;
+export const AUTH_STORAGE_OPERATION_DEADLINE_MS = 1500;
 
 let linkCacheFailFastUntil = 0;
 let rateLimitFailFastUntil = 0;
-let authCacheFailFastUntil = 0;
+let authStorageFailFastUntil = 0;
 
 export function resetLinkCacheFailFast(): void {
 	linkCacheFailFastUntil = 0;
@@ -32,8 +32,8 @@ export function resetRateLimitFailFast(): void {
 	rateLimitFailFastUntil = 0;
 }
 
-export function resetAuthCacheFailFast(): void {
-	authCacheFailFastUntil = 0;
+export function resetAuthStorageFailFast(): void {
+	authStorageFailFastUntil = 0;
 }
 
 function withDeadline<T>(
@@ -162,12 +162,6 @@ export function runRateLimitCommand<T>(
 	return runRateLimitRedisCommand(operation);
 }
 
-export function runAuthCacheCommand<T>(
-	operation: (redis: Redis) => Promise<T>
-): Promise<T> {
-	return runAuthCacheRedisCommand(operation);
-}
-
 let _linkCacheTimingFn: ((durationMs: number) => void) | null = null;
 
 export function setLinkCacheTimingFn(
@@ -239,23 +233,24 @@ async function runRateLimitRedisCommand<T>(
 	}
 }
 
-async function runAuthCacheRedisCommand<T>(
-	operation: (redis: Redis) => Promise<T>
+// The window is never cleared by a success: a read started before the failure
+// may still resolve inside it, and would otherwise reopen the slow path early.
+export async function runAuthStorageCommand<T>(
+	operation: () => Promise<T>
 ): Promise<T> {
-	if (Date.now() < authCacheFailFastUntil) {
-		throw new Error("Auth cache is failing fast after a recent Redis failure");
-	}
-
-	try {
-		const result = await withDeadline(
-			Promise.resolve(operation(getRedisCache())),
-			AUTH_CACHE_OPERATION_DEADLINE_MS,
-			`Auth cache operation exceeded ${AUTH_CACHE_OPERATION_DEADLINE_MS}ms`
+	if (Date.now() < authStorageFailFastUntil) {
+		throw new Error(
+			"Auth storage is failing fast after a recent Redis failure"
 		);
-		authCacheFailFastUntil = 0;
-		return result;
+	}
+	try {
+		return await withDeadline(
+			operation(),
+			AUTH_STORAGE_OPERATION_DEADLINE_MS,
+			`Auth storage operation exceeded ${AUTH_STORAGE_OPERATION_DEADLINE_MS}ms`
+		);
 	} catch (error) {
-		authCacheFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
+		authStorageFailFastUntil = Date.now() + REDIS_FAIL_FAST_WINDOW_MS;
 		throw error;
 	}
 }
@@ -263,7 +258,7 @@ async function runAuthCacheRedisCommand<T>(
 export async function shutdownRedis() {
 	resetLinkCacheFailFast();
 	resetRateLimitFailFast();
-	resetAuthCacheFailFast();
+	resetAuthStorageFailFast();
 	const linkCacheInstance = linkCacheRedisInstance;
 	linkCacheRedisInstance = null;
 	linkCacheConnectPromise = null;
