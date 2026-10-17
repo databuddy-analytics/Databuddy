@@ -102,6 +102,15 @@ const rateLimitSchema = z.object({
 	window: z.number().int().positive().nullable().optional(),
 });
 
+export const apiKeyExpiresAtSchema = z.iso
+	.datetime({
+		offset: true,
+		message: "Enter the expiration as an ISO 8601 timestamp with a timezone.",
+	})
+	.refine((value) => new Date(value).getTime() > Date.now(), {
+		message: "The expiration must be in the future.",
+	});
+
 const apiKeyOutputSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -324,7 +333,7 @@ export const apikeysRouter = {
 				scopes: z.array(scopeEnum).default([]),
 				resources: resourcesSchema.optional(),
 				tags: z.array(z.string().max(50)).max(10).optional(),
-				expiresAt: z.string().optional(),
+				expiresAt: apiKeyExpiresAtSchema.optional(),
 				ratelimit: rateLimitSchema.optional(),
 			})
 		)
@@ -440,7 +449,7 @@ export const apikeysRouter = {
 				scopes: z.array(scopeEnum).optional(),
 				resources: resourcesSchema.nullable().optional(),
 				tags: z.array(z.string().max(50)).max(10).nullable().optional(),
-				expiresAt: z.string().nullable().optional(),
+				expiresAt: apiKeyExpiresAtSchema.nullable().optional(),
 				ratelimit: rateLimitSchema.optional(),
 			})
 		)
