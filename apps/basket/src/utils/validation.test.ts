@@ -121,6 +121,11 @@ describe("sanitizeUrl", () => {
 	test("applies sanitizeString rules", () =>
 		expect(sanitizeUrl("/a<script>b</script>?q=1")).toBe("/ab?q=1"));
 
+	test("keeps & so query parameters stay separate", () =>
+		expect(sanitizeUrl("/pricing?utm_source=x&plan=pro")).toBe(
+			"/pricing?utm_source=x&plan=pro"
+		));
+
 	test("respects maxLength", () =>
 		expect(sanitizeUrl("/abcdefghij", 5)).toBe("/abcd"));
 });
