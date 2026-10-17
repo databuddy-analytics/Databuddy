@@ -33,7 +33,7 @@ export function Avatar({
 	fallback,
 	...rest
 }: AvatarProps) {
-	const [failed, setFailed] = useState(false);
+	const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
 	const safeSrc = (() => {
 		if (!src || typeof src !== "string") {
@@ -63,7 +63,12 @@ export function Avatar({
 					.toUpperCase()
 			: "?");
 
-	if (!safeSrc || failed) {
+	// Clearing during render lets a source that failed earlier retry when it is set again.
+	if (failedSrc !== null && failedSrc !== safeSrc) {
+		setFailedSrc(null);
+	}
+
+	if (!safeSrc || failedSrc === safeSrc) {
 		return <span className={cn(avatar({ size }), className)}>{initials}</span>;
 	}
 
@@ -73,7 +78,7 @@ export function Avatar({
 		<img
 			alt={alt}
 			className={cn(avatar({ size }), "object-cover", className)}
-			onError={() => setFailed(true)}
+			onError={() => setFailedSrc(safeSrc)}
 			src={safeSrc}
 			{...rest}
 		/>

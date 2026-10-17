@@ -38,3 +38,45 @@ test("renames the account, changes the password, and signs back in", {
 	await page.getByRole("button", { name: "Sign in", exact: true }).click();
 	await expectDashboardReady(page);
 });
+
+const ONE_PX_PNG = Buffer.from(
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+	"base64"
+);
+
+test("recovers the profile photo preview after a failed image load", {
+	tag: "@core",
+}, async ({ authenticatedPage: page }) => {
+	await page.goto("/settings/account");
+
+	const fullName = page.getByRole("textbox", { name: "Full Name" });
+	await fullName.fill("Avatar Case");
+	const avatarImage = page.getByRole("img", { name: "Avatar Case" });
+	const imageUrlField = page.getByLabel("Image URL");
+
+	let brokenAttempts = 0;
+	await page.route("https://avatars.example/avatar-broken.png", (route) => {
+		brokenAttempts += 1;
+		return route.abort();
+	});
+	await imageUrlField.fill("https://avatars.example/avatar-broken.png");
+	await expect(avatarImage).toHaveCount(0);
+	await expect(page.getByText("AC", { exact: true })).toBeVisible();
+
+	await page.route("https://avatars.example/avatar-fixed.png", (route) =>
+		route.fulfill({ body: ONE_PX_PNG, contentType: "image/png" })
+	);
+	await imageUrlField.fill("https://avatars.example/avatar-fixed.png");
+	await expect(avatarImage).toBeVisible();
+
+	await page.route("https://avatars.example/avatar-broken-again.png", (route) =>
+		route.abort()
+	);
+	await imageUrlField.fill("https://avatars.example/avatar-broken-again.png");
+	await expect(avatarImage).toHaveCount(0);
+	await expect(page.getByText("AC", { exact: true })).toBeVisible();
+
+	await imageUrlField.fill("https://avatars.example/avatar-broken.png");
+	await expect.poll(() => brokenAttempts).toBeGreaterThan(1);
+	await expect(avatarImage).toHaveCount(0);
+});

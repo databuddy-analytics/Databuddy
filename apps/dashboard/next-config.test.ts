@@ -171,6 +171,17 @@ assert.equal(window.oaiq?.q?.some(args => args[0] === "measure") ?? false, ${sel
 		});
 	});
 
+	it("allows profile photos from any https origin", async () => {
+		await withEnv({ NODE_ENV: "production" }, async () => {
+			const csp = await getCspHeader("/((?!demo|public).*)");
+			const images = csp
+				.split(";")
+				.find((part) => part.trim().startsWith("img-src"));
+
+			expect(images?.split(" ")).toContain("https:");
+		});
+	});
+
 	it("allows the Dub conversion tracking script on app routes", async () => {
 		await withEnv({ NODE_ENV: "production" }, async () => {
 			const csp = await getCspHeader("/((?!demo|public).*)");
