@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	generateAgentPrompt,
+	generateNextJsCode,
 	generateNpmCode,
 	generateScriptTag,
 	generateVueCode,
@@ -20,11 +21,12 @@ describe("recommended tracking snippets", () => {
 				"-e",
 				`
 import assert from "node:assert/strict";
-import { generateAgentPrompt, generateNodeCode, generateNpmCode, generateScriptTag, generateVueCode } from "./code-generators";
+import { generateAgentPrompt, generateNextJsCode, generateNodeCode, generateNpmCode, generateScriptTag, generateVueCode } from "./code-generators";
 import { RECOMMENDED_DEFAULTS } from "./tracking-defaults";
 const snippets = [
   generateScriptTag("example-client-id", RECOMMENDED_DEFAULTS),
   generateNpmCode("example-client-id", RECOMMENDED_DEFAULTS),
+  generateNextJsCode("example-client-id", RECOMMENDED_DEFAULTS),
   generateNodeCode("example-client-id"),
   generateVueCode("example-client-id", RECOMMENDED_DEFAULTS),
 ];
@@ -115,6 +117,22 @@ assert.ok(prompt.includes("## Common issues"));
 		expect(script).toContain('data-sampling-rate="0.5"');
 		expect(script).not.toContain("data-enable-batching");
 		expect(script).not.toContain("data-track-attributes");
+	});
+
+	it("generates a Next.js root layout that compiles and mounts Databuddy inside the body", () => {
+		const layout = generateNextJsCode("example-client-id", {
+			...RECOMMENDED_DEFAULTS,
+			trackInteractions: false,
+		});
+		const transpiled = new Bun.Transpiler({ loader: "tsx" }).transformSync(
+			layout
+		);
+
+		expect(transpiled).toContain("RootLayout");
+		expect(layout).toMatch(/export default function RootLayout\(/);
+		expect(layout).toMatch(
+			/<html lang="en">\s*<body>[\s\S]*<Databuddy\s[\s\S]*clientId="example-client-id"[\s\S]*trackInteractions=\{false\}[\s\S]*\/>\s*<\/body>\s*<\/html>/
+		);
 	});
 
 	it("asks for optional install feedback without code or secrets, and only names real options", () => {

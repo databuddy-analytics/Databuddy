@@ -375,35 +375,29 @@ ${isSelfHosted ? `    data-api-url="${publicConfig.urls.basket}"\n` : ""}${optio
     async
   ></script>`;
 }
+function meaningfulOptions(trackingOptions: TrackingOptions) {
+	return Object.entries(trackingOptions).filter(([key, value]) => {
+		const actualDefault = ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
+		if (value === actualDefault) {
+			return false;
+		}
+		return !(typeof value === "boolean" && !value && !actualDefault);
+	});
+}
+
+function reactProps(trackingOptions: TrackingOptions, indent: string): string {
+	const props = meaningfulOptions(trackingOptions).map(([key, value]) =>
+		typeof value === "string"
+			? `${indent}  ${key}="${value}"`
+			: `${indent}  ${key}={${value}}`
+	);
+	return props.length > 0 ? `\n${props.join("\n")}\n${indent}` : "";
+}
+
 export function generateNpmCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions
 ): string {
-	const meaningfulProps = Object.entries(trackingOptions)
-		.filter(([key, value]) => {
-			const actualDefault =
-				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
-			if (value === actualDefault) {
-				return false;
-			}
-			if (typeof value === "boolean" && !value && !actualDefault) {
-				return false;
-			}
-			return true;
-		})
-		.map(([key, value]) => {
-			if (typeof value === "boolean") {
-				return `        ${key}={${value}}`;
-			}
-			if (typeof value === "string") {
-				return `        ${key}="${value}"`;
-			}
-			return `        ${key}={${value}}`;
-		});
-
-	const propsString =
-		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}\n      ` : "";
-
 	return `import { Databuddy } from '@databuddy/sdk/react';
 
 function AppLayout({ children }) {
@@ -411,8 +405,31 @@ function AppLayout({ children }) {
     <>
       {children}
       <Databuddy
-${isSelfHosted ? `        apiUrl="${publicConfig.urls.basket}"\n` : ""}        clientId="${websiteId}"${propsString}/>
+${isSelfHosted ? `        apiUrl="${publicConfig.urls.basket}"\n` : ""}        clientId="${websiteId}"${reactProps(trackingOptions, "      ")}/>
     </>
+  );
+}`;
+}
+
+export function generateNextJsCode(
+	websiteId: string,
+	trackingOptions: TrackingOptions
+): string {
+	return `import { Databuddy } from '@databuddy/sdk/react';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Databuddy
+${isSelfHosted ? `          apiUrl="${publicConfig.urls.basket}"\n` : ""}          clientId="${websiteId}"${reactProps(trackingOptions, "        ")}/>
+      </body>
+    </html>
   );
 }`;
 }
@@ -442,27 +459,12 @@ export function generateVueCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions
 ): string {
-	const meaningfulProps = Object.entries(trackingOptions)
-		.filter(([key, value]) => {
-			const actualDefault =
-				ACTUAL_LIBRARY_DEFAULTS[key as keyof TrackingOptions];
-			if (value === actualDefault) {
-				return false;
-			}
-			if (typeof value === "boolean" && !value && !actualDefault) {
-				return false;
-			}
-			return true;
-		})
-		.map(([key, value]) => {
-			if (typeof value === "boolean") {
-				return `      :${kebabCase(key)}="${value}"`;
-			}
-			if (typeof value === "string") {
-				return `      ${kebabCase(key)}="${value}"`;
-			}
-			return `      :${kebabCase(key)}="${value}"`;
-		});
+	const meaningfulProps = meaningfulOptions(trackingOptions).map(
+		([key, value]) =>
+			typeof value === "string"
+				? `      ${kebabCase(key)}="${value}"`
+				: `      :${kebabCase(key)}="${value}"`
+	);
 
 	const propsString =
 		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}` : "";
