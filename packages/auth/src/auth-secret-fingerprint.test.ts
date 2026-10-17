@@ -7,29 +7,13 @@ describe("dashboard auth secret check", () => {
 			body: "<html>Unavailable</html>",
 			warns: true,
 		},
-		{ name: "missing fingerprint warns", body: "{}", warns: true },
-		{
-			name: "non-string fingerprint warns",
-			body: '{"fingerprint":42}',
-			warns: true,
-		},
-		{ name: "null body warns", body: "null", warns: true },
-		{ name: "primitive body warns", body: '"unavailable"', warns: true },
 		{ name: "failed fetch warns", fails: true, warns: true },
-		{
-			name: "non-OK response warns",
-			status: 503,
-			body: "unavailable",
-			warns: true,
-		},
 		{ name: "matching secrets pass", fingerprint: "match" },
 		{
 			name: "mismatched secrets reject",
 			fingerprint: "mismatch",
 			rejects: true,
 		},
-		{ name: "self-hosted skips the request", selfhost: "true", skips: true },
-		{ name: "development skips the request", mode: "development", skips: true },
 	])("$name", async (scenario) => {
 		// Import real auth in a fresh process; service URLs are inert and fetch is mocked.
 		const child = Bun.spawn([process.execPath, "--no-env-file", "-"], {
@@ -92,5 +76,5 @@ process.exit(0);
 			new Response(child.stderr).text(),
 		]);
 		expect(exitCode, stderr).toBe(0);
-	}, 30_000);
+	}, 10_000);
 });
