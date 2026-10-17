@@ -18,6 +18,9 @@ const PENDING_LIMIT = 100;
 const PENDING_POLL_MS = 150;
 const PENDING_TIMEOUT_MS = 15_000;
 
+// Mirrors the tracker's inactivity window (packages/tracker uses the literal).
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+
 const pendingCalls: Array<() => void> = [];
 let pendingPoll: ReturnType<typeof setInterval> | undefined;
 let pendingSince = 0;
@@ -172,7 +175,7 @@ export function getAnonymousId(urlParams?: URLSearchParams): string | null {
 	}
 }
 
-/** Get current session ID. Priority: URL params → active tracker → sessionStorage. */
+/** Get current session ID. Priority: URL params → active tracker → sessionStorage (null once the tracker's 30-minute window has passed). */
 export function getSessionId(urlParams?: URLSearchParams): string | null {
 	if (typeof window === "undefined") {
 		return null;
@@ -183,9 +186,29 @@ export function getSessionId(urlParams?: URLSearchParams): string | null {
 	}
 	try {
 		const activeIds = getTracker()?.getTrackingIds?.();
-		return activeIds
-			? activeIds.sessionId
-			: sessionStorage.getItem("did_session") || null;
+		if (activeIds) {
+			return activeIds.sessionId;
+		}
+		const storedId = sessionStorage.getItem("did_session");
+		if (!storedId) {
+			return null;
+		}
+		if (isTrackerAvailable()) {
+			// A running tracker keeps its in-memory id across SPA navigations without
+			// refreshing did_session_timestamp, so a stale timestamp is not a rotation.
+			return storedId;
+		}
+		const storedAt = Number.parseInt(
+			sessionStorage.getItem("did_session_timestamp") ?? "",
+			10
+		);
+		if (
+			!Number.isFinite(storedAt) ||
+			Date.now() - storedAt >= SESSION_TIMEOUT_MS
+		) {
+			return null;
+		}
+		return storedId;
 	} catch {
 		return null;
 	}

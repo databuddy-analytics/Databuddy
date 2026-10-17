@@ -166,12 +166,109 @@ test.describe("SDK Functions", () => {
 			expect(result).toBeNull();
 		});
 
-		test("returns did_session from sessionStorage", async ({ page }) => {
+		test("returns did_session when the session is fresh", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-456");
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getSessionId();
 			});
 			expect(result).toBe("sess-456");
+		});
+
+		test("returns null when did_session has no timestamp", async ({ page }) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-no-timestamp");
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
+		});
+
+		test("returns null when the session is older than 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-expired");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
+		});
+
+		test("returns the session at exactly the 30 minute boundary as expired", async ({
+			page,
+		}) => {
+			await page.clock.install({ time: new Date("2026-06-01T12:00:00.000Z") });
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-boundary");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 30 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBeNull();
+		});
+
+		test("returns did_session just before the 30 minute boundary", async ({
+			page,
+		}) => {
+			await page.clock.install({ time: new Date("2026-06-01T12:00:00.000Z") });
+			const result = await page.evaluate(() => {
+				sessionStorage.setItem("did_session", "sess-fresh-boundary");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - (30 * 60 * 1000 - 1000)).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-fresh-boundary");
+		});
+
+		test("returns the stored id when the tracker is running, even past 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				(window as any).databuddy = {
+					track: () => {},
+					screenView: () => {},
+					setGlobalProperties: () => {},
+					clear: () => {},
+					flush: () => {},
+					getTrackingIds: () => ({
+						anonId: "anon-live",
+						sessionId: "sess-live",
+					}),
+					options: {},
+				};
+				sessionStorage.setItem("did_session", "sess-live");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-live");
+		});
+
+		test("returns the stored id for a tracker without getTrackingIds, even past 30 minutes", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(() => {
+				(window as any).databuddy = {
+					track: () => {},
+					options: {},
+				};
+				sessionStorage.setItem("did_session", "sess-legacy");
+				sessionStorage.setItem(
+					"did_session_timestamp",
+					(Date.now() - 31 * 60 * 1000).toString()
+				);
+				return window.__SDK__.getSessionId();
+			});
+			expect(result).toBe("sess-legacy");
 		});
 
 		test("prioritizes URL param over sessionStorage", async ({ page }) => {
@@ -267,6 +364,7 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-x");
 				sessionStorage.setItem("did_session", "sess-y");
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getTrackingIds();
 			});
 			expect(result.anonId).toBe("anon-x");
@@ -285,6 +383,7 @@ test.describe("SDK Functions", () => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-a");
 				sessionStorage.setItem("did_session", "sess-b");
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				return window.__SDK__.getTrackingParams();
 			});
 
@@ -367,6 +466,7 @@ test.describe("SDK Functions", () => {
 		}) => {
 			const result = await page.evaluate(() => {
 				sessionStorage.setItem("did_session", "sess-ok");
+				sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 				const { getItem } = Storage.prototype;
 				localStorage.getItem = () => {
 					throw new DOMException("Access denied", "SecurityError");
