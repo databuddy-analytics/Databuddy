@@ -48,7 +48,8 @@ const BASE_QUERY_BUILDERS = {
 } satisfies Record<string, SimpleQueryConfig>;
 
 export const PUBLIC_QUERY_TYPES = new Set<string>([
-	// Overview dashboard
+	// Public sharing exposes only the aggregate overview. Other sections require
+	// website permission, even when the website itself is public.
 	"summary_metrics",
 	"today_metrics",
 	"active_stats",
@@ -72,45 +73,6 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 	"country",
 	"region",
 	"city",
-
-	// Public audience tab
-	"timezone",
-	"language",
-	"browser_versions",
-	"screen_resolution",
-
-	// Public product analytics tabs
-	"custom_events",
-	"custom_event_properties",
-	"custom_events_by_path",
-	"custom_events_trends",
-	"custom_events_trends_by_event",
-	"custom_events_summary",
-	"custom_events_property_cardinality",
-	"custom_events_recent",
-	"custom_events_property_classification",
-	"custom_events_property_top_values",
-	"custom_events_property_distribution",
-	"custom_events_discovery",
-
-	// Public error diagnostics
-	"recent_errors",
-	"error_types",
-	"error_trends",
-	"errors_by_page",
-	"error_frequency",
-	"error_summary",
-	"error_chart_data",
-	"errors_by_type",
-
-	// Public web-vitals diagnostics
-	"vitals_overview",
-	"vitals_time_series",
-	"vitals_by_page",
-	"vitals_by_country",
-	"vitals_by_browser",
-	"vitals_by_region",
-	"vitals_by_city",
 ] satisfies QueryType[]);
 
 export type QueryType = keyof typeof BASE_QUERY_BUILDERS;
@@ -125,9 +87,9 @@ export const QueryBuilders: Record<QueryType, SimpleQueryConfig> =
 	Object.fromEntries(
 		Object.entries(BASE_QUERY_BUILDERS).map(([type, config]) => [
 			type,
-			PUBLIC_QUERY_TYPES.has(type) ? { ...config, publicAccess: true } : config,
+			{ ...config, publicAccess: PUBLIC_QUERY_TYPES.has(type) },
 		])
-	) as typeof BASE_QUERY_BUILDERS;
+	) as Record<QueryType, SimpleQueryConfig>;
 
 export const WEBSITE_QUERY_BUILDERS = (
 	Object.entries(QueryBuilders) as [QueryType, SimpleQueryConfig][]

@@ -25,5 +25,5 @@ interface OutboundLinksSectionData {
 export interface OutboundLinksSectionProps {
 	data: OutboundLinksSectionData;
 	isLoading: boolean;
-	onAddFilterAction: (field: string, value: string) => void;
+	onAddFilterAction?: (field: string, value: string) => void;
 }
