@@ -29,7 +29,6 @@ import {
 	generateNodeCode,
 	generateNpmCode,
 	generateScriptTag,
-	generateTanStackCode,
 	generateVueCode,
 	type VersionedScript,
 } from "../utils/code-generators";
@@ -205,7 +204,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 		? generateScriptTag(websiteId, trackingOptions, activeVersionedScript)
 		: null;
 	const nextCode = generateNextJsCode(websiteId, trackingOptions);
-	const tanStackCode = generateTanStackCode(websiteId, trackingOptions);
 	const npmCode = generateNpmCode(websiteId, trackingOptions);
 	const nodeCode = generateNodeCode(websiteId);
 	const vueCode = generateVueCode(websiteId, trackingOptions);
@@ -289,10 +287,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 							<Tabs.Tab value="nextjs">
 								<PackageIcon className="size-3.5" />
 								Next.js
-							</Tabs.Tab>
-							<Tabs.Tab value="tanstack">
-								<PackageIcon className="size-3.5" />
-								TanStack
 							</Tabs.Tab>
 							<Tabs.Tab value="react">
 								<PackageIcon className="size-3.5" />
@@ -391,60 +385,39 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 						<Tabs.Panel className="mt-4 space-y-4" value="nextjs">
 							<div className="space-y-3">
 								<p className="text-pretty text-muted-foreground text-sm">
-									Install the SDK:
+									Install the SDK with the package manager your project already
+									uses.
 								</p>
 								<PackageInstallTabs />
 							</div>
 
 							<div className="space-y-3">
 								<p className="text-pretty text-muted-foreground text-sm">
-									Mount the component in your root layout (e.g.{" "}
+									Mount the component once in your root layout, usually{" "}
 									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
 										app/layout.tsx
 									</code>
-									):
+									, so every page is tracked.
 								</p>
 								<CodeBlock code={nextCode} language="tsx">
 									<CodeBlockCopyButton />
 								</CodeBlock>
 							</div>
 
-							<div className="text-pretty rounded border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
-								You can also store your Client ID as{" "}
+							<div className="text-pretty rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
+								If you would rather keep the Client ID out of the code, set{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
 									NEXT_PUBLIC_DATABUDDY_CLIENT_ID
 								</code>{" "}
-								in your{" "}
+								in{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
 									.env.local
 								</code>{" "}
-								file and omit the{" "}
+								and leave out the{" "}
 								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
 									clientId
 								</code>{" "}
-								prop.
-							</div>
-						</Tabs.Panel>
-
-						<Tabs.Panel className="mt-4 space-y-4" value="tanstack">
-							<div className="space-y-3">
-								<p className="text-pretty text-muted-foreground text-sm">
-									Install the SDK:
-								</p>
-								<PackageInstallTabs />
-							</div>
-
-							<div className="space-y-3">
-								<p className="text-pretty text-muted-foreground text-sm">
-									Mount the component in your root route (e.g.{" "}
-									<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
-										src/routes/__root.tsx
-									</code>
-									):
-								</p>
-								<CodeBlock code={tanStackCode} language="tsx">
-									<CodeBlockCopyButton />
-								</CodeBlock>
+								prop; the SDK reads it automatically.
 							</div>
 						</Tabs.Panel>
 
