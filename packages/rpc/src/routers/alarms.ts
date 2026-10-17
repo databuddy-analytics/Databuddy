@@ -175,9 +175,7 @@ async function requireAlarmWebsite(
 			)
 		);
 	if (ownedWebsites.length === 0) {
-		throw rpcError.badRequest(
-			"This alert can only be linked to a website in the selected organization."
-		);
+		throw rpcError.notFound("Website", websiteId);
 	}
 }
 
