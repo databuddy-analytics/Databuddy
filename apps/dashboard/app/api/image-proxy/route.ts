@@ -16,6 +16,8 @@ const ALLOWED_CONTENT_TYPES = [
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const TIMEOUT_MESSAGE_PATTERN = /timed out/;
 
+class ImageTooLargeError extends Error {}
+
 export const GET = withEvlog(async (request: NextRequest) => {
 	const log = useLogger();
 	// Without a configured trusted proxy, unverified traffic shares one bucket
@@ -40,9 +42,12 @@ export const GET = withEvlog(async (request: NextRequest) => {
 
 	log.set({ image: { host: URL.parse(url)?.host } });
 
+	const deadline = AbortSignal.timeout(10_000);
+	let response: Response | undefined;
 	try {
-		const response = await safeFetch(url, {
+		response = await safeFetch(url, {
 			timeoutMs: 10_000,
+			signal: deadline,
 			maxRedirects: 0,
 			headers: {
 				"User-Agent": "Databuddy Image Proxy/1.0",
@@ -71,13 +76,22 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			return NextResponse.json({ error: "Image too large" }, { status: 400 });
 		}
 
-		const arrayBuffer = await response.arrayBuffer();
+		const chunks: Uint8Array<ArrayBuffer>[] = [];
+		let bytesRead = 0;
+		await response.body?.pipeTo(
+			new WritableStream<Uint8Array<ArrayBuffer>>({
+				write(chunk) {
+					bytesRead += chunk.byteLength;
+					if (bytesRead > MAX_IMAGE_SIZE) {
+						throw new ImageTooLargeError();
+					}
+					chunks.push(chunk);
+				},
+			}),
+			{ signal: deadline }
+		);
 
-		if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
-			return NextResponse.json({ error: "Image too large" }, { status: 400 });
-		}
-
-		return new NextResponse(arrayBuffer, {
+		return new NextResponse(new Blob(chunks), {
 			status: 200,
 			headers: {
 				"Content-Type": contentType,
@@ -87,6 +101,12 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			},
 		});
 	} catch (error) {
+		if (deadline.aborted) {
+			return NextResponse.json({ error: "Request timeout" }, { status: 504 });
+		}
+		if (error instanceof ImageTooLargeError) {
+			return NextResponse.json({ error: "Image too large" }, { status: 400 });
+		}
 		if (error instanceof SsrfError) {
 			return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
 		}
@@ -98,5 +118,8 @@ export const GET = withEvlog(async (request: NextRequest) => {
 			{ error: "Failed to fetch image" },
 			{ status: 500 }
 		);
+	} finally {
+		// cancel() rejects when the body already errored or was aborted.
+		await response?.body?.cancel().catch(() => undefined);
 	}
 });
