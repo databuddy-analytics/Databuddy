@@ -49,41 +49,34 @@ test("recovers the profile photo preview after a failed image load", {
 }, async ({ authenticatedPage: page }) => {
 	await page.goto("/settings/account");
 
-	// Pin the avatar's accessible name without saving, so the preview can be
-	// asserted deterministically regardless of the seeded profile.
 	const fullName = page.getByRole("textbox", { name: "Full Name" });
 	await fullName.fill("Avatar Case");
 	const avatarImage = page.getByRole("img", { name: "Avatar Case" });
 	const imageUrlField = page.getByLabel("Image URL");
 
 	let brokenAttempts = 0;
-	await page.route("https://images.unsplash.com/avatar-broken.png", (route) => {
+	await page.route("https://avatars.example/avatar-broken.png", (route) => {
 		brokenAttempts += 1;
 		return route.abort();
 	});
-	await imageUrlField.fill("https://images.unsplash.com/avatar-broken.png");
+	await imageUrlField.fill("https://avatars.example/avatar-broken.png");
 	await expect(avatarImage).toHaveCount(0);
 	await expect(page.getByText("AC", { exact: true })).toBeVisible();
 
-	await page.route("https://images.unsplash.com/avatar-fixed.png", (route) =>
+	await page.route("https://avatars.example/avatar-fixed.png", (route) =>
 		route.fulfill({ body: ONE_PX_PNG, contentType: "image/png" })
 	);
-	await imageUrlField.fill("https://images.unsplash.com/avatar-fixed.png");
+	await imageUrlField.fill("https://avatars.example/avatar-fixed.png");
 	await expect(avatarImage).toBeVisible();
 
-	await page.route(
-		"https://images.unsplash.com/avatar-broken-again.png",
-		(route) => route.abort()
+	await page.route("https://avatars.example/avatar-broken-again.png", (route) =>
+		route.abort()
 	);
-	await imageUrlField.fill(
-		"https://images.unsplash.com/avatar-broken-again.png"
-	);
+	await imageUrlField.fill("https://avatars.example/avatar-broken-again.png");
 	await expect(avatarImage).toHaveCount(0);
 	await expect(page.getByText("AC", { exact: true })).toBeVisible();
 
-	// Retyping a previously failed URL must retry the load instead of
-	// staying stuck on the fallback without a new request.
-	await imageUrlField.fill("https://images.unsplash.com/avatar-broken.png");
+	await imageUrlField.fill("https://avatars.example/avatar-broken.png");
 	await expect.poll(() => brokenAttempts).toBeGreaterThan(1);
 	await expect(avatarImage).toHaveCount(0);
 });
