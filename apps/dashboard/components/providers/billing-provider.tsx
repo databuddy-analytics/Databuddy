@@ -196,6 +196,8 @@ function AuthenticatedBillingProvider({
 	const {
 		data: customer,
 		isLoading: isCustomerLoading,
+		isError: isCustomerError,
+		isFetching: isCustomerFetching,
 		refetch: refetchCustomer,
 	} = useCustomer();
 
@@ -208,6 +210,8 @@ function AuthenticatedBillingProvider({
 	const {
 		data: billingContext,
 		isLoading: isBillingContextLoading,
+		isError: isBillingContextError,
+		isFetching: isBillingContextFetching,
 		refetch: refetchBillingContext,
 	} = useQuery({
 		...orpc.organizations.getBillingContext.queryOptions({
@@ -308,8 +312,12 @@ function AuthenticatedBillingProvider({
 		return {
 			customer: customer ?? null,
 			plans: plans ?? [],
-			isError: false,
-			isFetching: false,
+			isError:
+				(isCustomerError && !customer) ||
+				(isBillingContextError && !billingContext),
+			isFetching:
+				(isCustomerFetching && !customer) ||
+				(isBillingContextFetching && !billingContext),
 			isLoading: isCustomerLoading || isPlansLoading || isBillingContextLoading,
 			hasActiveSubscription: Boolean(billingContext?.hasActiveSubscription),
 			currentPlanId,
@@ -327,8 +335,12 @@ function AuthenticatedBillingProvider({
 		customer,
 		plans,
 		billingContext,
+		isCustomerError,
+		isCustomerFetching,
 		isCustomerLoading,
 		isPlansLoading,
+		isBillingContextError,
+		isBillingContextFetching,
 		isBillingContextLoading,
 		refetchCustomer,
 		refetchBillingContext,
