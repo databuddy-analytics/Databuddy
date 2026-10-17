@@ -285,7 +285,12 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	private revalidate(key: string, cacheKey: string, user?: UserContext): void {
 		const existing = this.cache.get(cacheKey);
-		if (existing?.refreshing || (existing && !existing.result)) {
+		if (
+			this.config.disabled ||
+			this.config.isPending ||
+			existing?.refreshing ||
+			(existing && !existing.result)
+		) {
 			return;
 		}
 

@@ -834,6 +834,54 @@ describe("ServerFlagsManager", () => {
 			expect(state.loading).toBe(false);
 			expect(state.status).toBe("ready");
 		});
+
+		async function expectInactiveStaleReadSkipsRevalidation(inactive: {
+			disabled: boolean;
+			isPending: boolean;
+			reason: string;
+		}) {
+			const manager = await create({
+				clientId: "test-id",
+				autoFetch: true,
+				staleTime: 1,
+			});
+			await sleep(5);
+			const callsBefore = fetchMock.calls.length;
+
+			manager.updateConfig({
+				clientId: "test-id",
+				disabled: inactive.disabled,
+				isPending: inactive.isPending,
+			});
+			expect(manager.isEnabled("feature-on")).toMatchObject({
+				on: true,
+				status: "ready",
+				loading: false,
+				value: true,
+			});
+			expect(manager.getValue("feature-on", "fallback")).toBe(true);
+			expect((await manager.getFlag("feature-on")).reason).toBe(
+				inactive.reason
+			);
+			await sleep(20);
+			expect(fetchMock.calls.length).toBe(callsBefore);
+		}
+
+		it("skips revalidation when evaluation is disabled", async () => {
+			await expectInactiveStaleReadSkipsRevalidation({
+				disabled: true,
+				isPending: false,
+				reason: "DEFAULT",
+			});
+		});
+
+		it("skips revalidation when evaluation is pending", async () => {
+			await expectInactiveStaleReadSkipsRevalidation({
+				disabled: false,
+				isPending: true,
+				reason: "SESSION_PENDING",
+			});
+		});
 	});
 
 	describe("getValue", () => {
