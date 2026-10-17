@@ -13,7 +13,7 @@ export interface AlarmNotificationTarget {
 	clientConfig: NotificationClientConfig;
 }
 
-const FORBIDDEN_WEBHOOK_HEADERS = new Set([
+export const FORBIDDEN_WEBHOOK_HEADERS = new Set([
 	"authorization",
 	"content-length",
 	"content-type",

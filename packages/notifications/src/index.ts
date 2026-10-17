@@ -6,5 +6,6 @@ export * from "./types";
 export {
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
+	FORBIDDEN_WEBHOOK_HEADERS,
 	MAX_ALARM_DESTINATIONS,
 } from "./alarm-config";

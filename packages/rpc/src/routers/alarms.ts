@@ -4,7 +4,10 @@ import {
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
-import { MAX_ALARM_DESTINATIONS } from "@databuddy/notifications";
+import {
+	FORBIDDEN_WEBHOOK_HEADERS,
+	MAX_ALARM_DESTINATIONS,
+} from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { SLACK_WEBHOOK_PATTERN } from "@databuddy/shared/uptime";
 import { createSelectSchema } from "drizzle-orm/zod";
@@ -21,25 +24,13 @@ import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const FORBIDDEN_HEADER_NAMES = new Set([
-	"authorization",
-	"cookie",
-	"host",
-	"connection",
-	"content-length",
-	"transfer-encoding",
-	"x-forwarded-for",
-	"x-forwarded-host",
-	"x-real-ip",
-]);
-
 const webhookHeadersSchema = z
 	.record(
 		z
 			.string()
 			.min(1)
 			.max(128)
-			.refine((name) => !FORBIDDEN_HEADER_NAMES.has(name.toLowerCase()), {
+			.refine((name) => !FORBIDDEN_WEBHOOK_HEADERS.has(name.toLowerCase()), {
 				message:
 					"This header cannot be set on a webhook. Use a different header name.",
 			}),
