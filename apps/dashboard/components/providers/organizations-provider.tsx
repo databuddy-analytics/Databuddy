@@ -1,16 +1,15 @@
 "use client";
 
 import { authClient, useSession } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import {
+	ORGANIZATIONS_QUERY_KEY,
+	resetActiveOrganizationQueries,
+} from "@/lib/active-organization-queries";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 export type { Organization } from "@/stores/jotai/organization-types";
-
-export const AUTH_QUERY_KEYS = {
-	organizations: ["auth", "organizations"] as const,
-	activeOrganization: ["auth", "activeOrganization"] as const,
-} as const;
 
 type SessionData = ReturnType<typeof useSession>["data"];
 
@@ -26,7 +25,7 @@ function useOrganizationsQuery() {
 	const isAuthenticated = Boolean(session?.user);
 
 	const { data, isPending: isLoadingOrgs } = useQuery({
-		queryKey: AUTH_QUERY_KEYS.organizations,
+		queryKey: ORGANIZATIONS_QUERY_KEY,
 		queryFn: async () => {
 			const result = await authClient.organization.list();
 			return result.data ?? [];
@@ -49,6 +48,22 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	const { activeOrganizationId } = useOrganizationsQuery();
 	const [pendingActiveOrganizationId, setPendingActiveOrganizationId] = useAtom(
 		pendingActiveOrganizationIdAtom
+	);
+	const queryClient = useQueryClient();
+	const store = useStore();
+
+	// Better Auth raises this signal after every call that changes the session:
+	// switching, creating, deleting or leaving an organization, accepting an
+	// invitation, being removed, and signing out. An explicit switch has already
+	// reset the queries before it navigates.
+	useEffect(
+		() =>
+			authClient.$store.atoms.$sessionSignal?.listen(() => {
+				if (store.get(pendingActiveOrganizationIdAtom) === null) {
+					resetActiveOrganizationQueries(queryClient);
+				}
+			}),
+		[queryClient, store]
 	);
 
 	useEffect(() => {

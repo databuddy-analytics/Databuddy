@@ -22,8 +22,7 @@ export function CreateOrganizationDialog({
 	isOpen,
 	onClose,
 }: CreateOrganizationDialogProps) {
-	const { createOrganization, isCreatingOrganization, setActiveOrganization } =
-		useOrganizations();
+	const { createOrganization, isCreatingOrganization } = useOrganizations();
 
 	const [name, setName] = useState("");
 	const [slug, setSlug] = useState("");
@@ -88,14 +87,7 @@ export function CreateOrganizationDialog({
 				name: name.trim(),
 				slug: slug.trim(),
 			},
-			{
-				onSuccess: (organization) => {
-					if (organization?.id) {
-						setActiveOrganization(organization.id);
-					}
-					handleClose();
-				},
-			}
+			{ onSuccess: handleClose }
 		);
 	};
 

@@ -1,9 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, test } from "bun:test";
-import { AUTH_QUERY_KEYS } from "@/components/providers/organizations-provider";
 import { insightQueries } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
-import { resetActiveOrganizationQueries } from "./active-organization-queries";
+import {
+	ORGANIZATIONS_QUERY_KEY,
+	resetActiveOrganizationQueries,
+} from "./active-organization-queries";
 
 describe("resetActiveOrganizationQueries", () => {
 	test("removes organization data without clearing unrelated query state", async () => {
@@ -18,7 +20,7 @@ describe("resetActiveOrganizationQueries", () => {
 			insightQueries.historyInfinite("old-org").queryKey,
 			"old insight feed"
 		);
-		queryClient.setQueryData(AUTH_QUERY_KEYS.activeOrganization, "old org");
+		queryClient.setQueryData(ORGANIZATIONS_QUERY_KEY, ["old org"]);
 
 		await resetActiveOrganizationQueries(queryClient);
 
@@ -33,8 +35,7 @@ describe("resetActiveOrganizationQueries", () => {
 		).toBeUndefined();
 		expect(queryClient.getQueryData(unrelatedKey)).toBe("keep");
 		expect(
-			queryClient.getQueryState(AUTH_QUERY_KEYS.activeOrganization)
-				?.isInvalidated
+			queryClient.getQueryState(ORGANIZATIONS_QUERY_KEY)?.isInvalidated
 		).toBe(true);
 	});
 });

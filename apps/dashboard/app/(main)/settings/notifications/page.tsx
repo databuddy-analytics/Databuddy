@@ -13,7 +13,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
 import { orpc } from "@/lib/orpc";
 import {
 	type AlarmData,
@@ -43,7 +42,6 @@ export default function NotificationsSettingsPage() {
 }
 
 function useSwitchToLinkedOrganization() {
-	const queryClient = useQueryClient();
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -63,9 +61,7 @@ function useSwitchToLinkedOrganization() {
 			linkedOrganizationId !== activeOrganization?.id &&
 			organizations.some((org) => org.id === linkedOrganizationId)
 		) {
-			setActiveOrganization(linkedOrganizationId, {
-				onSuccess: () => resetActiveOrganizationQueries(queryClient),
-			});
+			setActiveOrganization(linkedOrganizationId);
 		}
 		const params = new URLSearchParams(searchParams.toString());
 		params.delete("organization");
@@ -78,7 +74,6 @@ function useSwitchToLinkedOrganization() {
 		isLoading,
 		organizations,
 		pathname,
-		queryClient,
 		router,
 		searchParams,
 		setActiveOrganization,

@@ -137,7 +137,7 @@ const PERSISTED_ROUTERS = new Set([
 	"insights",
 ]);
 
-const PERSISTED_FLAT_KEYS = new Set(["auth", "insights"]);
+const PERSISTED_FLAT_KEYS = new Set(["insights"]);
 
 function isPersistableQuery(query: Query): boolean {
 	if (query.state.status !== "success") {

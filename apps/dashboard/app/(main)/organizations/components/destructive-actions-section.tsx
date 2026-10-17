@@ -1,9 +1,13 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { type Organization, useOrganizations } from "@/hooks/use-organizations";
+import {
+	type Organization,
+	useOrganizationMembers,
+	useOrganizations,
+} from "@/hooks/use-organizations";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { TransferAssets } from "./transfer-assets";
 import { Dialog } from "@databuddy/ui/client";
@@ -27,31 +31,18 @@ export function DestructiveActionsSection({
 	const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [isLeaving, setIsLeaving] = useState(false);
-	const [isOwner, setIsOwner] = useState<boolean | null>(null);
 	const [confirmText, setConfirmText] = useState("");
 
 	const { deleteOrganization, leaveOrganization } = useOrganizations();
-
-	useEffect(() => {
-		const checkOwnership = async () => {
-			if (!session?.user?.id) {
-				return;
-			}
-			try {
-				const { data: fullOrgData } =
-					await authClient.organization.getFullOrganization({
-						query: { organizationId: organization.id },
-					});
-				const member = fullOrgData?.members?.find(
-					(m) => m.userId === session.user.id
-				);
-				setIsOwner(member?.role === "owner");
-			} catch {
-				setIsOwner(false);
-			}
-		};
-		checkOwnership();
-	}, [organization.id, session?.user?.id]);
+	const { members, isLoading: isLoadingMembers } = useOrganizationMembers(
+		organization.id
+	);
+	const isOwner = isLoadingMembers
+		? null
+		: members.some(
+				(member) =>
+					member.userId === session?.user.id && member.role === "owner"
+			);
 
 	const handleDelete = () => {
 		if (confirmText !== organization.name) {

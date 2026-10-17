@@ -3,10 +3,9 @@
 import { APP_EVENTS } from "@databuddy/shared/custom-events";
 import { trackAppEvent } from "@/lib/app-events";
 import { authClient } from "@databuddy/auth/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { TopBar } from "@/components/layout/top-bar";
 import {
@@ -276,7 +275,6 @@ function ErrorState({ message }: { message: string }) {
 export default function AcceptInvitationPage() {
 	const router = useRouter();
 	const params = useParams();
-	const queryClient = useQueryClient();
 	const invitationId = params.id as string;
 
 	const [actionStatus, setActionStatus] = useState<ActionStatus>("idle");
@@ -317,14 +315,11 @@ export default function AcceptInvitationPage() {
 		if (result.data) {
 			setActionStatus("success");
 			trackAppEvent(APP_EVENTS.invitationAccepted, { role: invitation.role });
-			queryClient.invalidateQueries({
-				queryKey: orpc.organizations.getUserPendingInvitations.key(),
-			});
 		} else {
 			setActionStatus("idle");
 			showErrorToast(result.error, "Failed to accept invitation");
 		}
-	}, [invitation, invitationId, queryClient]);
+	}, [invitation, invitationId]);
 
 	const handleDecline = useCallback(() => {
 		router.push("/websites");

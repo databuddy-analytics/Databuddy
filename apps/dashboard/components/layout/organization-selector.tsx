@@ -2,13 +2,8 @@
 
 import { isSelfHosted } from "@databuddy/env/public";
 
-import { authClient } from "@databuddy/auth/client";
-import { useQueryClient } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
-import { showErrorToast } from "@/lib/user-facing-error";
 import {
 	CaretDownIcon,
 	CheckIcon,
@@ -19,11 +14,9 @@ import {
 } from "@databuddy/ui/icons";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
-import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { cn } from "@/lib/utils";
-import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
 import { Badge, Skeleton, Tooltip, useHydrated } from "@databuddy/ui";
 
@@ -124,23 +117,19 @@ export function OrganizationSelector({
 	collapsed?: boolean;
 	container?: HTMLElement | null;
 }) {
-	const queryClient = useQueryClient();
 	const router = useRouter();
 	const {
 		organizations,
 		activeOrganization,
 		isLoading,
 		isSwitchingOrganization,
-	} = useOrganizationsContext();
+		setActiveOrganization,
+	} = useOrganizations();
 	const { currentPlanId } = useBillingContext();
 	const hydrated = useHydrated();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState("");
-	const setPendingActiveOrganizationId = useSetAtom(
-		pendingActiveOrganizationIdAtom
-	);
-
 	const planLabel = currentPlanId
 		? getCustomerPlanName(
 				currentPlanId,
@@ -154,27 +143,14 @@ export function OrganizationSelector({
 		router.push(href);
 	};
 
-	const handleSelectOrganization = async (organizationId: string) => {
+	const handleSelectOrganization = (organizationId: string) => {
 		if (organizationId === activeOrganization?.id) {
 			return;
 		}
-
-		setPendingActiveOrganizationId(organizationId);
 		setIsOpen(false);
-
-		const { error } = await authClient.organization.setActive({
-			organizationId,
+		setActiveOrganization(organizationId, {
+			onSuccess: () => router.push("/websites"),
 		});
-
-		if (error) {
-			showErrorToast(error, "Failed to switch organization");
-			setPendingActiveOrganizationId(null);
-			return;
-		}
-
-		await resetActiveOrganizationQueries(queryClient);
-		router.push("/websites");
-		toast.success("Organization updated");
 	};
 
 	const filteredOrganizations = filterOrganizations(organizations, query);

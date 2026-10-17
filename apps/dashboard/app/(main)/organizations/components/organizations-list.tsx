@@ -1,16 +1,10 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { toast } from "sonner";
-import { showErrorToast } from "@/lib/user-facing-error";
+import { useOrganizations } from "@/hooks/use-organizations";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
-import {
-	AUTH_QUERY_KEYS,
-	type Organization,
-} from "@/components/providers/organizations-provider";
+import type { Organization } from "@/components/providers/organizations-provider";
 import { RightSidebar } from "@/components/right-sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getOrganizationInitials } from "@/lib/utils";
@@ -123,39 +117,20 @@ export function OrganizationsList({
 	activeOrganization,
 }: OrganizationsListProps) {
 	const router = useRouter();
-	const queryClient = useQueryClient();
+	const { setActiveOrganization } = useOrganizations();
 	const [processingId, setProcessingId] = useState<string | null>(null);
 	const [showCreateOrganizationDialog, setShowCreateOrganizationDialog] =
 		useState(false);
-	const handleOrgClick = async (orgId: string) => {
-		const isCurrentlyActive = activeOrganization?.id === orgId;
-
-		if (isCurrentlyActive) {
+	const handleOrgClick = (orgId: string) => {
+		if (activeOrganization?.id === orgId) {
 			router.push("/organizations/settings");
 			return;
 		}
-
 		setProcessingId(orgId);
-		try {
-			const { error } = await authClient.organization.setActive({
-				organizationId: orgId,
-			});
-			if (error) {
-				showErrorToast(error, "Failed to switch organization");
-			} else {
-				await queryClient.invalidateQueries({
-					queryKey: AUTH_QUERY_KEYS.activeOrganization,
-				});
-				queryClient.invalidateQueries();
-				toast.success("Organization updated");
-				await new Promise((resolve) => setTimeout(resolve, 300));
-				router.push("/organizations/settings");
-			}
-		} catch (error) {
-			showErrorToast(error, "Failed to switch organization");
-		} finally {
-			setProcessingId(null);
-		}
+		setActiveOrganization(orgId, {
+			onSuccess: () => router.push("/organizations/settings"),
+			onSettled: () => setProcessingId(null),
+		});
 	};
 
 	if (!organizations || organizations.length === 0) {

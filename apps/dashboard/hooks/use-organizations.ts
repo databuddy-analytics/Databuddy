@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { toast } from "sonner";
 import { showErrorToast } from "@/lib/user-facing-error";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
-	AUTH_QUERY_KEYS,
-	useOrganizationsContext,
-} from "@/components/providers/organizations-provider";
+	ORGANIZATIONS_QUERY_KEY,
+	resetActiveOrganizationQueries,
+} from "@/lib/active-organization-queries";
 import { orpc } from "@/lib/orpc";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 
@@ -24,26 +25,14 @@ interface UpdateOrganizationData {
 	slug?: string;
 }
 
-interface InviteMemberData {
-	email: string;
-	organizationId?: string;
-	resend?: boolean;
-	role: OrganizationRole;
-}
-
 export interface UpdateMemberData {
 	memberId: string;
 	organizationId?: string;
 	role: OrganizationRole;
 }
 
-const QUERY_KEYS = {
-	organizationMembers: (orgId: string) =>
-		["organizations", orgId, "members"] as const,
-	organizationInvitations: (orgId: string) =>
-		["organizations", orgId, "invitations"] as const,
-	userInvitations: ["organizations", "invitations", "user"] as const,
-} as const;
+const organizationMembersKey = (orgId: string) =>
+	["organizations", orgId, "members"] as const;
 
 const createMutation = <TData, TVariables>(
 	mutationFn: (variables: TVariables) => Promise<TData>,
@@ -75,20 +64,8 @@ export function useOrganizations() {
 		pendingActiveOrganizationIdAtom
 	);
 
-	const clearWorkspaceResourceQueries = () => {
-		queryClient.removeQueries({ queryKey: orpc.websites.key() });
-		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.links.paginated.key() });
-		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
-	};
-
-	const invalidateOrganizationQueries = () => {
-		queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEYS.organizations });
-		queryClient.invalidateQueries({
-			queryKey: AUTH_QUERY_KEYS.activeOrganization,
-		});
-		queryClient.invalidateQueries({ queryKey: orpc.websites.key() });
+	const invalidateOrganizationList = () => {
+		queryClient.invalidateQueries({ queryKey: ORGANIZATIONS_QUERY_KEY });
 	};
 
 	const createOrganizationMutation = useMutation(
@@ -107,8 +84,7 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization created",
-			"Failed to create organization",
-			invalidateOrganizationQueries
+			"Failed to create organization"
 		)
 	);
 
@@ -140,14 +116,14 @@ export function useOrganizations() {
 			},
 			"Organization updated",
 			"Failed to update organization",
-			invalidateOrganizationQueries
+			invalidateOrganizationList
 		)
 	);
 
 	const updateAvatarSeedMutation = useMutation({
 		...orpc.organizations.updateAvatarSeed.mutationOptions(),
 		onSuccess: () => {
-			invalidateOrganizationQueries();
+			invalidateOrganizationList();
 			toast.success("Avatar updated");
 		},
 		meta: { suppressGlobalErrorToast: true },
@@ -166,8 +142,7 @@ export function useOrganizations() {
 				return result;
 			},
 			"Organization deleted",
-			"Failed to delete organization",
-			invalidateOrganizationQueries
+			"Failed to delete organization"
 		)
 	);
 
@@ -176,36 +151,15 @@ export function useOrganizations() {
 			setPendingActiveOrganizationId(organizationId);
 		},
 		mutationFn: async (organizationId: string | null) => {
-			if (organizationId === null) {
-				const { data: setActiveData, error: apiError } =
-					await authClient.organization.setActive({
-						organizationId: null,
-					});
-				if (apiError) {
-					throw new Error(
-						apiError.message || "Failed to unset active organization"
-					);
-				}
-				return setActiveData;
+			const { data: result, error: apiError } =
+				await authClient.organization.setActive({ organizationId });
+			if (apiError) {
+				throw new Error(apiError.message || "Failed to switch organization");
 			}
-			const { data: setActiveData2, error: apiError2 } =
-				await authClient.organization.setActive({
-					organizationId,
-				});
-			if (apiError2) {
-				throw new Error(
-					apiError2.message || "Failed to set active organization"
-				);
-			}
-			return setActiveData2;
+			return result;
 		},
-		onSuccess: () => {
-			clearWorkspaceResourceQueries();
-			invalidateOrganizationQueries();
-			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
-			queryClient.invalidateQueries({ queryKey: orpc.links.paginated.key() });
-			queryClient.invalidateQueries({ queryKey: orpc.linkFolders.list.key() });
-			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
+		onSuccess: async () => {
+			await resetActiveOrganizationQueries(queryClient);
 			toast.success("Organization updated");
 		},
 		onError: (error) => {
@@ -228,8 +182,7 @@ export function useOrganizations() {
 				return result;
 			},
 			"Left organization",
-			"Failed to leave organization",
-			invalidateOrganizationQueries
+			"Failed to leave organization"
 		)
 	);
 
@@ -264,7 +217,7 @@ export function useOrganizationMembers(organizationId: string) {
 		error,
 		refetch,
 	} = useQuery({
-		queryKey: QUERY_KEYS.organizationMembers(organizationId),
+		queryKey: organizationMembersKey(organizationId),
 		queryFn: async () => {
 			const { data: fullOrgData, error: apiError } =
 				await authClient.organization.getFullOrganization({
@@ -280,30 +233,9 @@ export function useOrganizationMembers(organizationId: string) {
 
 	const invalidateMembers = () => {
 		queryClient.invalidateQueries({
-			queryKey: QUERY_KEYS.organizationMembers(organizationId),
+			queryKey: organizationMembersKey(organizationId),
 		});
 	};
-
-	const inviteMemberMutation = useMutation(
-		createMutation(
-			async (data: InviteMemberData) => {
-				const { data: result, error: apiError } =
-					await authClient.organization.inviteMember({
-						email: data.email,
-						role: data.role,
-						organizationId: data.organizationId,
-						resend: data.resend,
-					});
-				if (apiError) {
-					throw new Error(apiError.message || "Failed to invite member");
-				}
-				return result;
-			},
-			"Invitation sent",
-			"Failed to invite member",
-			invalidateMembers
-		)
-	);
 
 	const updateMemberMutation = useMutation(
 		createMutation(
@@ -351,11 +283,9 @@ export function useOrganizationMembers(organizationId: string) {
 		hasError: !!error,
 		refetch,
 
-		inviteMember: inviteMemberMutation.mutate,
 		updateMember: updateMemberMutation.mutate,
 		removeMember: removeMemberMutation.mutate,
 
-		isInvitingMember: inviteMemberMutation.isPending,
 		isUpdatingMember: updateMemberMutation.isPending,
 		isRemovingMember: removeMemberMutation.isPending,
 	};
